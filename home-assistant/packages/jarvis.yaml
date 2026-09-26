@@ -1,0 +1,554 @@
+# =============================================================================
+# Jarvis OS — pacchetto Home Assistant
+#
+# Tutto quello che serve lato HA sta in questo unico file: aiutanti, sensori
+# calcolati, script delle scene e automazioni. Si installa copiandolo in
+# /config/packages/ (istruzioni in home-assistant/README.md).
+#
+# Convenzione: ogni cosa creata qui ha nome/ID che inizia per "jarvis", così
+# si riconosce a colpo d'occhio e si toglie in blocco cancellando il file.
+#
+# Dispositivi reali usati (elenco di Salvatore, 26/09/2026):
+#   switch.scaldabagno              SwitchBot Bot sul pulsante dello scaldabagno
+#   climate.condizionatore          condizionatore camera, via infrarossi SwitchBot
+#   media_player.soggiorno_tv_salotto  TV Samsung Q60BA (stato affidabile)
+#   switch.tv_camera_da_letto       TV camera, via infrarossi: NON usata dalle
+#                                   automazioni (vedi "Rischio infrarossi" nel README)
+#   sensor.meter_*                  SwitchBot Meter salone e letto
+#   weather.forecast_casa           Met.no
+#   device_tracker.xiaomi_salvo     telefono di Salvatore (app HA)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Aiutanti (modificabili dal pannello Jarvis o da Impostazioni → Aiutanti)
+# -----------------------------------------------------------------------------
+input_number:
+  # Scaldabagno: soglia che fa contare una giornata come "nuvole pesanti"
+  jarvis_soglia_nuvole:
+    name: "Jarvis soglia giornata nuvolosa"
+    min: 50
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    initial: 90
+    mode: box
+    icon: mdi:weather-cloudy
+
+  # Accumulatori della media di copertura nuvolosa nelle ore di luce.
+  # Si azzerano all'alba e a fine giornata; non vanno toccati a mano.
+  jarvis_nuvole_somma:
+    name: "Jarvis nuvole somma di oggi"
+    min: 0
+    max: 100000
+    step: 1
+    mode: box
+    icon: mdi:sigma
+  jarvis_nuvole_campioni:
+    name: "Jarvis nuvole campioni di oggi"
+    min: 0
+    max: 1000
+    step: 1
+    mode: box
+    icon: mdi:counter
+
+  # Clima camera: soglie sulla temperatura PERCEPITA e temperature da impostare
+  jarvis_clima_soglia_caldo:
+    name: "Jarvis clima: raffresca sopra"
+    min: 20
+    max: 35
+    step: 0.5
+    unit_of_measurement: "°C"
+    initial: 26
+    mode: box
+    icon: mdi:thermometer-chevron-up
+  jarvis_clima_temp_raffresca:
+    name: "Jarvis clima: temperatura raffrescamento"
+    min: 16
+    max: 30
+    step: 1
+    unit_of_measurement: "°C"
+    initial: 24
+    mode: box
+    icon: mdi:snowflake
+  jarvis_clima_soglia_freddo:
+    name: "Jarvis clima: riscalda sotto"
+    min: 10
+    max: 24
+    step: 0.5
+    unit_of_measurement: "°C"
+    initial: 18
+    mode: box
+    icon: mdi:thermometer-chevron-down
+  jarvis_clima_temp_riscalda:
+    name: "Jarvis clima: temperatura riscaldamento"
+    min: 16
+    max: 30
+    step: 1
+    unit_of_measurement: "°C"
+    initial: 21
+    mode: box
+    icon: mdi:fire
+
+counter:
+  # Giornate nuvolose consecutive (si azzera con una giornata sotto soglia)
+  jarvis_giorni_nuvolosi:
+    name: "Jarvis giornate nuvolose di fila"
+    initial: 0
+    step: 1
+    minimum: 0
+    restore: true
+    icon: mdi:weather-cloudy-clock
+
+# -----------------------------------------------------------------------------
+# Sensori calcolati
+# -----------------------------------------------------------------------------
+template:
+  - sensor:
+      # Copertura nuvolosa attuale, presa dal meteo Met.no
+      - name: "Jarvis copertura nuvolosa"
+        unique_id: jarvis_copertura_nuvolosa
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:weather-cloudy
+        state: "{{ state_attr('weather.forecast_casa', 'cloud_coverage') }}"
+        availability: "{{ state_attr('weather.forecast_casa', 'cloud_coverage') is number }}"
+
+      # Temperatura percepita (Steadman, "apparent temperature" senza vento,
+      # come si usa al chiuso): AT = T + 0,33·e − 4,0
+      # con e = pressione di vapore in hPa = UR/100 · 6,105 · exp(17,27·T / (237,7+T))
+      - name: "Jarvis temperatura percepita camera"
+        unique_id: jarvis_temperatura_percepita_camera
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.meter_letto_temperatura') | float %}
+          {% set ur = states('sensor.meter_letto_umidita') | float %}
+          {% set vap = ur / 100 * 6.105 * (e ** (17.27 * t / (237.7 + t))) %}
+          {{ (t + 0.33 * vap - 4.0) | round(1) }}
+        availability: >
+          {{ has_value('sensor.meter_letto_temperatura')
+             and has_value('sensor.meter_letto_umidita') }}
+
+      - name: "Jarvis temperatura percepita soggiorno"
+        unique_id: jarvis_temperatura_percepita_soggiorno
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+        state: >
+          {% set t = states('sensor.meter_salone_temperatura') | float %}
+          {% set ur = states('sensor.meter_salone_umidita') | float %}
+          {% set vap = ur / 100 * 6.105 * (e ** (17.27 * t / (237.7 + t))) %}
+          {{ (t + 0.33 * vap - 4.0) | round(1) }}
+        availability: >
+          {{ has_value('sensor.meter_salone_temperatura')
+             and has_value('sensor.meter_salone_umidita') }}
+
+  - binary_sensor:
+      # Modalità inverno: mesi ottobre-giugno E almeno 2 giornate nuvolose di fila.
+      # Una giornata sotto soglia azzera il contatore e la spegne.
+      - name: "Jarvis scaldabagno modalita inverno"
+        unique_id: jarvis_scaldabagno_modalita_inverno
+        icon: mdi:water-boiler-auto
+        state: >
+          {{ now().month in [10, 11, 12, 1, 2, 3, 4, 5, 6]
+             and states('counter.jarvis_giorni_nuvolosi') | int(0) >= 2 }}
+
+      # Come DOVREBBE essere lo scaldabagno adesso secondo il programma:
+      #   00:00 spegni · 04:30 accendi (tutti i giorni)
+      #   11:00 spegni · 17:00 accendi (mar-sab)
+      # Solo con la modalità inverno attiva; fuori modalità è sempre "off"
+      # e lo scaldabagno resta come l'hai lasciato tu.
+      - name: "Jarvis scaldabagno programma"
+        unique_id: jarvis_scaldabagno_programma
+        icon: mdi:calendar-clock
+        state: >
+          {% set n = now() %}
+          {% set minuti = n.hour * 60 + n.minute %}
+          {% set pausa_giorno = n.isoweekday() in [2, 3, 4, 5, 6]
+                                and 11 * 60 <= minuti < 17 * 60 %}
+          {{ is_state('binary_sensor.jarvis_scaldabagno_modalita_inverno', 'on')
+             and minuti >= 4 * 60 + 30
+             and not pausa_giorno }}
+
+# -----------------------------------------------------------------------------
+# Script: notifica unica + scene del pannello
+# -----------------------------------------------------------------------------
+script:
+  # Unico punto che manda notifiche al telefono: se il nome del servizio
+  # è diverso, si corregge solo qui.
+  jarvis_notifica:
+    alias: "Jarvis · notifica al telefono"
+    mode: queued
+    fields:
+      titolo:
+        description: "Titolo della notifica"
+        example: "Jarvis"
+      messaggio:
+        description: "Testo della notifica"
+        example: "Batteria bassa"
+      azioni:
+        description: "Pulsanti della notifica (facoltativo)"
+        example: "[]"
+    sequence:
+      - action: notify.mobile_app_xiaomi_salvo
+        data:
+          title: "{{ titolo | default('Jarvis') }}"
+          message: "{{ messaggio }}"
+          data:
+            actions: "{{ azioni | default([]) }}"
+
+  # Scena BUONANOTTE: spegne la TV del salotto e manda il pannello in
+  # modalità notte (il pannello ascolta l'evento jarvis_buonanotte).
+  # La TV della camera NON si tocca: è a infrarossi e il comando potrebbe accenderla.
+  jarvis_buonanotte:
+    alias: "Jarvis · Buonanotte"
+    icon: mdi:weather-night
+    mode: single
+    sequence:
+      - if:
+          - condition: state
+            entity_id: media_player.soggiorno_tv_salotto
+            state: "on"
+        then:
+          - action: media_player.turn_off
+            target:
+              entity_id: media_player.soggiorno_tv_salotto
+      - event: jarvis_buonanotte
+
+  # Scena ESCO: spegne ciò che si può spegnere con certezza (TV salotto,
+  # condizionatore) e ti dice cosa resta. Lo scaldabagno segue il suo
+  # programma e non si tocca.
+  jarvis_esco:
+    alias: "Jarvis · Esco"
+    icon: mdi:exit-run
+    mode: single
+    sequence:
+      - if:
+          - condition: state
+            entity_id: media_player.soggiorno_tv_salotto
+            state: "on"
+        then:
+          - action: media_player.turn_off
+            target:
+              entity_id: media_player.soggiorno_tv_salotto
+      - if:
+          - condition: template
+            value_template: "{{ not is_state('climate.condizionatore', 'off') }}"
+        then:
+          - action: climate.turn_off
+            target:
+              entity_id: climate.condizionatore
+      - variables:
+          restano: >
+            {% set r = [] %}
+            {% if is_state('switch.scaldabagno', 'on') %}{% set r = r + ['scaldabagno (segue il programma)'] %}{% endif %}
+            {{ r }}
+      - action: script.jarvis_notifica
+        data:
+          titolo: "Esco"
+          messaggio: >
+            Spenti TV salotto e condizionatore.
+            {% if restano | count > 0 %}Resta acceso: {{ restano | join(', ') }}.{% endif %}
+            La TV della camera va controllata a mano (comando a infrarossi, stato non verificabile).
+
+  # Scena RIENTRO: clima in camera in base alla temperatura PERCEPITA.
+  # Sopra la soglia caldo → raffresca; sotto la soglia freddo → riscalda;
+  # in mezzo non tocca niente.
+  jarvis_rientro:
+    alias: "Jarvis · Rientro"
+    icon: mdi:home-import-outline
+    mode: single
+    fields:
+      notifica:
+        description: "Manda una notifica con cosa ha fatto"
+        example: true
+        default: false
+    sequence:
+      - variables:
+          percepita: "{{ states('sensor.jarvis_temperatura_percepita_camera') }}"
+          caldo: "{{ states('input_number.jarvis_clima_soglia_caldo') | float(26) }}"
+          freddo: "{{ states('input_number.jarvis_clima_soglia_freddo') | float(18) }}"
+          temp_fresco: "{{ states('input_number.jarvis_clima_temp_raffresca') | float(24) }}"
+          temp_caldo: "{{ states('input_number.jarvis_clima_temp_riscalda') | float(21) }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ not is_number(percepita) }}"
+            sequence:
+              - variables:
+                  esito: "Non leggo la temperatura della camera: condizionatore non toccato."
+          - conditions:
+              - condition: template
+                value_template: "{{ percepita | float > caldo }}"
+            sequence:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: climate.condizionatore
+                data:
+                  hvac_mode: cool
+              - action: climate.set_temperature
+                target:
+                  entity_id: climate.condizionatore
+                data:
+                  temperature: "{{ temp_fresco }}"
+              - variables:
+                  esito: "Camera a {{ percepita }}° percepiti: condizionatore in raffreddamento a {{ temp_fresco | int }}°."
+          - conditions:
+              - condition: template
+                value_template: "{{ percepita | float < freddo }}"
+            sequence:
+              - action: climate.set_hvac_mode
+                target:
+                  entity_id: climate.condizionatore
+                data:
+                  hvac_mode: heat
+              - action: climate.set_temperature
+                target:
+                  entity_id: climate.condizionatore
+                data:
+                  temperature: "{{ temp_caldo }}"
+              - variables:
+                  esito: "Camera a {{ percepita }}° percepiti: condizionatore in riscaldamento a {{ temp_caldo | int }}°."
+        default:
+          - variables:
+              esito: "Camera a {{ percepita }}° percepiti: temperatura giusta, condizionatore non toccato."
+      - if:
+          - condition: template
+            value_template: "{{ notifica }}"
+        then:
+          - action: script.jarvis_notifica
+            data:
+              titolo: "Bentornato"
+              messaggio: "{{ esito }}"
+
+# -----------------------------------------------------------------------------
+# Automazioni
+# -----------------------------------------------------------------------------
+automation:
+  # --- Scaldabagno: misura delle nuvole ---------------------------------------
+
+  - id: jarvis_nuvole_azzera_alba
+    alias: "Jarvis · Nuvole: azzera la giornata all'alba"
+    mode: single
+    triggers:
+      - trigger: sun
+        event: sunrise
+    actions:
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.jarvis_nuvole_somma
+        data:
+          value: 0
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.jarvis_nuvole_campioni
+        data:
+          value: 0
+
+  # Ogni 10 minuti di luce aggiunge un campione: la media che ne esce è
+  # pesata sul tempo, anche se Met.no aggiorna più di rado.
+  - id: jarvis_nuvole_campione
+    alias: "Jarvis · Nuvole: campione ogni 10 minuti"
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/10"
+    conditions:
+      - condition: state
+        entity_id: sun.sun
+        state: above_horizon
+      - condition: template
+        value_template: "{{ has_value('sensor.jarvis_copertura_nuvolosa') }}"
+    actions:
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.jarvis_nuvole_somma
+        data:
+          value: >
+            {{ states('input_number.jarvis_nuvole_somma') | float(0)
+               + states('sensor.jarvis_copertura_nuvolosa') | float(0) }}
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.jarvis_nuvole_campioni
+        data:
+          value: "{{ states('input_number.jarvis_nuvole_campioni') | int(0) + 1 }}"
+
+  # Al tramonto: la giornata era nuvolosa (media ≥ soglia)? +1, altrimenti 0.
+  # Servono almeno 6 campioni (1 ora di dati): se HA è rimasto spento quasi
+  # tutto il giorno, la giornata non si conta e arriva una notifica.
+  - id: jarvis_nuvole_bilancio
+    alias: "Jarvis · Nuvole: bilancio della giornata al tramonto"
+    mode: single
+    triggers:
+      - trigger: sun
+        event: sunset
+    actions:
+      - variables:
+          campioni: "{{ states('input_number.jarvis_nuvole_campioni') | int(0) }}"
+          media: >
+            {{ (states('input_number.jarvis_nuvole_somma') | float(0) / campioni) | round(1)
+               if campioni > 0 else 0 }}
+          soglia: "{{ states('input_number.jarvis_soglia_nuvole') | float(90) }}"
+      - choose:
+          - conditions:
+              - condition: template
+                value_template: "{{ campioni < 6 }}"
+            sequence:
+              - action: script.jarvis_notifica
+                data:
+                  titolo: "Scaldabagno"
+                  messaggio: >
+                    Oggi non sono riuscito a leggere la copertura nuvolosa
+                    ({{ campioni }} campioni): la giornata non viene contata.
+          - conditions:
+              - condition: template
+                value_template: "{{ media >= soglia }}"
+            sequence:
+              - action: counter.increment
+                target:
+                  entity_id: counter.jarvis_giorni_nuvolosi
+        default:
+          - action: counter.reset
+            target:
+              entity_id: counter.jarvis_giorni_nuvolosi
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.jarvis_nuvole_somma
+        data:
+          value: 0
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.jarvis_nuvole_campioni
+        data:
+          value: 0
+      # La nota nel registro va per ultima: se il servizio logbook mancasse,
+      # non deve impedire l'azzeramento qui sopra.
+      - action: logbook.log
+        data:
+          name: "Jarvis scaldabagno"
+          message: >
+            Copertura media di oggi {{ media }}% su {{ campioni }} campioni (soglia {{ soglia }}%).
+          entity_id: counter.jarvis_giorni_nuvolosi
+
+  # --- Scaldabagno: esecuzione del programma ---------------------------------
+
+  # Lo scaldabagno segue il sensore "programma" a ogni suo cambio: orari
+  # 00:00/04:30/11:00/17:00, e anche quando la modalità inverno si accende o
+  # si spegne dentro una fascia (effetto immediato, come deciso).
+  # Tra un cambio e l'altro non tocca niente: un'accensione o uno
+  # spegnimento a mano restano validi fino al prossimo orario.
+  - id: jarvis_scaldabagno_segui_programma
+    alias: "Jarvis · Scaldabagno: segui il programma"
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.jarvis_scaldabagno_programma
+        from: "off"
+        to: "on"
+      - trigger: state
+        entity_id: binary_sensor.jarvis_scaldabagno_programma
+        from: "on"
+        to: "off"
+    conditions:
+      - condition: template
+        value_template: "{{ not is_state('switch.scaldabagno', trigger.to_state.state) }}"
+    actions:
+      - action: "switch.turn_{{ trigger.to_state.state }}"
+        target:
+          entity_id: switch.scaldabagno
+      - action: logbook.log
+        data:
+          name: "Jarvis scaldabagno"
+          message: >
+            {{ 'Acceso' if trigger.to_state.state == 'on' else 'Spento' }} dal programma
+            (modalità inverno {{ states('binary_sensor.jarvis_scaldabagno_modalita_inverno') }},
+            giornate nuvolose {{ states('counter.jarvis_giorni_nuvolosi') }}).
+          entity_id: switch.scaldabagno
+
+  # --- Presenza --------------------------------------------------------------
+
+  # Uscita: solo notifica con cosa resta acceso, e un pulsante per lanciare
+  # "Esco" se vuoi. Non spegne niente da sola.
+  - id: jarvis_uscita_notifica
+    alias: "Jarvis · Uscita: avvisa cosa resta acceso"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: device_tracker.xiaomi_salvo
+        from: home
+        for:
+          minutes: 2
+    conditions:
+      - condition: template
+        value_template: "{{ not is_state('device_tracker.xiaomi_salvo', 'home') }}"
+    actions:
+      - variables:
+          accesi: >
+            {% set r = [] %}
+            {% if is_state('media_player.soggiorno_tv_salotto', 'on') %}{% set r = r + ['TV salotto'] %}{% endif %}
+            {% if not is_state('climate.condizionatore', 'off') %}{% set r = r + ['condizionatore (ultimo comando: ' ~ states('climate.condizionatore') ~ ')'] %}{% endif %}
+            {% if is_state('switch.scaldabagno', 'on') %}{% set r = r + ['scaldabagno'] %}{% endif %}
+            {{ r }}
+      - if:
+          - condition: template
+            value_template: "{{ accesi | count > 0 }}"
+        then:
+          - action: script.jarvis_notifica
+            data:
+              titolo: "Sei uscito"
+              messaggio: >
+                Acceso in casa: {{ accesi | join(', ') }}.
+                TV camera: stato non verificabile.
+              azioni:
+                - action: JARVIS_ESCO
+                  title: "Spegni (scena Esco)"
+
+  - id: jarvis_uscita_pulsante_esco
+    alias: "Jarvis · Uscita: pulsante 'Spegni' dalla notifica"
+    mode: single
+    triggers:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: JARVIS_ESCO
+    actions:
+      - action: script.jarvis_esco
+
+  # Rientro automatico quando il telefono torna a casa
+  - id: jarvis_rientro_automatico
+    alias: "Jarvis · Rientro: clima all'arrivo a casa"
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: device_tracker.xiaomi_salvo
+        to: home
+    conditions:
+      - condition: template
+        value_template: >
+          {{ trigger.from_state is not none
+             and trigger.from_state.state not in ['home', 'unknown', 'unavailable'] }}
+    actions:
+      - action: script.jarvis_rientro
+        data:
+          notifica: true
+
+  # --- Manutenzione ----------------------------------------------------------
+
+  - id: jarvis_batterie_basse
+    alias: "Jarvis · Batterie basse (sensori e Bot)"
+    mode: queued
+    triggers:
+      - trigger: numeric_state
+        entity_id:
+          - sensor.meter_salone_batteria
+          - sensor.meter_letto_batteria
+          - sensor.scaldabagno_batteria
+        below: 20
+    actions:
+      - action: script.jarvis_notifica
+        data:
+          titolo: "Batteria bassa"
+          messaggio: >
+            {{ state_attr(trigger.entity_id, 'friendly_name') }}: {{ trigger.to_state.state }}%.
+            {% if trigger.entity_id == 'sensor.scaldabagno_batteria' %}Se il Bot si scarica, lo scaldabagno non segue più il programma.{% endif %}

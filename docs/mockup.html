@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis OS — mockup</title>
+<style>
+  :root {
+    --accent: #5b8def;
+    --bg: #0d0f13;
+    --surface: #171a21;
+    --surface-2: #1f232c;
+    --text: #eef1f6;
+    --muted: #9aa3b2;
+    --warn: #f0a33a;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: #05060a; color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px;
+  }
+  button { font: inherit; color: inherit; }
+  .demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 1024px; }
+  .demo button {
+    background: #262a33; border: 1px solid #3a404c; border-radius: 8px;
+    padding: 8px 12px; font-size: 14px; cursor: pointer;
+  }
+  .demo button[aria-pressed="true"] { background: #3a404c; }
+  .nota { color: #9aa3b2; font-size: 13px; max-width: 1024px; text-align: center; margin: 0; }
+  .cornice { width: 100%; max-width: 1024px; }
+  .scala { width: 1024px; height: 600px; transform-origin: top left; }
+
+  /* ===== schermo del tablet: 1024×600 CSS px (8" orizzontale) ===== */
+  .tablet {
+    position: relative; width: 1024px; height: 600px; overflow: hidden;
+    background:
+      radial-gradient(900px 500px at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+      var(--bg);
+    border-radius: 24px; border: 10px solid #000;
+    display: grid; grid-template-columns: 330px minmax(0, 1fr); grid-template-rows: 1fr 76px;
+    gap: 16px; padding: 16px;
+    transition: background 800ms ease;
+  }
+  svg.i { width: 28px; height: 28px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ---- colonna sinistra: ora, meteo, scene ---- */
+  .sx { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .ora { font-size: 108px; font-weight: 200; line-height: 0.95; letter-spacing: -3px; font-variant-numeric: tabular-nums; }
+  .data { font-size: 22px; color: var(--muted); margin-top: 4px; }
+  .meteo { display: flex; align-items: center; gap: 12px; }
+  .meteo svg.i { width: 48px; height: 48px; color: var(--accent); transition: color 800ms; }
+  .temp { font-size: 44px; font-weight: 300; }
+  .cond { font-size: 16px; color: var(--muted); line-height: 1.3; }
+  .prev { display: flex; gap: 8px; }
+  .prev div { flex: 1; background: var(--surface); border-radius: 12px; padding: 6px 4px; text-align: center; font-size: 14px; color: var(--muted); }
+  .prev b { display: block; color: var(--text); font-size: 18px; font-weight: 500; }
+
+  .scene { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: auto; }
+  .scena {
+    height: 88px; border-radius: var(--radius); border: 2px solid transparent;
+    background: var(--surface); font-size: 16px; font-weight: 500;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    cursor: pointer; transition: border-color 300ms, background 300ms;
+  }
+  .scena svg.i { color: var(--c); }
+  .scena[aria-pressed="true"] { border-color: var(--c); background: color-mix(in srgb, var(--c) 18%, var(--surface)); }
+
+  /* ---- colonna destra: le stanze tutte insieme ---- */
+  .dx {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px; min-height: 0;
+    grid-template-areas: "soggiorno veranda" "camera camera";
+    padding-top: 22px; /* spazio per il pallino di connessione */
+  }
+  .stanza { min-width: 0; background: color-mix(in srgb, var(--surface) 55%, transparent); border-radius: 20px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .stanza header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 0 4px; }
+  .stanza h2 { margin: 0; font-size: 18px; font-weight: 600; }
+  .clima { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .clima b { color: var(--text); font-weight: 500; }
+  .carte { display: grid; gap: 10px; flex: 1; min-height: 0; }
+  .camera .carte { grid-template-columns: 1.3fr 1fr; }
+  .dx .stanza:not(.camera) .carte { flex: none; }
+
+  .card {
+    border-radius: var(--radius); background: var(--surface); border: none; text-align: left;
+    padding: 12px; display: flex; flex-direction: column; gap: 4px; min-height: 0;
+    transition: background 250ms;
+  }
+  button.card { cursor: pointer; }
+  .card .riga { display: flex; align-items: center; gap: 10px; }
+  .card .nome { font-size: 18px; font-weight: 500; }
+  .card .stato { font-size: 15px; color: var(--muted); }
+  .card svg.i { width: 30px; height: 30px; color: var(--muted); }
+  .card.on { background: color-mix(in srgb, var(--accent) 26%, var(--surface)); }
+  .card.on svg.i { color: var(--accent); }
+  .card.on .stato { color: var(--text); }
+  .card small { font-size: 13px; color: var(--muted); line-height: 1.35; }
+  .etichetta { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); border: 1px solid #343a46; border-radius: 999px; padding: 2px 10px; width: fit-content; }
+
+  /* condizionatore */
+  .temp-ac { display: flex; align-items: center; gap: 12px; }
+  #ac { gap: 8px; }
+  #ac .modi { margin-top: auto; }
+  .temp-ac output { font-size: 34px; font-weight: 300; min-width: 64px; text-align: center; font-variant-numeric: tabular-nums; }
+  .tondo { width: 48px; height: 48px; border-radius: 24px; border: none; background: var(--surface-2); cursor: pointer; font-size: 26px; line-height: 1; }
+  .modi { display: flex; gap: 6px; }
+  .modo { flex: 1; height: 48px; border-radius: 12px; border: none; background: var(--surface-2); cursor: pointer; font-size: 14px; }
+  .modo[aria-pressed="true"] { background: var(--accent); color: #0d0f13; font-weight: 600; }
+
+  .pulsante { height: 48px; border-radius: 12px; border: none; background: var(--surface-2); cursor: pointer; font-size: 15px; margin-top: auto; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .pulsante svg.i { width: 22px; height: 22px; }
+
+  /* ---- barra assistente ---- */
+  .barra { grid-column: 1 / -1; display: flex; gap: 12px; align-items: center; }
+  .chiedi {
+    flex: 1; height: 60px; border-radius: 30px; background: var(--surface); color: var(--muted);
+    display: flex; align-items: center; padding: 0 24px; font-size: 18px; cursor: text; border: none;
+  }
+  .mic {
+    width: 76px; height: 60px; border-radius: 30px; border: none; cursor: pointer;
+    background: var(--accent); color: #0d0f13; display: grid; place-items: center; transition: background 800ms;
+  }
+
+  /* ---- connessione ---- */
+  .conn { position: absolute; top: 14px; right: 22px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+  .pallino { width: 12px; height: 12px; border-radius: 50%; background: #3ecf7a; }
+  .offline .pallino { background: var(--warn); }
+  .banner {
+    display: none; position: absolute; left: 50%; top: 12px; transform: translateX(-50%);
+    background: #3a2a10; color: #ffd9a0; border: 1px solid var(--warn); border-radius: 12px;
+    padding: 10px 16px; font-size: 16px; z-index: 5; white-space: nowrap;
+  }
+  .offline .banner { display: block; }
+  .offline .card, .offline .scena, .offline .mic { opacity: 0.45; pointer-events: none; }
+  .offline .clima, .offline .clima b { color: var(--warn); }
+
+  /* ---- pannello assistente ---- */
+  .assist {
+    position: absolute; inset: 16px 16px 108px 362px; background: var(--surface-2);
+    border-radius: 20px; padding: 20px; display: none; flex-direction: column; gap: 12px; z-index: 4;
+    box-shadow: 0 20px 60px #000a;
+  }
+  .assist.aperto { display: flex; }
+  .assist header { display: flex; justify-content: space-between; align-items: center; }
+  .fase { display: inline-flex; align-items: center; gap: 8px; color: var(--accent); font-weight: 600; font-size: 15px; }
+  .fase i { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulsa 1.2s infinite; }
+  @keyframes pulsa { 50% { opacity: .25; } }
+  .msg { max-width: 80%; padding: 12px 16px; border-radius: 16px; font-size: 18px; line-height: 1.35; }
+  .io { align-self: flex-end; background: color-mix(in srgb, var(--accent) 30%, var(--surface)); }
+  .lui { align-self: flex-start; background: var(--surface); }
+  .chiudi { width: 48px; height: 48px; border-radius: 24px; border: none; background: var(--surface); cursor: pointer; display: grid; place-items: center; }
+
+  /* ---- modalità notte ---- */
+  .notte { position: absolute; inset: 0; background: #000; display: none; z-index: 10; color: #6d7380; }
+  .notte.attivo { display: block; }
+  .notte .grande { position: absolute; font-size: 160px; font-weight: 100; animation: deriva 60s ease-in-out infinite alternate; }
+  .notte .piccolo { font-size: 22px; text-align: center; margin-top: -8px; }
+  @keyframes deriva { from { left: 120px; top: 90px; } to { left: 420px; top: 220px; } }
+</style>
+</head>
+<body>
+
+<div class="demo" role="toolbar" aria-label="Comandi del mockup">
+  <button id="bOffline" aria-pressed="false">Simula offline</button>
+  <button id="bAssist" aria-pressed="false">Apri assistente</button>
+  <button id="bNotte" aria-pressed="false">Modalità notte</button>
+</div>
+<p class="nota">Mockup statico con i tuoi dispositivi veri (elenco del 26/09). Numeri di esempio. La Cucina non compare perché in Home Assistant è vuota: appena ci metti un dispositivo, spunta da sola.</p>
+
+<div class="cornice" id="cornice">
+<div class="scala" id="scala">
+<div class="tablet" id="tablet">
+
+  <div class="conn" aria-live="polite"><span class="pallino"></span><span id="connTxt">Connesso</span></div>
+  <div class="banner" role="alert">Home Assistant non raggiungibile da 12 s · valori non aggiornati · riprovo tra 4 s</div>
+
+  <section class="sx">
+    <div>
+      <div class="ora" id="ora">21:47</div>
+      <div class="data" id="data">sabato 26 settembre</div>
+    </div>
+    <div class="meteo">
+      <svg class="i" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M9 2v1.5M3.5 8H2M4.8 3.8l1 1M13.2 3.8l-1 1"/><path d="M8 20h9a3.5 3.5 0 0 0 0-7 4.5 4.5 0 0 0-8.6 1.3A2.9 2.9 0 0 0 8 20z"/></svg>
+      <div class="temp">22°</div>
+      <div class="cond">Parz. nuvoloso · 40%<br>max 26° · min 18°</div>
+    </div>
+    <div class="prev">
+      <div>dom<b>25°</b></div><div>lun<b>24°</b></div><div>mar<b>21°</b></div><div>mer<b>23°</b></div>
+    </div>
+
+    <div class="scene" role="group" aria-label="Scene">
+      <button class="scena" style="--c:#8b7cf6" aria-pressed="false" data-c="#8b7cf6">
+        <svg class="i" viewBox="0 0 24 24"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>Buonanotte</button>
+      <button class="scena" style="--c:#3ec9a7" aria-pressed="false" data-c="#3ec9a7">
+        <svg class="i" viewBox="0 0 24 24"><path d="M14 4H6v16h8M10 12h11M18 9l3 3-3 3"/></svg>Esco</button>
+      <button class="scena" style="--c:#e0a33a" aria-pressed="false" data-c="#e0a33a">
+        <svg class="i" viewBox="0 0 24 24"><path d="M3 11l9-7 9 7M5 10v10h14V10M10 20v-6h4v6"/></svg>Rientro</button>
+    </div>
+  </section>
+
+  <section class="dx">
+    <!-- SOGGIORNO -->
+    <div class="stanza" style="grid-area: soggiorno">
+      <header><h2>Soggiorno</h2><span class="clima"><b>25,7°</b> · 44% · perc. 26,5°</span></header>
+      <div class="carte">
+        <button class="card" aria-pressed="false" data-tipo="tv">
+          <span class="riga"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg><span class="nome">TV Salotto</span></span>
+          <span class="stato">Spenta</span>
+          <small>Samsung · tocca per accendere</small>
+        </button>
+      </div>
+    </div>
+
+    <!-- VERANDA -->
+    <div class="stanza" style="grid-area: veranda">
+      <header><h2>Veranda</h2></header>
+      <div class="carte">
+        <button class="card on" aria-pressed="true" data-tipo="scaldabagno">
+          <span class="riga"><svg class="i" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="3"/><path d="M12 8c-1.5 2-2.5 3-2.5 4.5a2.5 2.5 0 0 0 5 0C14.5 11 13.5 10 12 8z"/></svg><span class="nome">Scaldabagno</span></span>
+          <span class="stato">Acceso</span>
+          <small>Inverno attivo · 2 gg nuvolosi<br>Spegne alle 00:00</small>
+        </button>
+      </div>
+    </div>
+
+    <!-- CAMERA DA LETTO -->
+    <div class="stanza camera" style="grid-area: camera">
+      <header><h2>Camera da letto</h2><span class="clima"><b>25,1°</b> · 43% · perc. 25,6°</span></header>
+      <div class="carte">
+        <div class="card" id="ac">
+          <span class="riga"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="8" rx="2"/><path d="M7 17c0 1.5-1 2-1 3M12 17v3M17 17c0 1.5 1 2 1 3M7 10h10"/></svg><span class="nome">Condizionatore</span></span>
+          <span class="etichetta">Ultimo comando · stato non verificabile</span>
+          <div class="temp-ac">
+            <button class="tondo" aria-label="Abbassa temperatura" data-d="-1">−</button>
+            <output id="acTemp">24°</output>
+            <button class="tondo" aria-label="Alza temperatura" data-d="1">+</button>
+          </div>
+          <div class="modi" role="group" aria-label="Modalità condizionatore">
+            <button class="modo" aria-pressed="false">Spento</button>
+            <button class="modo" aria-pressed="false">Freddo</button>
+            <button class="modo" aria-pressed="false">Caldo</button>
+            <button class="modo" aria-pressed="true">Ventola</button>
+          </div>
+        </div>
+        <div class="card">
+          <span class="riga"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="1.5"/><path d="M8 21h8M12 17v4"/></svg><span class="nome">TV camera</span></span>
+          <span class="etichetta">Stato non verificabile</span>
+          <small>Come il tasto del telecomando: accende o spegne.</small>
+          <button class="pulsante" id="tvCamera"><svg class="i" viewBox="0 0 24 24"><path d="M12 3v8M7 6.5a7 7 0 1 0 10 0"/></svg>Tasto accensione</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="barra">
+    <button class="chiedi" id="chiedi">Chiedi a Jarvis…</button>
+    <button class="mic" aria-label="Parla con Jarvis">
+      <svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+    </button>
+  </div>
+
+  <div class="assist" id="assist" aria-label="Assistente">
+    <header><span class="fase"><i></i>Sto pensando</span>
+      <button class="chiudi" id="chiudiA" aria-label="Chiudi assistente">
+        <svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </header>
+    <div class="msg io">Com'è la temperatura in camera?</div>
+    <div class="msg lui">In camera ci sono 25,1° con il 43% di umidità, percepiti 25,6°. Sotto la soglia dei 26°, il condizionatore non serve.</div>
+    <div class="msg io">Lo scaldabagno è acceso?</div>
+  </div>
+
+  <div class="notte" id="notte" aria-label="Modalità notte">
+    <div class="grande">21:47<div class="piccolo">sab 26 set · 22°</div></div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+  const tablet = document.getElementById('tablet');
+  const root = document.documentElement;
+  const offline = () => tablet.classList.contains('offline');
+
+  function adatta() {
+    const c = document.getElementById('cornice');
+    const s = Math.min(1, c.clientWidth / 1024);
+    document.getElementById('scala').style.transform = `scale(${s})`;
+    c.style.height = (600 * s) + 'px';
+  }
+  addEventListener('resize', adatta); adatta();
+
+  function tic() {
+    const d = new Date();
+    const hm = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    document.getElementById('ora').textContent = hm;
+    document.getElementById('data').textContent = d.toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' });
+    document.querySelector('.notte .grande').firstChild.textContent = hm;
+  }
+  tic(); setInterval(tic, 10000);
+
+  // scene: cambiano l'accento di tutta l'interfaccia
+  document.querySelectorAll('.scena').forEach(b => b.addEventListener('click', () => {
+    if (offline()) return;
+    const già = b.getAttribute('aria-pressed') === 'true';
+    document.querySelectorAll('.scena').forEach(x => x.setAttribute('aria-pressed', 'false'));
+    if (!già) b.setAttribute('aria-pressed', 'true');
+    root.style.setProperty('--accent', già ? '#5b8def' : b.dataset.c);
+  }));
+
+  // TV salotto e scaldabagno: stato vero, si commutano
+  document.querySelectorAll('button.card').forEach(t => t.addEventListener('click', () => {
+    if (offline()) return;
+    const on = !t.classList.contains('on');
+    t.classList.toggle('on', on); t.setAttribute('aria-pressed', on);
+    const st = t.querySelector('.stato');
+    if (t.dataset.tipo === 'tv') {
+      st.textContent = on ? 'Accesa' : 'Spenta';
+      t.querySelector('small').textContent = on ? 'Samsung · Netflix' : 'Samsung · tocca per accendere';
+    } else {
+      st.textContent = on ? 'Acceso' : 'Spento';
+    }
+  }));
+
+  // condizionatore
+  let acT = 24;
+  document.querySelectorAll('.tondo').forEach(b => b.addEventListener('click', () => {
+    acT = Math.max(16, Math.min(30, acT + Number(b.dataset.d)));
+    document.getElementById('acTemp').textContent = acT + '°';
+  }));
+  document.querySelectorAll('.modo').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.modo').forEach(x => x.setAttribute('aria-pressed', x === b));
+    document.getElementById('ac').classList.toggle('on', b.textContent !== 'Spento');
+  }));
+  document.getElementById('ac').classList.add('on');
+
+  function interruttore(id, fn) {
+    const b = document.getElementById(id);
+    b.addEventListener('click', () => { const v = b.getAttribute('aria-pressed') !== 'true'; b.setAttribute('aria-pressed', v); fn(v); });
+    return b;
+  }
+  interruttore('bOffline', v => { tablet.classList.toggle('offline', v); document.getElementById('connTxt').textContent = v ? 'Offline' : 'Connesso'; });
+  const bA = interruttore('bAssist', v => document.getElementById('assist').classList.toggle('aperto', v));
+  interruttore('bNotte', v => document.getElementById('notte').classList.toggle('attivo', v));
+  document.getElementById('chiedi').addEventListener('click', () => { if (bA.getAttribute('aria-pressed') !== 'true') bA.click(); });
+  document.getElementById('chiudiA').addEventListener('click', () => bA.click());
+  document.getElementById('notte').addEventListener('click', () => document.getElementById('bNotte').click());
+</script>
+</body>
+</html>
