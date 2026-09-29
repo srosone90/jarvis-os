@@ -10,8 +10,10 @@ orizzontale acceso 24/7.
 | Pacchetto Home Assistant (scaldabagno, scene, presenza, batterie) | Pronto e provato: [`home-assistant/`](home-assistant/README.md) |
 | F1 — scheletro PWA, connessione, orologio e meteo, clima stanze, diagnostica | v0.1.2 |
 | F2 — stanze e comandi dei dispositivi | **v0.2.2** (layout per tutte le misure) |
-| F3–F6 — scene, assistente, voce "tocca per parlare", modalità notte | Da fare |
-| Modalità Hub — telefoni-pannello solo vocali | Dopo la F5 |
+| F4 — assistente testuale (Gemini) | In corso |
+| F5 — voce "tocca per parlare" | Da fare |
+| Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la F5 |
+| F3, F6 — scene, modalità notte e rifiniture | Da fare |
 
 ## Installazione sul server (Home Assistant)
 

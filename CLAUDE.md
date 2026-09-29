@@ -184,41 +184,108 @@ i componenti hanno solo le loro regole "compatte".
 - Il pannello sui telefoni è una comodità, non la loro destinazione: vedi la
   Modalità Hub nel piano delle fasi.
 
-## 5. Piano delle fasi (dal 29/09/2026)
+## 5. Dispositivi e piano delle fasi (aggiornato il 29/09/2026)
+
+### Chi usa l'app
+
+Tutti aprono la **stessa app sullo stesso indirizzo**
+(`https://casa.tail8392c1.ts.net/local/jarvis/index.html`):
+
+| Dispositivo | Modalità predefinita |
+|---|---|
+| **Tablet a muro**, orizzontale, stile Echo Show | Completo |
+| **Vecchi smartphone fissi nelle stanze**, orizzontali, in Bluetooth agli **Echo Pop** usati solo come casse | Hub, con la loro stanza |
+| **Telefono personale di Salvatore**, anche fuori casa via Tailscale | Completo |
+
+Sugli hub il **microfono è sempre quello del telefono** (l'Echo in Bluetooth non
+passa il suo); la voce esce dall'uscita audio del telefono, cioè dall'Echo.
+
+### Piano delle fasi
+
+Ordine deciso il 29/09 (l'Hub viene anticipato, scene e notte vanno dopo):
 
 | Fase | Cosa | Stato |
 |---|---|---|
 | F1 | Scheletro PWA, connessione, orologio e meteo, clima, diagnostica | v0.1.2 |
-| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2; prove sui dispositivi veri da fare |
-| F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
-| F4 | Assistente testuale (barra + chat, Assist di HA) | Da fare |
+| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2; prove sui dispositivi veri in corso |
+| F4 | **Assistente testuale** (barra + chat con Gemini) | In corso |
 | F5 | Voce **"tocca per parlare"**. Prove obbligatorie: uscita audio cambiata o scollegata **a metà risposta** (il pannello non si deve bloccare) | Da fare |
+| Hub | **Modalità Hub** + tasto di passaggio Hub ↔ completo (vedi sotto) | Da fare |
+| F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
 | F6 | Modalità notte e rifiniture | Da fare |
-| Hub | **Modalità Hub** per i telefoni-pannello (vedi sotto) | Dopo la F5 |
 
-Ogni fase parte con mockup e domande e finisce con release e resoconto.
+Ogni fase parte con mockup e domande e finisce con release e resoconto. Finché
+non c'è la F3 le scene restano "in arrivo" sul pannello, ma gli script
+`script.jarvis_buonanotte`, `jarvis_esco` e `jarvis_rientro` esistono già in HA:
+Gemini li può usare se l'agente li vede.
 
-**Modalità Hub** (decisa il 29/09). Dipende dall'assistente (F4) e dalla voce (F5),
-quindi viene dopo la F5. Si progetta con **mockup animato e domande prima di
-scrivere codice**:
+### Modalità Hub
 
-- Telefoni vecchi in orizzontale, collegati in Bluetooth agli **Echo Pop** usati
-  come casse, come pannelli **solo vocali** in stile Echo: una sfera animata
-  con gli stati riposo / ascolto / pensa / risponde / errore, sottotitoli di
-  domanda e risposta, in un
-  angolo ora, temperatura della stanza e stato della connessione.
-- Anti burn-in; di notte solo l'orologio.
-- La modalità si sceglie **una volta sul dispositivo** e si salva lì ("Hub,
-  stanza Camera"), **mai** in base alla misura dello schermo: il telefono
-  personale, fuori casa, deve poter aprire il pannello completo. Il tablet tiene
-  il pannello completo.
-- Animazione leggera: CSS o canvas, **niente librerie pesanti**, al massimo
-  30 fps, **ferma** a riposo e di notte.
-- Audio in Bluetooth verso l'Echo; se la cassa si scollega a metà risposta, il
-  pannello va avanti (sottotitoli) e non si blocca.
-- **"Ehi Jarvis"** (parola di attivazione) solo dopo una prova di fattibilità su
-  un telefono vecchio vero (CPU, calore, falsi positivi): fino ad allora si
-  parla toccando.
+Schermata minimal solo voce. Dipende dall'assistente (F4) e dalla voce (F5). Si
+progetta con **mockup animato e domande prima di scrivere codice**.
+
+- Al centro una **sfera di luce animata**, uno stato per ogni momento:
+  - **riposo**: respira lentamente e si sposta di poco (anti burn-in);
+  - **ascolto**: reagisce al volume del microfono;
+  - **pensa**: vortica;
+  - **risponde**: reagisce all'audio in uscita;
+  - **errore/offline**: colore di avviso, ferma.
+- **Sottotitoli** di domanda e risposta, che poi sfumano.
+- In un angolo, piccoli: ora, temperatura della stanza del dispositivo, pallino
+  di connessione. **Di notte** luminosità bassa e solo orologio.
+- Telefoni vecchi: animazione CSS o canvas, **niente librerie pesanti**, al
+  massimo 30 fps, **ferma** a riposo prolungato e di notte, nessuna perdita di
+  memoria in mesi di funzionamento.
+- Se la cassa Bluetooth si scollega a metà risposta, il pannello va avanti
+  (sottotitoli) e non si blocca.
+
+**Passaggio Hub ↔ completo, su tutti i dispositivi:**
+
+- Un **tasto sempre visibile**, piccolo, in un angolo: nell'Hub un'icona
+  "griglia" porta al completo, nel completo un'icona "sfera" porta all'Hub. Area
+  di tocco ≥ 48 px, mai sopra altri controlli.
+- La **modalità predefinita** si sceglie una volta e **si salva sul dispositivo**
+  ("Hub, stanza X" oppure "Completo"). All'avvio e alla ricarica parte da quella.
+  **Mai** decisa dalla misura dello schermo: il telefono personale, fuori casa,
+  deve poter aprire il completo.
+- **Ritorno automatico**: se il predefinito è Hub e si passa al completo, dopo
+  ~90 s senza tocchi si torna all'Hub da solo (valore configurabile). Se il
+  predefinito è Completo non c'è ritorno automatico.
+- Il passaggio **non ricarica la pagina e non riapre il WebSocket**: cambia solo
+  la vista. Una risposta vocale in corso non si interrompe cambiando vista.
+- La **stanza del dispositivo** serve all'Hub per la temperatura nell'angolo e,
+  in futuro, come contesto per l'assistente ("spegni la TV" = la TV di questa
+  stanza). HA 2026.9.3 accetta un `device_id` in `conversation/process` e in
+  `assist_pipeline/run`: è la strada da verificare per quel contesto.
+
+**"Ehi Jarvis"** è l'obiettivo per l'Hub, ma solo dopo una **prova di fattibilità
+su un telefono vecchio vero**: CPU, calore, batteria sempre in carica, falsi
+positivi, falsi negativi con la TV accesa. **"Tocca per parlare" deve funzionare
+sempre**, anche quando esisterà la parola di attivazione.
+
+### Assistente: protocollo verificato (codice di HA 2026.9.3)
+
+- **Agente**: `conversation.google_ai_conversation` (Gemini), dentro la pipeline
+  Assist predefinita in italiano: STT `stt.google_ai_stt` → Gemini → TTS
+  `tts.google_translate_en_com` (lingua della TTS da verificare in F5: il nome
+  dice "en").
+- `conversation/process`: `text`, `conversation_id`, `language`, `agent_id`,
+  `device_id`, `satellite_id`. Risponde tutto insieme alla fine:
+  `{response: {response_type, speech: {plain: {speech}}, data}, conversation_id,
+  continue_conversation}`.
+- `assist_pipeline/run` con `start_stage` e `end_stage` = `intent` e
+  `input: {text}`: stessa conversazione, ma a **eventi**. `run-start`,
+  `intent-start`, poi `intent-progress` con `chat_log_delta` (il testo mentre
+  Gemini lo scrive, e le chiamate agli strumenti), `intent-end` con lo stesso
+  risultato di `conversation/process`, `run-end`; oppure `error`. Accetta un
+  `timeout` lato server (predefinito 300 s). È lo stesso comando che userà la
+  voce (F5), cambiando solo `start_stage`/`end_stage`. Non richiede admin.
+- **Gli errori dell'agente non sono errori del WebSocket**: arrivano come
+  risultato normale con `response_type: "error"` e `data.code`. Vanno
+  riconosciuti apposta.
+- **HA dimentica una conversazione dopo 5 minuti** senza messaggi
+  (`CONVERSATION_TIMEOUT` in `helpers/chat_session.py`): oltre, anche mandando
+  il vecchio `conversation_id`, riparte da zero con un id nuovo.
 
 ## 6. Decisioni di prodotto (log)
 
@@ -278,6 +345,11 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **Architettura dei dispositivi** e **nuovo ordine delle fasi**
+  (F4 → F5 → Hub → F3 → F6), con il **tasto di passaggio Hub ↔ completo** su
+  tutti i dispositivi, la modalità predefinita salvata sul dispositivo e il
+  ritorno automatico all'Hub dopo ~90 s. Dettagli nella sezione 5. Annulla
+  l'ordine F3 → F4 → F5 → F6 → Hub scritto poche ore prima.
 
 ## 7. Convenzioni
 
