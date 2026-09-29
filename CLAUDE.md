@@ -88,6 +88,7 @@ In casa **non ci sono luci smart**.
 | `scripts/crea-zip.sh` | `jarvis-dist.zip` da `dist/` |
 | `test/unit/` | Vitest |
 | `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
+| `docs/proposta-multicasa.md` | Proposta per le altre case: HACS, stima, esigenze da servizio, cosa progettare subito nella fase G |
 | `docs/mockup-f4.html` | Mockup della chat (F4), variante A approvata |
 | `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica |
 | `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline, e con la chat aperta + tastiera simulata): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
@@ -284,7 +285,11 @@ scrive nei registri di HA via WebSocket, mai un elenco parallelo. Contenuto:
 7. **Accesso protetto** (utente admin di HA e/o PIN locale): chi non è admin
    vede il pannello ma non la gestione.
 8. **Preferenze salvate in HA** e condivise da tutti i pannelli, non nel bundle
-   né nel localStorage, con migrazione automatica da `src/configurazione.ts`.
+   né nel localStorage. La configurazione di casa Salvatore non si migra dal
+   bundle: la ritrova la configurazione guidata, o si importa una volta da un
+   JSON (vedi "Multi-casa").
+9. **Tutto quello che chiede il requisito multi-casa** (sotto), che vale già
+   da questa fase.
 
 Verificato sul codice di HA 2026.9.3 (`components/config/*`,
 `frontend/storage.py`):
@@ -302,7 +307,46 @@ Verificato sul codice di HA 2026.9.3 (`components/config/*`,
 `.storage/frontend.system_data`: la scrive solo un admin, la leggono tutti, e
 `frontend/subscribe_system_data` avvisa **in tempo reale** tutti i pannelli
 aperti. Da verificare prima: il reload delle integrazioni per chi non è admin, e
-cosa fa HA con valori grandi in quello spazio.
+cosa fa HA con valori grandi in quello spazio. Il reload delle integrazioni è
+**solo admin** in entrambe le strade (REST `/api/config/config_entries/entry/{id}/reload`
+e servizio `homeassistant.reload_config_entry`: verificato dalla sessione server).
+
+### Multi-casa (requisito di Salvatore, 29/09/2026)
+
+**Jarvis deve essere abbastanza autosufficiente da installarlo e usarlo
+agevolmente in altre case.** Vale per tutto il progetto, a partire dalla fase G.
+Si valutano sia parenti e amici sia un possibile **servizio a pagamento**: la
+decisione sul servizio arriva dopo 1-2 case pilota. Intanto si progetta tutto
+"multi-casa". Proposta completa, stima e piano HACS: `docs/proposta-multicasa.md`.
+
+1. **Niente di specifico di casa Salvatore nel bundle**: meteo, sensori del
+   clima, stanze e zone, programmi, nascoste vanno nella configurazione salvata
+   in HA, con la **configurazione guidata** al primo avvio (scopre aree,
+   dispositivi, `weather.*`, sensori di temperatura e umidità per area; l'admin
+   conferma).
+2. **Pacchetto HA → moduli opzionali e parametrici** (scaldabagno a fasce, clima
+   con soglie, notifiche con il servizio scelto), attivabili e regolabili senza
+   toccare YAML.
+3. **Distribuzione**: integrazione custom installabile da HACS (serve l'app come
+   static path, gestisce i moduli con config flow, si aggiorna da HACS). Casa
+   nuova = HA standard (HA Green o mini PC, non Termux) + HACS + Jarvis. Per ora
+   **solo proposta**.
+4. **Dispositivi e marche diversi**: card universali per dominio e
+   `supported_features`, niente logica legata a un modello.
+
+Esigenze future da servizio, **da non implementare ora** ma da non impedire:
+
+- aggiornamenti controllati (canali stable/beta, possibilità di tornare
+  indietro): la configurazione ha un numero di schema con migrazioni;
+- backup automatici esterni della configurazione: tutto in HA, niente nel
+  localStorage, più esporta/importa in JSON;
+- stato di salute della casa leggibile da remoto, **solo col consenso** del
+  proprietario;
+- **nome del prodotto configurabile**: "Jarvis" non si potrà usare
+  commercialmente (è un personaggio Marvel). Niente "Jarvis" non sostituibile nei
+  testi visibili, nella parola di attivazione, nel manifest. Gli identificativi
+  tecnici invisibili (`jarvis-app`, `jarvis_*`) possono restare; il dominio
+  dell'integrazione HACS va scelto neutro una volta sola.
 
 ### Modalità Hub
 
@@ -352,8 +396,8 @@ sempre**, anche quando esisterà la parola di attivazione.
 
 - **Agente**: `conversation.google_ai_conversation` (Gemini), dentro la pipeline
   Assist predefinita in italiano: STT `stt.google_ai_stt` → Gemini → TTS
-  `tts.google_translate_en_com` (lingua della TTS da verificare in F5: il nome
-  dice "en").
+  `tts.google_translate_en_com` con lingua `it` (verificato dalla sessione
+  server il 29/09: "en_com" è il dominio google.com, non la lingua).
 - `conversation/process`: `text`, `conversation_id`, `language`, `agent_id`,
   `device_id`, `satellite_id`. Risponde tutto insieme alla fine:
   `{response: {response_type, speech: {plain: {speech}}, data}, conversation_id,
@@ -430,6 +474,17 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **Requisito multi-casa**: Jarvis deve poter essere installato
+  e usato agevolmente in altre case (parenti e amici, forse un servizio a
+  pagamento: si decide dopo 1-2 case pilota). Dalla fase G niente dati di casa
+  Salvatore nel bundle, configurazione guidata, moduli opzionali, nome del
+  prodotto configurabile, distribuzione via HACS come proposta
+  (`docs/proposta-multicasa.md`). Dettagli nella sezione 5.
+- **2026-09-29** — **F4 verificata su HA vero** (sessione server): risposta in
+  italiano in ~10 s; pipeline preferita corretta; script Buonanotte, Esco e
+  Rientro esposti ad Assist (`jarvis_notifica` no, apposta). Difetto: alla
+  domanda sulla temperatura in camera Gemini ha letto il sensore "percepita"
+  (27,9°) invece di quello vero (25,9°).
 - **2026-09-29** — **F4, chat**: sul tablet al posto delle stanze (variante A
   del mockup), solo la conversazione in corso, etichetta dell'azione + risposta,
   chiusura da sola dopo 60 s senza tocchi.
