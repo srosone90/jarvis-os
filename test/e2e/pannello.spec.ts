@@ -251,15 +251,17 @@ test("layout del mockup approvato: zone delle fasi future presenti ma dichiarate
   await expect(page.getByTestId("stanza")).toHaveCount(3);
   await expect(stanza(page, "Veranda")).toBeVisible();
   await expect(stanza(page, "Soggiorno").getByTestId("stanza-temp")).toHaveText("25,7°");
-  // zone future (scene F3, assistente F4-F5): si vedono, dicono "in arrivo" e non contengono niente di toccabile
+  // zone future (scene F3, microfono F5): si vedono, dicono "in arrivo" e non contengono niente di toccabile
   const scene = page.getByTestId("zona-scene");
   await expect(scene).toContainText("Buonanotte");
   await expect(scene).toContainText("in arrivo");
+  await expect(scene.locator("button, input, a, [role=button]")).toHaveCount(0);
+  // barra: l'assistente testuale (F4) è l'unico controllo; il microfono è ancora "in arrivo"
   const assistente = page.getByTestId("zona-assistente");
-  await expect(assistente).toContainText("in arrivo");
-  for (const zona of [scene, assistente]) {
-    await expect(zona.locator("button, input, a, [role=button]")).toHaveCount(0);
-  }
+  await expect(assistente.locator("button, input, a, [role=button]")).toHaveCount(1);
+  await expect(assistente.getByRole("button", { name: "Chiedi a Jarvis…" })).toBeEnabled();
+  await expect(assistente.locator(".mic")).toHaveAttribute("aria-label", "Microfono, in arrivo (F5)");
+  await expect(assistente.locator(".mic")).toHaveAttribute("aria-disabled", "true");
   // niente esce dallo schermo del tablet (1024×600), card comprese
   await expect(page.locator("[data-test^=card-]").first()).toBeVisible();
   expect(await sbordati(page)).toEqual([]);

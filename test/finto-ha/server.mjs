@@ -18,6 +18,8 @@
  *   /__prova/rifiuta?servizio=   HA rifiuta quel servizio (es. media_player.turn_on)
  *   /__prova/muto?entity_id=     il dispositivo accetta i comandi ma non cambia stato
  *   /__prova/aggiungi            {area?, dispositivo?, entita, s, a}: dispositivo nuovo nei registri
+ *   /__prova/assistente?modo=    come risponde Gemini (assist_pipeline/run):
+ *                                normale | lenta (&ms=10000) | errore | cade | azione | lunga
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -163,6 +165,10 @@ function reset() {
     rifiuta: new Set(), // "dominio.servizio" che HA rifiuta
     muti: new Set(), // entity_id che non cambiano stato dopo un comando
     chiamate: [],
+    // assistente (assist_pipeline/run): modo di risposta, conversazioni aperte, richieste ricevute
+    assistente: { modo: "normale", attesaMs: 10_000, conversazioni: new Set(), prossima: 1 },
+    richiesteAssistente: [],
+    disiscrizioniPipeline: 0,
     generazioneToken: 1,
     info: { connessioni: 0, login: 0, rinnovi: 0, richieste: {} },
   };
@@ -236,6 +242,111 @@ function eseguiServizio(dominio, servizio, dati) {
   }
 }
 
+const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Risposta dell'assistente come la manda HA 2026.9.3 (assist_pipeline/pipeline.py):
+ * run-start, intent-start, intent-progress con chat_log_delta, intent-end,
+ * run-end. Si ferma se il client si disiscrive (HA cancella il task).
+ */
+async function rispondiAssistente(cliente, id, conversationId, testoDomanda) {
+  const { modo, attesaMs } = stato.assistente;
+  const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
+  const evento = (type, data) =>
+    vivo()
+      ? invia(cliente, { id, type: "event", event: { type, data, timestamp: new Date().toISOString() } })
+      : null;
+  const uscita = (speech, tipo = "action_done") => ({
+    processed_locally: false,
+    intent_output: {
+      response: {
+        speech: { plain: { speech, extra_data: null } },
+        card: {},
+        language: "it",
+        response_type: tipo,
+        data: tipo === "error" ? { code: "unknown" } : { targets: [], success: [], failed: [] },
+      },
+      conversation_id: conversationId,
+      continue_conversation: false,
+    },
+  });
+  await evento("run-start", {
+    pipeline: "pipeline-italiano",
+    language: "it",
+    conversation_id: conversationId,
+    runner_data: { stt_binary_handler_id: null, timeout: 60 },
+  });
+  await evento("intent-start", {
+    engine: "conversation.google_ai_conversation",
+    language: "it",
+    intent_input: testoDomanda,
+    conversation_id: conversationId,
+    device_id: null,
+    satellite_id: null,
+    prefer_local_intents: false,
+  });
+  await pausa(modo === "lenta" ? attesaMs : 300);
+  if (!vivo()) return;
+  if (modo === "errore") {
+    await evento("intent-end", uscita("Error talking to API", "error"));
+    return evento("run-end", null);
+  }
+  await evento("intent-progress", { chat_log_delta: { role: "assistant" } });
+  if (modo === "azione") {
+    await evento("intent-progress", {
+      chat_log_delta: {
+        tool_calls: [
+          { tool_name: "HassTurnOff", tool_args: { name: "TV Salotto" }, id: "t1", external: false },
+        ],
+      },
+    });
+    const tv = "media_player.soggiorno_tv_salotto";
+    stato.chiamate.push({ servizio: "media_player.turn_off", dati: { entity_id: tv }, da: "assistente" });
+    eseguiServizio("media_player", "turn_off", { entity_id: tv });
+    await pausa(400);
+    await evento("intent-progress", {
+      chat_log_delta: {
+        role: "tool_result",
+        agent_id: "conversation.google_ai_conversation",
+        tool_call_id: "t1",
+        tool_name: "HassTurnOff",
+        tool_result: {
+          speech: {},
+          response_type: "action_done",
+          data: { targets: [], success: [{ name: "TV Salotto", type: "entity", id: tv }], failed: [] },
+        },
+        created: new Date().toISOString(),
+      },
+    });
+    await evento("intent-progress", { chat_log_delta: { role: "assistant" } });
+  }
+  const testi = {
+    normale: ["In camera ci sono ", "25,1°, ", "con umidità al 43%."],
+    lenta: ["Scusa l'attesa: ", "in soggiorno ci sono 25,7°."],
+    azione: ["Fatto, ", "ho spento la TV del salotto."],
+    cade: ["Sto controllando ", "la TV…"],
+    lunga: [
+      "Ecco il riepilogo della casa. ",
+      "In soggiorno ci sono 25,7° con umidità al 44% e la TV è spenta. ",
+      "In camera da letto ci sono 25,1° e il condizionatore è in modalità ventola a 24°. ",
+      "In veranda lo scaldabagno è spento e la modalità inverno è attiva da due giorni nuvolosi; ",
+      "si spegnerà alle 00:00 e si riaccenderà alle 04:30.",
+    ],
+  }[modo] ?? ["Ok."];
+  for (const [i, pezzo] of testi.entries()) {
+    await evento("intent-progress", { chat_log_delta: { content: pezzo } });
+    // "cade": HA si perde a metà risposta (Wi-Fi giù, server riavviato...)
+    if (modo === "cade" && i === 0) {
+      await pausa(200);
+      cliente.ws.terminate();
+      return;
+    }
+    await pausa(150);
+  }
+  await evento("intent-end", uscita(testi.join("")));
+  await evento("run-end", null);
+}
+
 function trasmettiEntita(agg) {
   for (const c of clienti)
     for (const id of c.abbonamentiEntita) void invia(c, { id, type: "event", event: agg });
@@ -265,6 +376,9 @@ const server = createServer(async (req, res) => {
       return json(res, 200, {
         ...stato.info,
         chiamate: stato.chiamate,
+        richiesteAssistente: stato.richiesteAssistente,
+        disiscrizioniPipeline: stato.disiscrizioniPipeline,
+        pipelineAperte: [...clienti].reduce((n, c) => n + c.pipeline.size, 0),
         clienti: clienti.size,
         acceso: stato.acceso,
       });
@@ -275,7 +389,10 @@ const server = createServer(async (req, res) => {
     else if (comando === "latenza") stato.latenza = Number(url.searchParams.get("ms") ?? 0);
     else if (comando === "rifiuta") stato.rifiuta.add(url.searchParams.get("servizio"));
     else if (comando === "muto") stato.muti.add(url.searchParams.get("entity_id"));
-    else if (comando === "aggiungi") {
+    else if (comando === "assistente") {
+      stato.assistente.modo = url.searchParams.get("modo") ?? "normale";
+      stato.assistente.attesaMs = Number(url.searchParams.get("ms") ?? 10_000);
+    } else if (comando === "aggiungi") {
       // {area?, dispositivo?, entita, s, a}: un dispositivo nuovo in HA
       const { area, dispositivo, entita, s: st, a } = JSON.parse(await leggiCorpo(req));
       if (area && !stato.registri.aree.some((x) => x.area_id === area.area_id)) {
@@ -412,6 +529,7 @@ function gestisci(ws) {
     invioProgrammato: false,
     abbonamentiEntita: new Set(),
     abbonamentiMeteo: new Map(),
+    pipeline: new Set(), // assist_pipeline/run in corso (o finite e non ancora disiscritte, come in HA)
   };
   clienti.add(cliente);
   stato.info.connessioni++;
@@ -483,11 +601,51 @@ function gestisci(ws) {
         eseguiServizio(msg.domain, msg.service, dati);
         return invia(cliente, { id, type: "result", success: true, result: { context: { id: "ctx" } } });
       }
-      case "unsubscribe_events":
-        cliente.abbonamentiEventi.delete(msg.subscription);
-        cliente.abbonamentiEntita.delete(msg.subscription);
-        cliente.abbonamentiMeteo.delete(msg.subscription);
+      case "assist_pipeline/run": {
+        const testoDomanda = msg.input?.text;
+        stato.richiesteAssistente.push({
+          testo: testoDomanda,
+          conversation_id: msg.conversation_id ?? null,
+          start_stage: msg.start_stage,
+          end_stage: msg.end_stage,
+          timeout: msg.timeout,
+        });
+        if (msg.start_stage !== "intent" || typeof testoDomanda !== "string")
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: false,
+            error: { code: "invalid_format", message: "start_stage/input non validi" },
+          });
+        // come chat_session: un id sconosciuto (o scaduto) diventa una conversazione nuova
+        const a = stato.assistente;
+        const conversationId =
+          msg.conversation_id && a.conversazioni.has(msg.conversation_id)
+            ? msg.conversation_id
+            : `conv-${a.prossima++}`;
+        a.conversazioni.add(conversationId);
+        cliente.pipeline.add(id);
+        await invia(cliente, { id, type: "result", success: true, result: null });
+        void rispondiAssistente(cliente, id, conversationId, testoDomanda);
+        return;
+      }
+      case "unsubscribe_events": {
+        // come HA: una sottoscrizione sconosciuta è un errore (commands.py)
+        const s = msg.subscription;
+        const nota =
+          cliente.abbonamentiEventi.delete(s) |
+          cliente.abbonamentiEntita.delete(s) |
+          cliente.abbonamentiMeteo.delete(s);
+        if (cliente.pipeline.delete(s)) stato.disiscrizioniPipeline++;
+        else if (!nota)
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: false,
+            error: { code: "not_found", message: "Subscription not found." },
+          });
         return invia(cliente, { id, type: "result", success: true, result: null });
+      }
       default:
         return invia(cliente, {
           id,

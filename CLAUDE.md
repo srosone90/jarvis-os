@@ -76,6 +76,7 @@ In casa **non ci sono luci smart**.
 | `src/main.ts` | Avvio: gestori d'errore globali, service worker, ricarica notturna, connessione |
 | `src/configurazione.ts` | Preferenze (`PREFERENZE`): meteo, stanze → zona del mockup e sensori del clima, dispositivi a infrarossi, programmi, entità nascoste |
 | `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
+| `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
 | `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
@@ -87,7 +88,9 @@ In casa **non ci sono luci smart**.
 | `scripts/crea-zip.sh` | `jarvis-dist.zip` da `dist/` |
 | `test/unit/` | Vitest |
 | `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
-| `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
+| `docs/mockup-f4.html` | Mockup della chat (F4), variante A approvata |
+| `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica |
+| `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline, e con la chat aperta + tastiera simulata): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
 | `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (sul push del branch principale, se la versione è nuova) |
 
 ## 4. Architettura prevista dell'app (dal prompt, decisa)
@@ -162,6 +165,40 @@ In casa **non ci sono luci smart**.
   in accensione, Bot 30 s, altrimenti 15 s); se HA rifiuta o non conferma si torna
   allo stato vero con un avviso. A infrarossi: solo "comando inviato".
 
+### F4 (v0.3.0): assistente testuale
+
+- **Motore unico** in `src/assistente/`: la chat è solo una faccia; voce (F5) e
+  Hub useranno lo stesso `connessione.assistente`.
+- Usa **`assist_pipeline/run` da `intent` a `intent`** (non `conversation/process`):
+  stesso comando che userà la voce, risposta che arriva a pezzi, risultati degli
+  strumenti visibili. Pipeline predefinita (quella in italiano), `timeout: 60`.
+- **`resubscribe: false` sempre**: la libreria, dopo una riconnessione, rimanda
+  da sola le sottoscrizioni; una pipeline "spegni la TV" rimandata la
+  eseguirebbe due volte. La prova "connessione persa a metà" controlla che dopo
+  la riconnessione HA abbia ricevuto una richiesta sola.
+- A fine risposta **ci si disiscrive**: HA non toglie da solo la pipeline finita
+  da `connection.subscriptions`, e la libreria la terrebbe nella sua mappa: in
+  mesi di domande crescerebbero entrambe. Se `run-end` non arriva, si pulisce
+  dopo 10 s.
+- Tempi: "più del solito" dopo 15 s, errore dopo 60 s. HA dimentica il contesto
+  dopo 5 minuti senza messaggi, quindi la chat mostra solo la conversazione in
+  corso e riparte vuota dopo 5 minuti (o con "Nuova conversazione").
+- **Etichette delle azioni** ("TV Salotto · spenta") dai `tool_result` di HA
+  (`data.success/failed`) e dallo stato vero nel negozio, mai dal testo di
+  Gemini; gli strumenti senza bersagli (es. script) non hanno etichetta.
+- Offline: barra e campo spenti con spiegazione, nessuna domanda parte. Caduta a
+  metà: errore "connessione persa", la domanda resta, "Rimanda" con un tocco e
+  l'avviso di guardare le card prima (il comando può essere già partito).
+- **Posizione**: sul tablet la chat prende il posto di stanze e barra (orologio,
+  meteo e scene restano in vista); se c'è il banner offline, la chat si ferma
+  sopra la barra. Altrove è a tutto schermo e il resto non si disegna. Si chiude
+  da sola dopo 60 s senza tocchi.
+- **Tastiera virtuale**: niente `interactive-widget=resizes-content`, che
+  rimpicciolirebbe la pagina e farebbe uscire il tablet dalla schermata unica
+  (il layout salterebbe). La chat misura con `visualViewport` quanto copre la
+  tastiera e si accorcia di tanto. Provato simulando `visualViewport`: **da
+  confermare sul tablet vero**.
+
 ### Layout (v0.2.1): tre modi, mai sovrapposizioni
 
 Tutto in `src/ui/jarvis-app.ts` (griglia con le aree `stato/info/scene/destra/barra`);
@@ -202,13 +239,15 @@ passa il suo); la voce esce dall'uscita audio del telefono, cioè dall'Echo.
 
 ### Piano delle fasi
 
-Ordine deciso il 29/09 (l'Hub viene anticipato, scene e notte vanno dopo):
+Ordine deciso il 29/09 (l'Hub viene anticipato, scene e notte vanno dopo; la
+gestione dispositivi subito dopo la F4, perché voce, Hub e scene ci si appoggiano):
 
 | Fase | Cosa | Stato |
 |---|---|---|
 | F1 | Scheletro PWA, connessione, orologio e meteo, clima, diagnostica | v0.1.2 |
 | F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2; prove sui dispositivi veri in corso |
-| F4 | **Assistente testuale** (barra + chat con Gemini) | In corso |
+| F4 | **Assistente testuale** (barra + chat con Gemini) | v0.3.0 |
+| G | **Gestione dispositivi** dentro Jarvis (vedi sotto) | Da fare: mockup e domande prima |
 | F5 | Voce **"tocca per parlare"**. Prove obbligatorie: uscita audio cambiata o scollegata **a metà risposta** (il pannello non si deve bloccare) | Da fare |
 | Hub | **Modalità Hub** + tasto di passaggio Hub ↔ completo (vedi sotto) | Da fare |
 | F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
@@ -218,6 +257,52 @@ Ogni fase parte con mockup e domande e finisce con release e resoconto. Finché
 non c'è la F3 le scene restano "in arrivo" sul pannello, ma gli script
 `script.jarvis_buonanotte`, `jarvis_esco` e `jarvis_rientro` esistono già in HA:
 Gemini li può usare se l'agente li vede.
+
+### G — Gestione dispositivi (proposta da Salvatore il 29/09)
+
+**Home Assistant resta l'unica fonte di verità**: Jarvis è un'interfaccia che
+scrive nei registri di HA via WebSocket, mai un elenco parallelo. Contenuto:
+
+1. **Da sistemare**: dispositivi comandabili senza stanza (oggi spariscono in
+   silenzio) → assegna stanza e nome. Badge quando ce ne sono, e la voce in
+   diagnostica "N dispositivi senza stanza in HA: …".
+2. **Cerca dispositivi nuovi**: reload delle integrazioni (SwitchBot Cloud e
+   altre) con esito visibile.
+3. Per dispositivo: nome, stanza, icona, mostra/nascondi, ordine, entità
+   principale da comandare.
+4. Stanze: crea/rinomina/riordina, sensore del clima della stanza.
+5. **Card universali per dominio**, guidate da `supported_features` e attributi
+   (light: on/off, luminosità, colore se supportati; cover: apri/chiudi/stop/
+   posizione; poi fan, lock, vacuum), con conferma e rollback come le altre: un
+   dispositivo nuovo di un tipo noto funziona senza nuove release. Oggi hanno la
+   card vera solo climate, media_player e switch; gli altri comandabili hanno
+   quella generica "non ancora comandabile".
+6. **Crescita del layout sul tablet**: regola esplicita per una stanza con più
+   card di quante ne entrano (mai fuori schermo, mai sovrapposte). Prova con
+   stanze da 3, 6 e 10 dispositivi e una stanza aggiunta mentre il pannello è
+   aperto.
+7. **Accesso protetto** (utente admin di HA e/o PIN locale): chi non è admin
+   vede il pannello ma non la gestione.
+8. **Preferenze salvate in HA** e condivise da tutti i pannelli, non nel bundle
+   né nel localStorage, con migrazione automatica da `src/configurazione.ts`.
+
+Verificato sul codice di HA 2026.9.3 (`components/config/*`,
+`frontend/storage.py`):
+
+| Serve admin | Non serve admin |
+|---|---|
+| `config/area_registry/create·update·delete·reorder` | tutti i `.../list` dei registri |
+| `config/device_registry/update·remove` | `config/entity_registry/get·get_entries` |
+| `config/entity_registry/update·remove` | `config_entries/get`, `config_entries/subscribe` |
+| `config/label_registry/create·update·delete` | `frontend/get_system_data`, `frontend/subscribe_system_data` |
+| `frontend/set_system_data`, `lovelace/config/save` | `lovelace/config` |
+
+**Proposta per le preferenze condivise** (da confermare in fase G):
+`frontend/set_system_data` con una chiave `jarvis`. HA la salva in
+`.storage/frontend.system_data`: la scrive solo un admin, la leggono tutti, e
+`frontend/subscribe_system_data` avvisa **in tempo reale** tutti i pannelli
+aperti. Da verificare prima: il reload delle integrazioni per chi non è admin, e
+cosa fa HA con valori grandi in quello spazio.
 
 ### Modalità Hub
 
@@ -345,6 +430,14 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **F4, chat**: sul tablet al posto delle stanze (variante A
+  del mockup), solo la conversazione in corso, etichetta dell'azione + risposta,
+  chiusura da sola dopo 60 s senza tocchi.
+- **2026-09-29** — **Gestione dispositivi (fase G) subito dopo la F4**, prima
+  della voce: card universali e preferenze condivise in HA sono fondamenta su
+  cui si appoggiano F5, Hub e scene. Nuovo ordine: F4 → G → F5 → Hub → F3 → F6.
+  Dentro la G anche la crescita del layout, le card mancanti e i dispositivi
+  senza stanza.
 - **2026-09-29** — **Architettura dei dispositivi** e **nuovo ordine delle fasi**
   (F4 → F5 → Hub → F3 → F6), con il **tasto di passaggio Hub ↔ completo** su
   tutti i dispositivi, la modalità predefinita salvata sul dispositivo e il
@@ -478,3 +571,11 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   `overflow-wrap: break-word`, e nel compatto il blocco del nome non scende
   sotto `min-content`. **Gli screenshot si guardano sempre, anche con le prove
   verdi**: è lì che è venuto fuori.
+- **Una controprova vale solo se il build della versione rotta è riuscito.**
+  La prima controprova della F4 (tolta la gestione della caduta a metà) è
+  "passata": il metodo rimasto inutilizzato faceva fallire il typecheck, il
+  build non partiva e Playwright provava il `dist/` vecchio. Si rompe il codice
+  in modo che compili (un `return` in testa), e si controlla l'esito del build.
+- **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
+  `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
+  massimi a metà: sembra un difetto dell'app e non lo è.

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, comando } from "./aiuti";
+import { accedi, apriChat, chiedi, comando } from "./aiuti";
 
 /**
  * Regola: MAI sovrapposizioni, a nessuna misura da 320 px di larghezza in su.
@@ -168,5 +168,99 @@ for (const v of MISURE) {
     await expect(page.getByTestId("banner")).toBeVisible({ timeout: 15_000 });
     await page.screenshot({ path: `schermate/layout/${v.nome}-offline.png`, fullPage: true });
     expect(controlla(await misura(page), v.width, v.height, v.unica), "offline").toEqual([]);
+  });
+}
+
+/** Rettangoli della chat e delle sue parti, con le coordinate della pagina. */
+function misuraChat(page: Page) {
+  return page.evaluate(() => {
+    const app = document.querySelector("jarvis-app")?.shadowRoot;
+    const chat = app?.querySelector("jarvis-chat");
+    const dentro = chat?.shadowRoot;
+    if (!app || !chat || !dentro) throw new Error("chat mancante");
+    const ret = (nome: string, e: Element) => {
+      const b = e.getBoundingClientRect();
+      return { nome, x: b.left + scrollX, y: b.top + scrollY, r: b.right + scrollX, b: b.bottom + scrollY };
+    };
+    const uno = (sel: string) => {
+      const e = dentro.querySelector(sel);
+      if (!e) throw new Error(`${sel} mancante`);
+      return ret(sel, e);
+    };
+    const esterni = [
+      ...app.querySelectorAll(".info, [data-test=zona-scene], .stato jarvis-connessione, .barra"),
+    ]
+      .filter((e) => e.getBoundingClientRect().width > 0)
+      .map((e) => ret(e.className || e.localName, e));
+    return {
+      chat: ret("chat", chat),
+      parti: [uno(".testa"), uno(".messaggi"), uno("form")],
+      campo: uno("input"),
+      invia: uno(".invia"),
+      contenuti: [...dentro.querySelectorAll(".messaggi > *")].map((e) => ret(e.className, e)),
+      esterni,
+      stanze: app.querySelectorAll("jarvis-stanza").length,
+    };
+  });
+}
+
+/** Tastiera virtuale simulata: visualViewport più basso, come quando Android la apre. */
+async function apriTastiera(page: Page, altezza: number): Promise<void> {
+  await page.evaluate((h) => {
+    const vv = window.visualViewport;
+    if (!vv) throw new Error("visualViewport mancante");
+    Object.defineProperty(vv, "height", { get: () => h, configurable: true });
+    vv.dispatchEvent(new Event("resize"));
+  }, altezza);
+}
+
+for (const v of MISURE) {
+  test(`layout ${v.nome} con la chat aperta: conversazione lunga, tastiera, niente sovrapposizioni`, async ({
+    page,
+    request,
+  }) => {
+    await comando(request, "stato", { entity_id: "media_player.soggiorno_tv_salotto", state: "on" });
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await accedi(page);
+    await apriChat(page);
+    await comando(request, "assistente?modo=azione");
+    await chiedi(page, "Spegni la TV del salotto");
+    await expect(page.getByTestId("stato-assistente")).toHaveText("Gemini");
+    await comando(request, "assistente?modo=lunga");
+    await chiedi(page, "Fammi un riepilogo completo di tutta la casa, stanza per stanza, per favore");
+    await expect(page.getByTestId("stato-assistente")).toHaveText("Gemini");
+    await expect(page.getByTestId("azione")).toHaveText("TV Salotto · spenta");
+    await page.screenshot({ path: `schermate/layout/chat-${v.nome}.png` });
+
+    const problemi: string[] = [];
+    const m = await misuraChat(page);
+    const schermo = { nome: "schermo", x: 0, y: 0, r: v.width, b: v.height };
+    if (!dentro(m.chat, schermo)) problemi.push("la chat esce dallo schermo");
+    for (const [a, b] of coppie(m.parti))
+      if (siIntersecano(a, b)) problemi.push(`chat: ${a.nome} ↔ ${b.nome}`);
+    const elenco = m.parti[1];
+    for (const c of m.contenuti)
+      if (elenco && (c.x < elenco.x - 0.5 || c.r > elenco.r + 0.5))
+        problemi.push(`${c.nome} esce dall'elenco`);
+    for (const e of m.esterni) if (siIntersecano(e, m.chat)) problemi.push(`chat sopra ${e.nome}`);
+    if (v.unica && m.stanze !== 0) problemi.push("sul tablet la chat deve prendere il posto delle stanze");
+    const g = await misura(page);
+    problemi.push(...g.tagliati.map((t) => `testo tagliato: ${t}`));
+    problemi.push(...g.spezzate.map((t) => `parola spezzata: ${t}`));
+    if (g.larghezzaPagina > v.width) problemi.push(`scorrimento orizzontale: ${g.larghezzaPagina}`);
+    expect(problemi, "chat aperta").toEqual([]);
+
+    // tastiera aperta: il campo e il pulsante restano sopra, il resto della pagina non salta
+    const altezzaVisibile = Math.round(v.height * 0.55);
+    await apriTastiera(page, altezzaVisibile);
+    await expect
+      .poll(async () => (await misuraChat(page)).campo.b, { message: "campo sopra la tastiera" })
+      .toBeLessThanOrEqual(altezzaVisibile);
+    const t = await misuraChat(page);
+    expect(t.invia.b).toBeLessThanOrEqual(altezzaVisibile);
+    expect(t.chat.x).toBe(m.chat.x);
+    expect(t.chat.y).toBe(m.chat.y);
+    for (const [a, b] of coppie(t.parti)) expect(siIntersecano(a, b), `${a.nome} ↔ ${b.nome}`).toBe(false);
+    await page.screenshot({ path: `schermate/layout/chat-${v.nome}-tastiera.png` });
   });
 }

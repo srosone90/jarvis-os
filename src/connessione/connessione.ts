@@ -8,6 +8,7 @@ import {
   type ConnectionOptions,
   type HaWebSocket,
 } from "home-assistant-js-websocket";
+import { Assistente } from "../assistente/assistente";
 import { Comandi } from "../comandi/comandi";
 import { descriviErrore, log } from "../diagnostica/log";
 import { Registri } from "../registri/registri";
@@ -69,6 +70,12 @@ export class Connessione {
   private svegliaAttesa: (() => void) | null = null;
   private chiusa = false;
   private prossimoCompleto = true;
+  /** Dichiarato DOPO `ascoltatori`: si registra subito come ascoltatore della connessione. */
+  readonly assistente = new Assistente({
+    conn: () => this.conn,
+    collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
+    ascoltaConnessione: (f) => this.ascolta(f),
+  });
 
   constructor() {
     window.addEventListener("online", this.suRetePresente);

@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.3.0
+
+Fase F4: assistente testuale.
+
+- "Chiedi a Jarvis…" funziona: si apre la chat con Gemini (la pipeline Assist
+  predefinita di HA, in italiano). Sul tablet prende il posto delle stanze,
+  orologio, meteo e scene restano in vista; sul telefono è a tutto schermo.
+- La risposta compare mentre Gemini la scrive; "Sto pensando…" finché non
+  arriva niente, "ci sta mettendo più del solito" dopo 15 s, errore dopo 60 s.
+- Quando Gemini esegue un comando compare un'etichetta con lo stato vero preso
+  da HA (es. "TV Salotto · spenta"); le card si aggiornano da sole.
+- Il contesto resta tra una domanda e l'altra; dopo 5 minuti senza messaggi (il
+  limite di HA) la chat riparte vuota. Pulsante "Nuova conversazione".
+- Offline: barra e campo disattivati con spiegazione, nessuna risposta finta.
+  Se la connessione cade a metà risposta: errore chiaro, la domanda resta e si
+  rimanda con un tocco; non viene mai rimandata da sola.
+- Errori di Gemini: messaggio chiaro e "Riprova". Tutti gli errori nel log
+  della diagnostica.
+- La chat si chiude da sola dopo 60 s senza tocchi; la tastiera virtuale non
+  copre il campo.
+- Nessuna modifica al pacchetto HA.
+
 ## v0.2.2
 
 Correzione di layout della v0.2.1.

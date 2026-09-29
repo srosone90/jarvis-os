@@ -9,12 +9,23 @@ export async function comando(request: APIRequestContext, percorso: string, corp
   expect(r.ok()).toBeTruthy();
 }
 
+export interface RichiestaAssistente {
+  testo: string;
+  conversation_id: string | null;
+  start_stage: string;
+  end_stage: string;
+  timeout: number;
+}
+
 export async function info(request: APIRequestContext): Promise<{
   login: number;
   rinnovi: number;
   connessioni: number;
   richieste: Record<string, number>;
   chiamate: { servizio: string; dati: Record<string, unknown> }[];
+  richiesteAssistente: RichiestaAssistente[];
+  disiscrizioniPipeline: number;
+  pipelineAperte: number;
 }> {
   return (await request.get(`${HA}/__prova/info`)).json();
 }
@@ -47,4 +58,17 @@ export async function apriDiagnostica(page: Page): Promise<void> {
   await page.waitForTimeout(3300);
   await page.mouse.up();
   await expect(page.getByTestId("diagnostica")).toBeVisible();
+}
+
+/** Apre la chat dalla barra "Chiedi a Jarvis…". */
+export async function apriChat(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Chiedi a Jarvis…" }).click();
+  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toBeVisible();
+}
+
+/** Scrive una domanda nella chat e la manda con Invio. */
+export async function chiedi(page: Page, testo: string): Promise<void> {
+  const campo = page.getByRole("textbox", { name: "Domanda per Jarvis" });
+  await campo.fill(testo);
+  await campo.press("Enter");
 }

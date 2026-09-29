@@ -12,6 +12,7 @@ import "./jarvis-stanza";
 import "./jarvis-connessione";
 import "./jarvis-accesso";
 import "./jarvis-diagnostica";
+import "./jarvis-chat";
 
 /** Ridisegna quando i registri di HA cambiano (stanze o dispositivi aggiunti/tolti). */
 class OsservaRegistri implements ReactiveController {
@@ -74,8 +75,13 @@ const SCENE = [
  *  - VERTICALE (< 700 px di larghezza): una colonna sola che scorre.
  * Le card e il meteo hanno lo stesso "compatto" nelle loro media query.
  * (I telefoni-pannello fissi avranno una "Modalità Hub" a parte, dopo la F5.)
- * Le zone delle fasi future (scene, assistente) ci sono già, ma dichiarate "in
+ * Le zone delle fasi future (scene, microfono) ci sono già, ma dichiarate "in
  * arrivo" e non toccabili: mai controlli che sembrano funzionare e non fanno niente.
+ *
+ * Chat dell'assistente (F4, mockup docs/mockup-f4.html, variante A): sul tablet
+ * prende il posto delle stanze e della barra, orologio meteo e scene restano in
+ * vista; altrove è a tutto schermo e il resto non si disegna (niente da far
+ * scorrere sotto, niente sovrapposizioni).
  */
 export class JarvisApp extends LitElement {
   static override styles = css`
@@ -176,14 +182,24 @@ export class JarvisApp extends LitElement {
       min-width: 0;
       min-height: 60px;
       border-radius: 30px;
-      border: 1px dashed #343a46;
+      border: 1px solid #2b303a;
+      background: var(--superficie);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
       column-gap: 12px;
       padding: 6px 24px;
+      font: inherit;
       font-size: 18px;
+      text-align: left;
       color: var(--attenuato);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .chiedi[disabled] {
+      cursor: not-allowed;
+      border-style: dashed;
+      background: transparent;
     }
     .chiedi small {
       margin-left: auto;
@@ -201,6 +217,14 @@ export class JarvisApp extends LitElement {
     }
     .posto-banner {
       min-width: 0;
+    }
+    /* chat a tutto schermo (telefono): il resto della pagina non viene disegnato */
+    jarvis-chat.intera {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      border-radius: 0;
+      border: none;
     }
 
     /* ---- modo VERTICALE: una colonna sola ---- */
@@ -312,18 +336,32 @@ export class JarvisApp extends LitElement {
       .barra.offline .mic {
         display: none;
       }
+      /* chat al posto delle stanze (e della barra, se non c'è il banner) */
+      jarvis-chat {
+        grid-column: 2;
+        grid-row: 1 / -1;
+        margin-top: 22px; /* sotto il pallino di connessione */
+      }
+      jarvis-chat.sopra-banner {
+        grid-row: 1 / 3;
+      }
     }
   `;
 
-  static override properties = { diagnostica: { state: true } };
+  static override properties = { diagnostica: { state: true }, chat: { state: true } };
   declare diagnostica: boolean;
+  declare chat: boolean;
   private readonly connessione = new OsservaConnessione(this);
   private readonly schermata = new OsservaSchermata(this);
 
   constructor() {
     super();
     this.diagnostica = false;
+    this.chat = false;
     new OsservaRegistri(this);
+    this.addEventListener("chiudi-chat", () => {
+      this.chat = false;
+    });
     this.addEventListener("apri-diagnostica", () => {
       this.diagnostica = true;
     });
@@ -343,6 +381,13 @@ export class JarvisApp extends LitElement {
     const banner = offline && !loginRichiesto;
     const bannerNellaBarra = banner && this.schermata.unica;
     const bannerInCima = banner && !this.schermata.unica;
+    const sovrapposti = html`
+      ${loginRichiesto ? html`<jarvis-accesso></jarvis-accesso>` : nothing}
+      ${this.diagnostica ? html`<jarvis-diagnostica tabindex="-1"></jarvis-diagnostica>` : nothing}
+    `;
+    const chatAperta = this.chat && !loginRichiesto;
+    if (chatAperta && !this.schermata.unica)
+      return html`<jarvis-avvisi></jarvis-avvisi><jarvis-chat class="intera"></jarvis-chat>${sovrapposti}`;
     return html`
       <jarvis-avvisi></jarvis-avvisi>
       <div class="stato">
@@ -365,6 +410,23 @@ export class JarvisApp extends LitElement {
             </div>`,
         )}
       </div>
+      ${
+        chatAperta
+          ? html`<jarvis-chat class=${bannerNellaBarra ? "sopra-banner" : ""}></jarvis-chat>`
+          : this.stanzeEBarra(stanze, offline, scollegato, bannerNellaBarra)
+      }
+      ${chatAperta && bannerNellaBarra ? this.barra(true, scollegato) : nothing} ${sovrapposti}
+    `;
+  }
+
+  private stanzeEBarra(
+    stanze: ReturnType<typeof costruisciStanze>,
+    offline: boolean,
+    scollegato: boolean,
+    bannerNellaBarra: boolean,
+  ): TemplateResult {
+    const r = connessione.registri;
+    return html`
       <section class="destra" aria-label="Stanze">
         ${stanze.map(
           (s) =>
@@ -377,26 +439,30 @@ export class JarvisApp extends LitElement {
             ></jarvis-stanza>`,
         )}
       </section>
-      <div
-        class="barra ${bannerNellaBarra ? "offline" : ""}"
-        data-test="zona-assistente"
-        aria-label="Assistente, in arrivo"
-      >
-        ${
-          bannerNellaBarra
-            ? html`<div class="posto-banner"><jarvis-connessione parte="banner"></jarvis-connessione></div>`
-            : nothing
-        }
-        <div class="chiedi" aria-disabled="true">
-          Chiedi a Jarvis… <small>assistente in arrivo (F4)</small>
-        </div>
-        <div class="mic" aria-disabled="true" aria-label="Microfono, in arrivo (F5)">
-          ${icona(mdiMicrophone)}
-        </div>
-      </div>
-      ${loginRichiesto ? html`<jarvis-accesso></jarvis-accesso>` : nothing}
-      ${this.diagnostica ? html`<jarvis-diagnostica tabindex="-1"></jarvis-diagnostica>` : nothing}
+      ${this.barra(bannerNellaBarra, scollegato)}
     `;
+  }
+
+  private barra(bannerNellaBarra: boolean, scollegato: boolean): TemplateResult {
+    return html`<div class="barra ${bannerNellaBarra ? "offline" : ""}" data-test="zona-assistente">
+      ${
+        bannerNellaBarra
+          ? html`<div class="posto-banner"><jarvis-connessione parte="banner"></jarvis-connessione></div>`
+          : nothing
+      }
+      <button
+        class="chiedi"
+        ?disabled=${scollegato}
+        @click=${() => {
+          this.chat = true;
+        }}
+      >
+        Chiedi a Jarvis… ${scollegato ? html`<small>non disponibile senza Home Assistant</small>` : nothing}
+      </button>
+      <div class="mic" aria-disabled="true" aria-label="Microfono, in arrivo (F5)">
+        ${icona(mdiMicrophone)}
+      </div>
+    </div>`;
   }
 }
 customElements.define("jarvis-app", JarvisApp);
