@@ -198,22 +198,27 @@ i componenti hanno solo le loro regole "compatte".
 
 Ogni fase parte con mockup e domande e finisce con release e resoconto.
 
-**Modalità Hub** (decisa il 29/09, si progetta dopo la F5 con **mockup animato e
-domande prima di scrivere codice**):
+**Modalità Hub** (decisa il 29/09). Dipende dall'assistente (F4) e dalla voce (F5),
+quindi viene dopo la F5. Si progetta con **mockup animato e domande prima di
+scrivere codice**:
 
-- Telefoni vecchi usati come pannelli **solo vocali**, stile Echo: sfera animata
-  con gli stati riposo / ascolto / pensa / risponde / errore, sottotitoli, in un
+- Telefoni vecchi in orizzontale, collegati in Bluetooth agli **Echo Pop** usati
+  come casse, come pannelli **solo vocali** in stile Echo: una sfera animata
+  con gli stati riposo / ascolto / pensa / risponde / errore, sottotitoli di
+  domanda e risposta, in un
   angolo ora, temperatura della stanza e stato della connessione.
 - Anti burn-in; di notte solo l'orologio.
 - La modalità si sceglie **una volta sul dispositivo** e si salva lì ("Hub,
-  stanza Camera"), **mai** in base alla misura dello schermo. Il tablet tiene il
-  pannello completo.
-- Animazione leggera: CSS o canvas, al massimo 30 fps, **ferma** a riposo e di
-  notte.
+  stanza Camera"), **mai** in base alla misura dello schermo: il telefono
+  personale, fuori casa, deve poter aprire il pannello completo. Il tablet tiene
+  il pannello completo.
+- Animazione leggera: CSS o canvas, **niente librerie pesanti**, al massimo
+  30 fps, **ferma** a riposo e di notte.
 - Audio in Bluetooth verso l'Echo; se la cassa si scollega a metà risposta, il
   pannello va avanti (sottotitoli) e non si blocca.
 - **"Ehi Jarvis"** (parola di attivazione) solo dopo una prova di fattibilità su
-  un telefono vecchio vero: fino ad allora si parla toccando.
+  un telefono vecchio vero (CPU, calore, falsi positivi): fino ad allora si
+  parla toccando.
 
 ## 6. Decisioni di prodotto (log)
 
