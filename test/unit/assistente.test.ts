@@ -12,6 +12,7 @@ import {
   nuovoTurno,
   type EventoPipeline,
 } from "../../src/assistente/eventi";
+import { causaDaDettaglio, messaggioErrore } from "../../src/assistente/messaggi";
 
 /** Risposta di HA come in intent-end (IntentResponse.as_dict, HA 2026.9.3). */
 const uscita = (speech: string, tipo = "action_done", conv = "conv-1") => ({
@@ -306,5 +307,49 @@ describe("motore dell'assistente", () => {
     vi.advanceTimersByTime(10_001);
     await Promise.resolve();
     expect(f.sottoscrizioni[0]?.disiscritta).toBe(true);
+  });
+});
+
+describe("messaggi d'errore per le persone", () => {
+  const GEMINI = "Sorry, I had a problem getting a response from Google Generative AI.";
+  const agente = (dettaglio: string) => messaggioErrore({ tipo: "agente", dettaglio });
+
+  it("429 della quota (testo vero di HA durante la risposta)", () => {
+    const m = agente(`unknown: ${GEMINI}: Resource has been exhausted (e.g. check quota).`);
+    expect(m.causa).toBe("quota");
+    expect(m.titolo).toBe("Gemini ha raggiunto il limite di richieste.");
+  });
+
+  it("503 sovraccarico", () => {
+    expect(agente(`unknown: ${GEMINI}: The model is overloaded. Please try again later.`).causa).toBe(
+      "occupato",
+    );
+    expect(causaDaDettaglio("503 UNAVAILABLE")).toBe("occupato");
+  });
+
+  it("errore all'invio senza causa: messaggio che copre entrambe, niente invenzioni", () => {
+    const m = agente(`unknown: ${GEMINI}`);
+    expect(m.causa).toBe("gemini");
+    expect(m.spiegazione).toContain("occupato o aver raggiunto il limite");
+  });
+
+  it("errori di HA o della pipeline non vengono attribuiti a Gemini", () => {
+    expect(agente("pipeline-not-found: Pipeline not found").causa).toBe("altro");
+    expect(agente("La pipeline si è chiusa senza risposta").titolo).toBe(
+      "Jarvis non è riuscito a rispondere.",
+    );
+  });
+
+  it("nessun messaggio contiene testo in inglese o il dettaglio tecnico", () => {
+    for (const d of [`${GEMINI}: Resource has been exhausted`, GEMINI, "x: y"]) {
+      const m = agente(d);
+      expect(`${m.titolo} ${m.spiegazione}`).not.toMatch(/Sorry|Google Generative|exhausted|pipeline/i);
+    }
+  });
+
+  it("connessione persa: si rimanda, con l'avviso di guardare le card", () => {
+    const m = messaggioErrore({ tipo: "connessione", dettaglio: "" });
+    expect(m.pulsante).toBe("Rimanda");
+    expect(m.spiegazione).toContain("guarda le card");
   });
 });

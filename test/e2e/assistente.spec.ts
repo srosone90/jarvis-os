@@ -90,15 +90,40 @@ test("errore di Gemini: messaggio chiaro, la domanda resta e si riprova con un t
   await accedi(page);
   await apriChat(page);
   await chiedi(page, "Che tempo fa?");
-  await expect(page.getByTestId("errore-assistente")).toContainText("Jarvis non è riuscito a rispondere.");
+  const errore = page.getByTestId("errore-assistente");
+  // all'invio HA non dice la causa: messaggio onesto che copre entrambe
+  await expect(errore).toContainText("Gemini non ha risposto.");
+  await expect(errore).toContainText("riprova tra un minuto");
+  // mai il testo tecnico in inglese davanti all'utente
+  await expect(page.getByText(/Sorry|Google Generative AI/)).toHaveCount(0);
   await expect(page.getByTestId("domanda")).toHaveText("Che tempo fa?");
   await expect(risposte(page)).toHaveCount(0);
   await comando(request, "assistente?modo=normale");
   await page.getByRole("button", { name: "Riprova" }).click();
   await expect(risposte(page)).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
   await expect(page.getByTestId("domanda")).toHaveCount(1);
-  await expect(page.getByTestId("errore-assistente")).toHaveCount(0);
+  await expect(errore).toHaveCount(0);
 });
+
+for (const [modo, titolo] of [
+  ["quota", "Gemini ha raggiunto il limite di richieste."],
+  ["occupato", "Gemini è occupato in questo momento."],
+] as const) {
+  test(`errore di Gemini "${modo}": messaggio umano in italiano, niente inglese`, async ({
+    page,
+    request,
+  }) => {
+    await comando(request, `assistente?modo=${modo}`);
+    await accedi(page);
+    await apriChat(page);
+    await chiedi(page, "Che tempo fa domani?");
+    const errore = page.getByTestId("errore-assistente");
+    await expect(errore).toContainText(titolo);
+    await expect(errore).toContainText("Riprova tra un minuto.");
+    await expect(page.getByText(/Sorry|exhausted|overloaded/)).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Riprova" })).toBeEnabled();
+  });
+}
 
 test("connessione persa a metà: errore chiaro, nessun reinvio automatico, si rimanda con un tocco", async ({
   page,

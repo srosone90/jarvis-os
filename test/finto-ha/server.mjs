@@ -20,7 +20,8 @@
  *   /__prova/muto?entity_id=     il dispositivo accetta i comandi ma non cambia stato
  *   /__prova/aggiungi            {area?, dispositivo?, entita, s, a}: dispositivo nuovo nei registri
  *   /__prova/assistente?modo=    come risponde Gemini (assist_pipeline/run):
- *                                normale | lenta (&ms=10000) | errore | cade | azione | lunga
+ *                                normale | lenta (&ms=10000) | errore | quota | occupato
+ *                                | cade | azione | lunga
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -327,8 +328,16 @@ async function rispondiAssistente(cliente, id, conversationId, testoDomanda) {
   });
   await pausa(modo === "lenta" ? attesaMs : 300);
   if (!vivo()) return;
-  if (modo === "errore") {
-    await evento("intent-end", uscita("Error talking to API", "error"));
+  // Errori di Gemini con i testi veri di HA 2026.9.3 (google_generative_ai_conversation/entity.py):
+  // all'invio senza causa; durante la risposta con il messaggio di Google in coda.
+  const ERRORE_GEMINI = "Sorry, I had a problem getting a response from Google Generative AI.";
+  const errori = {
+    errore: ERRORE_GEMINI,
+    quota: `${ERRORE_GEMINI}: Resource has been exhausted (e.g. check quota).`,
+    occupato: `${ERRORE_GEMINI}: The model is overloaded. Please try again later.`,
+  };
+  if (modo in errori) {
+    await evento("intent-end", uscita(errori[modo], "error"));
     return evento("run-end", null);
   }
   await evento("intent-progress", { chat_log_delta: { role: "assistant" } });

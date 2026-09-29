@@ -1,6 +1,7 @@
 import { mdiClose, mdiPlus, mdiSend } from "@mdi/js";
 import { css, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import type { Azione, Turno } from "../assistente/eventi";
+import { messaggioErrore } from "../assistente/messaggi";
 import { connessione } from "../connessione/connessione";
 import { icona, OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 import { statoInItaliano } from "./card-base";
@@ -364,21 +365,10 @@ export class JarvisChat extends RiquadroSicuro {
   }
 
   private errore(t: Turno): TemplateResult {
-    const err = t.errore;
-    const titolo =
-      err?.tipo === "connessione"
-        ? "Connessione persa durante la risposta."
-        : err?.tipo === "tempo"
-          ? "Jarvis non ha risposto in tempo."
-          : "Jarvis non è riuscito a rispondere.";
-    const spiegazione =
-      err?.tipo === "connessione"
-        ? "Se avevi chiesto un comando, guarda le card prima di rimandare: potrebbe essere già stato eseguito."
-        : err?.tipo === "tempo"
-          ? "Gemini ci ha messo più di un minuto. La domanda è ancora qui."
-          : "Gemini ha dato un errore. La domanda è ancora qui.";
-    const pulsante = err?.tipo === "connessione" ? "Rimanda" : "Riprova";
-    return html`<div class="errore" role="alert" data-test="errore-assistente">
+    if (!t.errore) return html``;
+    // testi in assistente/messaggi.ts: gli stessi per chat, voce e Hub
+    const { titolo, spiegazione, pulsante, causa } = messaggioErrore(t.errore);
+    return html`<div class="errore" role="alert" data-test="errore-assistente" data-causa=${causa}>
       <div class="t"><b>${titolo}</b><br />${spiegazione}</div>
       <button
         ?disabled=${!this.collegato || this.assistente.occupato}

@@ -71,7 +71,7 @@ In casa **non ci sono luci smart**.
 | `home-assistant/packages/jarvis.yaml` | Tutto ciò che il pannello chiede a HA: aiutanti, sensori, scene, automazioni |
 | `home-assistant/README.md` | Istruzioni di installazione e verifiche per chi amministra HA |
 | `home-assistant/custom_templates/jarvis.jinja` | Macro con gli orari dello scaldabagno: UNICO posto dove sono scritti |
-| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (110 verifiche) |
+| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (115 verifiche) |
 | `docs/mockup.html` | Mockup statico della schermata principale (1024×600), approvato |
 | `src/main.ts` | Avvio: gestori d'errore globali, service worker, ricarica notturna, connessione |
 | `src/configurazione.ts` | Preferenze (`PREFERENZE`): meteo, stanze → zona del mockup e sensori del clima, dispositivi a infrarossi, programmi, entità nascoste |
@@ -181,6 +181,15 @@ In casa **non ci sono luci smart**.
 
 ### F4 (v0.3.0): assistente testuale
 
+- **Errori di Gemini** (v0.3.2, `src/assistente/messaggi.ts`): arrivano come
+  risposta con `response_type: "error"`. All'invio (dove cade di solito il 429)
+  il testo è solo "Sorry, I had a problem getting a response from Google
+  Generative AI." **senza la causa**; durante la risposta c'è in coda il
+  messaggio di Google ("Resource has been exhausted…", "The model is
+  overloaded…"). Si riconoscono quota e occupato quando la causa c'è; quando non
+  c'è, un messaggio onesto che copre entrambe. Mai inglese a schermo: il
+  dettaglio va nel log.
+
 - **Motore unico** in `src/assistente/`: la chat è solo una faccia; voce (F5) e
   Hub useranno lo stesso `connessione.assistente`.
 - Usa **`assist_pipeline/run` da `intent` a `intent`** (non `conversation/process`):
@@ -253,16 +262,17 @@ passa il suo); la voce esce dall'uscita audio del telefono, cioè dall'Echo.
 
 ### Piano delle fasi
 
-Ordine deciso il 29/09 (l'Hub viene anticipato, scene e notte vanno dopo; la
-gestione dispositivi subito dopo la F4, perché voce, Hub e scene ci si appoggiano):
+Ordine in vigore (29/09, ultimo cambio): **F5 → G → Hub → F3 → F6**. La voce
+passa prima della gestione dispositivi perché Salvatore usa **solo il pannello**,
+non l'app di HA. L'Hub viene anticipato, scene e notte vanno dopo.
 
 | Fase | Cosa | Stato |
 |---|---|---|
 | F1 | Scheletro PWA, connessione, orologio e meteo, clima, diagnostica | v0.1.2 |
-| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2; prove sui dispositivi veri in corso |
-| F4 | **Assistente testuale** (barra + chat con Gemini) | v0.3.0 |
-| G | **Gestione dispositivi** dentro Jarvis (vedi sotto) | Da fare: mockup e domande prima |
-| F5 | Voce **"tocca per parlare"**. Prove obbligatorie: uscita audio cambiata o scollegata **a metà risposta** (il pannello non si deve bloccare) | Da fare |
+| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2, clima v0.3.1; prove sui dispositivi veri in corso |
+| F4 | **Assistente testuale** (barra + chat con Gemini) | v0.3.0, errori umani v0.3.2 |
+| F5 | Voce **"tocca per parlare"** (vedi "Voce") | **In corso**: mockup e domande brevi |
+| G | **Gestione dispositivi** dentro Jarvis (vedi sotto) | Dopo la F5 |
 | Hub | **Modalità Hub** + tasto di passaggio Hub ↔ completo (vedi sotto) | Da fare |
 | F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
 | F6 | Modalità notte e rifiniture | Da fare |
@@ -366,6 +376,45 @@ Esigenze future da servizio, **da non implementare ora** ma da non impedire:
   testi visibili, nella parola di attivazione, nel manifest. Gli identificativi
   tecnici invisibili (`jarvis-app`, `jarvis_*`) possono restare; il dominio
   dell'integrazione HACS va scelto neutro una volta sola.
+
+### Voce: misure vere e regole per la F5 (sessione server, 29/09)
+
+Configurazione di HA ottimizzata e misurata dalla sessione server:
+
+| Pezzo | Scelta | Tempo |
+|---|---|---|
+| Conversazione | `gemini-3.5-flash-lite`, thinking minimo (budget 0) | ~2 s (prima 7,5 s con 503 frequenti) |
+| STT `stt.google_ai_stt` | `gemini-flash-lite-latest`, thinking 0, temperatura 0, prompt italiano | ~1,5 s (prima 9,8 s) |
+| Pipeline | `prefer_local_intents: true`: comandi e domande base li risolve HA | ~0,1 s, risposta standard di HA ("Sono le 20:35") |
+| TTS | `tts.google_translate_en_com`, lingua `it` | Piper sul Redmi più lento (1 s), Gemini TTS 6-7 s: scartati |
+| **Totale** (fine del parlato → primo audio) | | 3,3-4,1 s con Gemini, ~2 s per i comandi locali |
+
+Scartato `gemini-3.5-flash` (~2,5 s): il piano gratuito dà 5 richieste al minuto
+per modello.
+
+Regole per la F5 (requisiti di Salvatore e fatti verificati):
+
+- **Microfono**: `getUserMedia` + **AudioWorklet** a 16 kHz mono PCM 16 bit,
+  mandato come frame binari con lo `stt_binary_handler_id` di
+  `assist_pipeline/run` (`start_stage: stt`, `end_stage: tts`). **Mai
+  `setTimeout` nello streaming**: nelle schede in secondo piano i timer vengono
+  rallentati.
+- **Audio della risposta**: l'URL della TTS si scarica e si riproduce **subito**,
+  a `tts-start`/`tts-end`, mai aspettando `run-end`. Verificato dalla sessione
+  server: per le risposte locali in streaming `run-end` non arriva finché
+  qualcuno non consuma l'audio, e la pipeline resta appesa.
+- **Fine del parlato**: rilevamento del silenzio + tocco per fermare + tempo
+  massimo.
+- **Stati visivi**: ascolto (con il livello del microfono), pensa, risponde,
+  errore. Trascrizione e risposta finiscono nella chat, **stesso motore della
+  F4** (`src/assistente/`).
+- **Errori umani in italiano**: microfono negato, HTTPS assente, quota di Gemini
+  (429), Gemini occupato (503), rete persa a metà. I testi stanno in
+  `src/assistente/messaggi.ts`, già condivisi con la chat.
+- Deve funzionare su Chrome Android (telefono di Salvatore, HTTPS Tailscale) e
+  sul tablet; uscita audio anche verso un altoparlante Bluetooth (Echo Pop).
+- Prove: finto HA con pipeline stt→tts (audio finto), microfono negato, caduta
+  a metà, risposta locale in streaming.
 
 ### Modalità Hub
 
@@ -493,6 +542,14 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **La F5 (voce) passa prima della fase G**: Salvatore usa solo
+  il pannello, non l'app di HA. Ordine: F5 → G → Hub → F3 → F6. Annulla l'ordine
+  F4 → G → F5 scritto poche ore prima. Mockup e domande della G non erano
+  ancora iniziati.
+- **2026-09-29** — **Errori di Gemini in italiano** (v0.3.2): 429 e 503 arrivano
+  come testo tecnico in inglese; il pannello li riconosce e mostra un messaggio
+  umano. **Script `jarvis_previsioni`** nel pacchetto HA, da esporre ad Assist:
+  senza, Gemini rispondeva "non ho le previsioni per domani".
 - **2026-09-29** — **Prova vera F2, condizionatore**: `climate.condizionatore` è
   un SwitchBot "DIY Air Conditioner"; il cloud rifiuta ogni cambio di modalità
   (9 su 9 falliti), funziona solo on/off con `switch.condizionatore`. Il
@@ -556,7 +613,7 @@ node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
-.venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 96/96
+.venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 115/115
 .venv-ha/bin/hass --script check_config -c <cartella con configuration.yaml + packages/>
 ```
 
@@ -585,7 +642,7 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   con `restore: true` è diverso: lì `initial` vale solo la prima volta. Il
   ripristino si salva ogni 15 minuti e allo spegnimento ordinato: con un blackout
   si può perdere l'ultima regolazione. Verificato con un riavvio vero nella prova
-  (sezione 15), che fallisce se si rimette `initial:`.
+  (sezione 16), che fallisce se si rimette `initial:`.
 - **Il finto server deve essere fedele al vero, o le prove mentono.** La prima
   versione serviva `index.html` per la cartella `/local/jarvis/`: tutte le prove
   passavano, ma su HA il service worker avrebbe fallito l'installazione (c'era

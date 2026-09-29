@@ -44,7 +44,7 @@ HACS.
 | Pezzo | Peso | Nota |
 |---|---|---|
 | Scheletro dell'integrazione: static path, pannello, manifest, release per HACS | piccolo (una fase breve) | Tecnica nota, nessuna logica nuova |
-| Moduli in Python con config flow + prove su HA vero | **grande** (2-3 fasi) | È la riscrittura del pacchetto YAML: scaldabagno, clima, notifiche, con le stesse 110 verifiche di oggi |
+| Moduli in Python con config flow + prove su HA vero | **grande** (2-3 fasi) | È la riscrittura del pacchetto YAML: scaldabagno, clima, notifiche, con le stesse 115 verifiche di oggi |
 | Pubblicazione su HACS (repo pubblico, validazione HACS, documentazione) | piccolo | |
 
 Strada intermedia più economica per i moduli: **blueprint** di HA

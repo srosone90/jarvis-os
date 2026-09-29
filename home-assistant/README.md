@@ -14,6 +14,7 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
 | Temperatura percepita | `sensor.jarvis_temperatura_percepita_camera`, `…_soggiorno` | Formula di Steadman da temperatura e umidità dei Meter |
 | Soglie clima | `input_number.jarvis_clima_*` (4) | Sopra 26° percepiti raffresca a 24°, sotto 18° riscalda a 21° (valori di partenza, vedi sotto) |
 | Scene | `script.jarvis_buonanotte`, `script.jarvis_esco`, `script.jarvis_rientro` | I tre pulsanti del pannello |
+| Previsioni per l'assistente | `script.jarvis_previsioni` | Restituisce le previsioni (giornaliere 5 giorni, orarie 12 ore) a Gemini; va **esposto ad Assist** |
 | Notifiche | `script.jarvis_notifica` | Unico punto che scrive al telefono |
 | Presenza | automazioni "Uscita" (solo notifica + pulsante) e "Rientro" (clima all'arrivo) | |
 | Manutenzione | automazione "Batterie basse" | Meter e Bot sotto il 20% |
@@ -50,6 +51,12 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
    aiutanti e template nuovi.
 4. **Subito dopo il riavvio, imposta i valori di partenza** (sezione qui sotto).
    Va fatto una volta sola.
+5. **Esponi ad Assist** (Impostazioni → Assistenti vocali → Esponi) gli script
+   `jarvis_buonanotte`, `jarvis_esco`, `jarvis_rientro` e `jarvis_previsioni`,
+   così Gemini li può usare. **Non** esporre `jarvis_notifica` e i due sensori
+   `jarvis_temperatura_percepita_*`: con questi ultimi esposti, alla domanda
+   "che temperatura c'è in camera?" Gemini ha letto la percepita invece di
+   quella vera (29/09).
 
 ## Valori di partenza (da impostare una volta sola)
 
@@ -149,7 +156,7 @@ rischierebbe di accenderla. Sul pannello compare come un tasto del telecomando.
 ## Prove
 
 `prove/prova_pacchetto.py` avvia un Home Assistant vero con il pacchetto (e la macro
-di `custom_templates/`), finge i dispositivi (stessi entity_id) e verifica 110 casi:
+di `custom_templates/`), finge i dispositivi (stessi entity_id) e verifica 115 casi:
 - orari del programma giorno per giorno, e il testo del prossimo cambio;
 - attivazione e disattivazione immediata;
 - comando a mano rispettato;
@@ -161,6 +168,7 @@ di `custom_templates/`), finge i dispositivi (stessi entity_id) e verifica 110 c
 - pulsante della notifica;
 - Buonanotte;
 - batterie;
+- previsioni per l'assistente: giornaliere e orarie, liste accorciate (5 e 12);
 - valori di partenza e **riavvio**: le 5 regolazioni e il contatore sopravvivono
   a uno spegnimento e riaccensione veri di HA.
 

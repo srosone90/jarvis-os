@@ -24,8 +24,11 @@ import tempfile
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import voluptuous as vol
+
 from homeassistant import bootstrap, config as conf_util, loader
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
+from homeassistant.helpers import config_validation as cv
 from homeassistant.util import dt as dt_util
 
 PACCHETTO = Path(__file__).resolve().parent.parent / "packages" / "jarvis.yaml"
@@ -107,6 +110,31 @@ class Banco:
             ("logbook", "log"),
         ]:
             hass.services.async_register(dominio, servizio, annota)
+
+        # weather.get_forecasts risponde come HA: {entity_id: {"forecast": [...]}}
+        self.richieste_previsioni: list[str] = []
+
+        async def previsioni(call: ServiceCall) -> ServiceResponse:
+            tipo = call.data["type"]
+            self.richieste_previsioni.append(tipo)
+            quante = 10 if tipo == "daily" else 24
+            return {
+                eid: {
+                    "forecast": [
+                        {"datetime": f"passo-{i}", "condition": "rainy", "temperature": 20 + i, "templow": 12}
+                        for i in range(quante)
+                    ]
+                }
+                for eid in call.data["entity_id"]
+            }
+
+        hass.services.async_register(
+            "weather",
+            "get_forecasts",
+            previsioni,
+            schema=vol.Schema({vol.Required("entity_id"): cv.entity_ids, vol.Required("type"): str}),
+            supports_response=SupportsResponse.ONLY,
+        )
 
         def conta_buonanotte(_evento) -> None:
             self.eventi_buonanotte += 1
@@ -281,7 +309,7 @@ async def imposta_numeri(b: Banco, valori: dict[str, float]) -> None:
 async def prova_riavvio() -> None:
     """Le regolazioni fatte dal pannello devono sopravvivere a un riavvio di HA
     (blackout, guardiano): il server si riavvia spesso."""
-    print("\n15. Riavvio di Home Assistant: le regolazioni restano")
+    print("\n16. Riavvio di Home Assistant: le regolazioni restano")
     cartella = prepara_cartella()
     try:
         b = await avvia(cartella)
@@ -555,13 +583,36 @@ async def prova() -> int:
         verifica(notifiche and "15%" in notifiche[0]["message"] and "programma" in notifiche[0]["message"],
                  "Bot scaldabagno al 15% → notifica con avviso sul programma", notifiche)
 
+        print("\n15. Previsioni per l'assistente (script esposto ad Assist)")
+
+        async def chiedi_previsioni(dati: dict) -> dict:
+            # Come la chiama Gemini (helpers/llm.py ActionTool): servizio script con return_response
+            r = await hass.services.async_call(
+                "script", "jarvis_previsioni", dati, blocking=True, return_response=True
+            )
+            await b.attendi()
+            return r or {}
+
+        giorni = await chiedi_previsioni({"tipo": "daily"})
+        verifica(b.richieste_previsioni[-1:] == ["daily"], "chiede a HA le previsioni giornaliere",
+                 b.richieste_previsioni)
+        verifica(giorni.get("tipo") == "daily" and len(giorni.get("previsioni", [])) == 5,
+                 "restituisce i prossimi 5 giorni (non 10)", giorni)
+        primo = (giorni.get("previsioni") or [{}])[0]
+        verifica(primo.get("condition") == "rainy" and primo.get("temperature") == 20 and primo.get("templow") == 12,
+                 "ogni giorno ha condizione, massima e minima", primo)
+        ore = await chiedi_previsioni({"tipo": "hourly"})
+        verifica(ore.get("tipo") == "hourly" and len(ore.get("previsioni", [])) == 12,
+                 "ora per ora: le prossime 12 ore (non 24)", ore)
+        verifica(ore.get("unita_temperatura") == "°C", "dice l'unità della temperatura", ore)
+
     finally:
         await hass.async_stop(force=True)
         shutil.rmtree(cartella, ignore_errors=True)
 
     await prova_riavvio()
 
-    print("\n16. Nessun errore di Home Assistant durante le prove")
+    print("\n17. Nessun errore di Home Assistant durante le prove")
     verifica(not errori_ha, "log senza errori", errori_ha)
 
     falliti = [d for ok, d in esiti if not ok]

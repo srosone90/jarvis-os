@@ -354,6 +354,52 @@ script:
               titolo: "Bentornato"
               messaggio: "{{ esito }}"
 
+  # PREVISIONI per l'assistente. Lo stato di weather.* ha solo il tempo di
+  # adesso: senza questo script Gemini risponde "non ho le previsioni per
+  # domani". Va ESPOSTO ad Assist (Impostazioni → Assistenti vocali → Esponi).
+  # HA lo offre a Gemini come strumento: la descrizione e il campo "tipo"
+  # diventano la descrizione e il parametro dello strumento, e Gemini riceve
+  # la risposta dello script (helpers/llm.py, ActionTool, HA 2026.9.3).
+  # Liste corte apposta: ogni previsione in più sono token e secondi di attesa.
+  jarvis_previsioni:
+    alias: "Jarvis · previsioni del tempo"
+    description: >-
+      Previsioni del tempo per casa. tipo "daily": i prossimi 5 giorni (data,
+      condizione, temperatura massima e minima, pioggia). tipo "hourly": le
+      prossime 12 ore. Da usare per domande su domani, i prossimi giorni,
+      stasera, stanotte o se pioverà.
+    icon: mdi:weather-partly-cloudy
+    mode: parallel
+    fields:
+      tipo:
+        name: Tipo
+        description: "daily = giorno per giorno (prossimi 5), hourly = ora per ora (prossime 12)"
+        required: true
+        default: daily
+        selector:
+          select:
+            options:
+              - daily
+              - hourly
+    sequence:
+      - variables:
+          tipo_valido: "{{ tipo if tipo in ['daily', 'hourly'] else 'daily' }}"
+      - action: weather.get_forecasts
+        target:
+          entity_id: weather.forecast_casa
+        data:
+          type: "{{ tipo_valido }}"
+        response_variable: risposta
+      - variables:
+          previsioni:
+            tipo: "{{ tipo_valido }}"
+            unita_temperatura: "°C"
+            previsioni: >-
+              {% set elenco = risposta.get('weather.forecast_casa', {}).get('forecast', []) %}
+              {{ elenco[:(5 if tipo_valido == 'daily' else 12)] }}
+      - stop: "Previsioni pronte"
+        response_variable: previsioni
+
 # -----------------------------------------------------------------------------
 # Automazioni
 # -----------------------------------------------------------------------------

@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3.2
+
+- Errori di Gemini in italiano: quando Gemini ha raggiunto il limite di
+  richieste (429) o è occupato (503) la chat lo dice con parole semplici e
+  propone di riprovare tra un minuto. Quando Home Assistant non dice la causa,
+  il messaggio copre entrambe. Mai più testo tecnico in inglese a schermo; il
+  dettaglio resta nel log della diagnostica.
+- **Pacchetto HA**: nuovo `script.jarvis_previsioni`, che dà a Gemini le
+  previsioni del tempo (5 giorni o 12 ore). Va copiato il nuovo `jarvis.yaml`,
+  ricaricati gli script ed **esposto ad Assist** lo script.
+
 ## v0.3.1
 
 Correzione dalla prova vera della F2 (condizionatore).
