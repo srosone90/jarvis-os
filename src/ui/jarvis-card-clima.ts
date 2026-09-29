@@ -44,6 +44,40 @@ export class JarvisCardClima extends CardBase {
         font-size: 26px;
         line-height: 1;
       }
+      .intestazione,
+      .controlli {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .controlli {
+        margin-top: auto;
+      }
+      /* compatto: nome e ultimo comando su una riga, temperatura e modalità affiancate se c'è posto */
+      @media (orientation: landscape) and (max-height: 559px) {
+        .intestazione {
+          flex-direction: row;
+          flex-wrap: wrap;
+          align-items: baseline;
+          column-gap: 8px;
+          row-gap: 0;
+        }
+        .controlli {
+          flex-direction: row;
+          flex-wrap: wrap;
+          gap: 6px;
+        }
+        .controlli .comandi {
+          flex: 1 1 250px;
+        }
+        .temperatura {
+          gap: 4px;
+        }
+        .temperatura output {
+          font-size: 24px;
+          min-width: 52px;
+        }
+      }
     `,
   ];
 
@@ -120,53 +154,57 @@ export class JarvisCardClima extends CardBase {
       class="card ${acceso ? "acceso" : ""} ${this.nonAggiornato ? "vecchio" : ""}"
       data-test="card-clima"
     >
-      <div class="riga">${icona(mdiAirConditioner)}<span class="nome">${this.card.nome}</span></div>
-      <span class="stato ${this.inAttesa ? "in-attesa" : ""}" data-test="card-stato">
-        ${this.infrarossi && !this.nonDisponibile ? "Ultimo comando: " : ""}${descrizione}${Number.isFinite(temperatura) && acceso ? ` · ${String(temperatura).replace(".", ",")}°` : ""}
-      </span>
-      <div class="temperatura">
-        <button
-          class="tondo"
-          aria-label="Abbassa temperatura"
-          ?disabled=${this.disabilitata}
-          @click=${() => this.cambiaTemperatura(-1)}
-        >
-          −
-        </button>
-        <output data-test="clima-temperatura"
-          >${Number.isFinite(temperatura) ? `${String(temperatura).replace(".", ",")}°` : "—"}</output
-        >
-        <button
-          class="tondo"
-          aria-label="Alza temperatura"
-          ?disabled=${this.disabilitata}
-          @click=${() => this.cambiaTemperatura(1)}
-        >
-          +
-        </button>
+      <div class="intestazione">
+        <div class="riga">${icona(mdiAirConditioner)}<span class="nome">${this.card.nome}</span></div>
+        <span class="stato ${this.inAttesa ? "in-attesa" : ""}" data-test="card-stato">
+          ${this.infrarossi && !this.nonDisponibile ? "Ultimo comando: " : ""}${descrizione}${Number.isFinite(temperatura) && acceso ? ` · ${String(temperatura).replace(".", ",")}°` : ""}
+        </span>
       </div>
-      <div class="comandi" role="group" aria-label="Modalità">
-        ${visibili.map(
-          (m) =>
-            html`<button
-              aria-pressed=${stato === m ? "true" : "false"}
-              ?disabled=${this.disabilitata}
-              @click=${() => this.modo(m)}
-            >
-              ${NOMI_MODI[m] ?? m}
-            </button>`,
-        )}
-        ${
-          altri.length
-            ? html`<button
-                aria-expanded=${this.altro ? "true" : "false"}
-                @click=${() => (this.altro = !this.altro)}
+      <div class="controlli">
+        <div class="temperatura">
+          <button
+            class="tondo"
+            aria-label="Abbassa temperatura"
+            ?disabled=${this.disabilitata}
+            @click=${() => this.cambiaTemperatura(-1)}
+          >
+            −
+          </button>
+          <output data-test="clima-temperatura"
+            >${Number.isFinite(temperatura) ? `${String(temperatura).replace(".", ",")}°` : "—"}</output
+          >
+          <button
+            class="tondo"
+            aria-label="Alza temperatura"
+            ?disabled=${this.disabilitata}
+            @click=${() => this.cambiaTemperatura(1)}
+          >
+            +
+          </button>
+        </div>
+        <div class="comandi" role="group" aria-label="Modalità">
+          ${visibili.map(
+            (m) =>
+              html`<button
+                aria-pressed=${stato === m ? "true" : "false"}
                 ?disabled=${this.disabilitata}
+                @click=${() => this.modo(m)}
               >
-                ${this.altro ? "Indietro" : "Altro"}
-              </button>`
-            : nothing
-        }
+                ${NOMI_MODI[m] ?? m}
+              </button>`,
+          )}
+          ${
+            altri.length
+              ? html`<button
+                  aria-expanded=${this.altro ? "true" : "false"}
+                  @click=${() => (this.altro = !this.altro)}
+                  ?disabled=${this.disabilitata}
+                >
+                  ${this.altro ? "Indietro" : "Altro"}
+                </button>`
+              : nothing
+          }
+        </div>
       </div>
     </div>`;
   }

@@ -51,6 +51,10 @@ export class JarvisMeteo extends RiquadroSicuro {
         border-radius: 12px;
         background: var(--superficie);
       }
+      .giorno-nome,
+      .giorno-temp {
+        display: block;
+      }
       .giorno b {
         display: block;
         color: var(--testo);
@@ -62,6 +66,48 @@ export class JarvisMeteo extends RiquadroSicuro {
         height: 22px;
         display: block;
         margin: 2px auto;
+      }
+      /* compatto (schermi orizzontali bassi): temperatura sempre grande, previsione su due righe corte */
+      @media (orientation: landscape) and (max-height: 559px) {
+        .adesso {
+          gap: 8px;
+        }
+        .adesso .icona {
+          width: 32px;
+          height: 32px;
+        }
+        .temp {
+          font-size: 38px;
+        }
+        .cond {
+          font-size: 12px;
+        }
+        .nuvole {
+          display: none;
+        }
+        .prev {
+          gap: 4px;
+          margin-top: 6px;
+        }
+        .giorno {
+          padding: 3px 2px;
+          font-size: 12px;
+          line-height: 1.2;
+        }
+        .giorno-nome {
+          display: block;
+        }
+        .giorno b {
+          display: inline;
+          font-size: 16px;
+        }
+        .giorno .icona {
+          width: 16px;
+          height: 16px;
+          display: inline-block;
+          vertical-align: -3px;
+          margin: 0 0 0 2px;
+        }
       }
       .mancante {
         color: var(--attenuato);
@@ -134,7 +180,7 @@ export class JarvisMeteo extends RiquadroSicuro {
         <div class="temp ${classe}" data-test="meteo-temp">${temp ?? "—"}</div>
         <div class="cond">
           <span data-test="meteo-cond">${c.testo}</span><br />
-          ${nuvole !== null ? html`nuvole ${nuvole}%<br />` : nothing}
+          ${nuvole !== null ? html`<span class="nuvole">nuvole ${nuvole}%<br /></span>` : nothing}
           ${oggi ? html`max ${oggi.massima ?? "—"} · min ${oggi.minima ?? "—"}` : nothing}
           ${this.nonAggiornato ? html`<br /><span class="non-aggiornato">non aggiornato</span>` : nothing}
         </div>
@@ -148,7 +194,8 @@ export class JarvisMeteo extends RiquadroSicuro {
                     class="giorno"
                     aria-label="${g.etichetta}: ${g.condizione.testo}, max ${g.massima}, min ${g.minima}"
                   >
-                    ${g.etichetta}${icona(g.condizione.icona)}<b>${g.massima ?? "—"}</b>${g.minima ?? ""}
+                    <span class="giorno-nome">${g.etichetta}${icona(g.condizione.icona)}</span>
+                    <span class="giorno-temp"><b>${g.massima ?? "—"}</b> ${g.minima ?? ""}</span>
                   </div>`,
               )}
             </div>`

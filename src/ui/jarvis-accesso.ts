@@ -14,8 +14,9 @@ export class JarvisAccesso extends RiquadroSicuro {
     stileBase,
     css`
       :host {
-        position: absolute;
+        position: fixed;
         inset: 0;
+        overflow: auto;
         display: grid;
         place-items: center;
         background: var(--sfondo);

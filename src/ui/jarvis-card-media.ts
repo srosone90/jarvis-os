@@ -44,7 +44,7 @@ export class JarvisCardMedia extends CardBase {
     const muto = e?.attributes["is_volume_muted"] === true;
     const sorgente = e?.attributes["app_name"] ?? e?.attributes["source"];
     return html`<div
-      class="card ${accesa ? "acceso" : ""} ${this.nonAggiornato ? "vecchio" : ""}"
+      class="card in-riga ${accesa ? "acceso" : ""} ${this.nonAggiornato ? "vecchio" : ""}"
       data-test="card-media"
     >
       <button
@@ -57,7 +57,9 @@ export class JarvisCardMedia extends CardBase {
         <span class="stato ${this.inAttesa ? "in-attesa" : ""}" data-test="card-stato">
           ${statoInItaliano(this.statoMostrato, true)}${accesa && typeof sorgente === "string" ? ` · ${sorgente}` : ""}
         </span>
-        <small>${this.disabilitata ? "" : accesa ? "Tocca per spegnere" : "Tocca per accendere"}</small>
+        <small class="spiegazione"
+          >${this.disabilitata ? "" : accesa ? "Tocca per spegnere" : "Tocca per accendere"}</small
+        >
       </button>
       ${
         accesa && !this.inAttesa

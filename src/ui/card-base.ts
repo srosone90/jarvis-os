@@ -113,9 +113,8 @@ export const stileCard = [
     .nome {
       font-size: 18px;
       font-weight: 500;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .stato {
       font-size: 15px;
@@ -170,24 +169,89 @@ export const stileCard = [
       gap: 4px;
       width: 100%;
     }
+    .testo {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-width: 0;
+    }
     .in-attesa::after {
       content: " …";
     }
     .comandi {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
       margin-top: auto;
     }
     .comandi button {
-      flex: 1;
+      flex: 1 1 auto;
       font-size: 14px;
-      padding: 0 4px;
+      padding: 0 6px;
       white-space: nowrap;
     }
     .comandi button[aria-pressed="true"] {
       background: var(--accento);
       color: var(--sfondo);
       font-weight: 600;
+    }
+    /* in fondo apposta: deve vincere sulle regole base qui sopra */
+    /* compatto (schermi orizzontali bassi, es. telefono): card più basse,
+       stessi comandi da 48 px; nome e stato accanto ai pulsanti quando c'è posto */
+    @media (orientation: landscape) and (max-height: 559px) {
+      .card {
+        padding: 8px;
+        gap: 4px;
+        border-radius: 12px;
+      }
+      .card.in-riga {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .card.in-riga > .principale,
+      .card.in-riga > .testo {
+        flex: 1 1 90px;
+      }
+      .card.in-riga > .comandi,
+      .card.in-riga > small {
+        flex: 0 1 auto;
+        margin-top: 0;
+      }
+      .riga .icona {
+        width: 22px;
+        height: 22px;
+      }
+      .nome {
+        font-size: 15px;
+      }
+      .stato {
+        font-size: 13px;
+      }
+      small,
+      .nota {
+        font-size: 12px;
+      }
+      .spiegazione {
+        display: none;
+      }
+      .card small.secondario {
+        font-size: 11px;
+      }
+      .etichetta {
+        font-size: 12px;
+        padding: 1px 8px;
+      }
+      .testo {
+        gap: 4px;
+      }
+      .comandi {
+        gap: 4px;
+      }
+      .comandi button {
+        font-size: 13px;
+        padding: 0 4px;
+      }
     }
   `,
 ];

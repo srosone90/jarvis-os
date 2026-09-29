@@ -8,7 +8,7 @@ export class JarvisAvvisi extends RiquadroSicuro {
     stileBase,
     css`
       :host {
-        position: absolute;
+        position: fixed;
         top: 12px;
         left: 50%;
         transform: translateX(-50%);

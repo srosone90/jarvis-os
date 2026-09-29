@@ -34,9 +34,10 @@ export class JarvisStanza extends RiquadroSicuro {
       }
       header {
         display: flex;
+        flex-wrap: wrap;
         align-items: baseline;
         justify-content: space-between;
-        gap: 8px;
+        gap: 2px 8px;
         padding: 0 4px;
       }
       h2 {
@@ -74,10 +75,33 @@ export class JarvisStanza extends RiquadroSicuro {
       }
       .carte > * {
         flex: 1 1 200px;
+        min-width: 0;
       }
       /* il condizionatore ha 5 pulsanti in riga: gli serve più spazio */
       .carte > jarvis-card-clima {
-        flex: 1.6 1 320px;
+        flex: 1.6 1 300px;
+      }
+      @media (orientation: landscape) and (max-height: 559px) {
+        .stanza {
+          padding: 6px;
+          gap: 4px;
+          border-radius: 14px;
+        }
+        h2 {
+          font-size: 15px;
+        }
+        .clima {
+          font-size: 13px;
+        }
+        .carte {
+          gap: 6px;
+        }
+        .carte > jarvis-card-clima {
+          flex: 1.6 1 280px;
+        }
+        .carte > * {
+          flex-basis: 170px;
+        }
       }
       .vuota {
         font-size: 14px;
@@ -173,7 +197,6 @@ export class JarvisStanza extends RiquadroSicuro {
         <h2>${s.nome}</h2>
         ${this.disegnaClima()}
       </header>
-      ${this.nonAggiornato && s.clima ? html`<div class="nota non-aggiornato">Valori non aggiornati</div>` : nothing}
       ${
         mancanti.length
           ? html`<div class="nota" role="status">Sensore non trovato: ${mancanti.join(", ")}</div>`

@@ -87,7 +87,8 @@ In casa **non ci sono luci smart**.
 | `scripts/crea-zip.sh` | `jarvis-dist.zip` da `dist/` |
 | `test/unit/` | Vitest |
 | `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
-| `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (su tag `v*`) |
+| `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
+| `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (sul push del branch principale, se la versione è nuova) |
 
 ## 4. Architettura prevista dell'app (dal prompt, decisa)
 
@@ -161,7 +162,60 @@ In casa **non ci sono luci smart**.
   in accensione, Bot 30 s, altrimenti 15 s); se HA rifiuta o non conferma si torna
   allo stato vero con un avviso. A infrarossi: solo "comando inviato".
 
-## 5. Decisioni di prodotto (log)
+### Layout (v0.2.1): tre modi, mai sovrapposizioni
+
+Tutto in `src/ui/jarvis-app.ts` (griglia con le aree `stato/info/scene/destra/barra`);
+i componenti hanno solo le loro regole "compatte".
+
+| Modo | Quando (media query) | Com'è |
+|---|---|---|
+| **Tablet** (schermata unica) | `(min-width: 900px) and (min-height: 560px)` | Come il mockup: `height: 100dvh`, niente scorrimento, pallino in alto a destra, il banner offline prende il posto della barra |
+| **Orizzontale basso** (telefono) | `(orientation: landscape) and (max-height: 559px)` | Due colonne compatte, la pagina **scorre**; banner in cima |
+| **Verticale** | `(max-width: 699px)` | Una colonna, la pagina scorre; banner in cima |
+
+- Niente `position: fixed/absolute` nel flusso della pagina (solo il pallino sul
+  tablet, e i pannelli sovrapposti apposta: avvisi, accesso, diagnostica).
+- Il banner offline esiste in **un posto solo**: `OsservaSchermata` (matchMedia
+  della schermata unica) decide se sta nella barra o in cima. Due copie, una
+  nascosta dal CSS, rompono la modalità stretta di Playwright.
+- Le card con `.in-riga` mettono nome/stato accanto ai pulsanti quando c'è posto;
+  nel compatto le spiegazioni lunghe (`.spiegazione`) spariscono. Touch target
+  sempre ≥ 48 px.
+- Il pannello sui telefoni è una comodità, non la loro destinazione: vedi la
+  Modalità Hub nel piano delle fasi.
+
+## 5. Piano delle fasi (dal 29/09/2026)
+
+| Fase | Cosa | Stato |
+|---|---|---|
+| F1 | Scheletro PWA, connessione, orologio e meteo, clima, diagnostica | v0.1.2 |
+| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1; prove sui dispositivi veri da fare |
+| F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
+| F4 | Assistente testuale (barra + chat, Assist di HA) | Da fare |
+| F5 | Voce **"tocca per parlare"**. Prove obbligatorie: uscita audio cambiata o scollegata **a metà risposta** (il pannello non si deve bloccare) | Da fare |
+| F6 | Modalità notte e rifiniture | Da fare |
+| Hub | **Modalità Hub** per i telefoni-pannello (vedi sotto) | Dopo la F5 |
+
+Ogni fase parte con mockup e domande e finisce con release e resoconto.
+
+**Modalità Hub** (decisa il 29/09, si progetta dopo la F5 con **mockup animato e
+domande prima di scrivere codice**):
+
+- Telefoni vecchi usati come pannelli **solo vocali**, stile Echo: sfera animata
+  con gli stati riposo / ascolto / pensa / risponde / errore, sottotitoli, in un
+  angolo ora, temperatura della stanza e stato della connessione.
+- Anti burn-in; di notte solo l'orologio.
+- La modalità si sceglie **una volta sul dispositivo** e si salva lì ("Hub,
+  stanza Camera"), **mai** in base alla misura dello schermo. Il tablet tiene il
+  pannello completo.
+- Animazione leggera: CSS o canvas, al massimo 30 fps, **ferma** a riposo e di
+  notte.
+- Audio in Bluetooth verso l'Echo; se la cassa si scollega a metà risposta, il
+  pannello va avanti (sottotitoli) e non si blocca.
+- **"Ehi Jarvis"** (parola di attivazione) solo dopo una prova di fattibilità su
+  un telefono vecchio vero: fino ad allora si parla toccando.
+
+## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
 se ne scrive una nuova che annulla la precedente.
@@ -211,8 +265,16 @@ se ne scrive una nuova che annulla la precedente.
   clima) **non hanno `initial:`**, così sopravvivono ai riavvii del server. I
   valori di partenza (90%, 26°, 24°, 18°, 21°) li imposta Salvatore una volta sola
   lato server, subito dopo l'installazione.
+- **2026-09-29** — **Il pannello completo non si sovrappone mai, a nessuna
+  misura da 320 px in su.** Sul tablet 1024×600 resta la schermata unica del
+  mockup; sui telefoni (e sugli schermi bassi) la pagina scorre: niente
+  schermata unica forzata sul telefono (v0.2.1). Annulla l'idea, discussa lo
+  stesso giorno, di un pannello da telefono compresso in una schermata sola.
+- **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
+  dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
+  Anche il tablet resta in orizzontale.
 
-## 6. Convenzioni
+## 7. Convenzioni
 
 - Tutto in italiano: codice, commenti, commit, documentazione.
 - In HA tutto ciò che crea Jarvis ha nome/ID che inizia con `jarvis`.
@@ -223,7 +285,7 @@ se ne scrive una nuova che annulla la precedente.
 - Mai finti successi: un dispositivo a infrarossi si mostra come "ultimo comando"
   o "stato non verificabile", mai come "Acceso".
 
-## 7. Comandi (tutti eseguiti)
+## 8. Comandi (tutti eseguiti)
 
 ```bash
 npm ci
@@ -231,6 +293,7 @@ npm run verifica        # lint + typecheck + test + build + e2e: è il comando c
 npm run build           # dist/ (7 file) + controllo dei limiti
 npm test                # Vitest
 npm run e2e             # Playwright contro il finto HA (serve dist/ già compilata)
+npx playwright test test/e2e/layout.spec.ts   # solo la prova di layout (serve dist/)
 bash scripts/crea-zip.sh
 node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/jarvis/index.html
 
@@ -245,7 +308,7 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 .venv-ha/bin/hass --script check_config -c <cartella con configuration.yaml + packages/>
 ```
 
-## 8. Lezioni imparate
+## 9. Lezioni imparate
 
 - **Gli infrarossi non hanno ritorno.** `switch.*` in stato `unknown` e un clima
   che mostra l'ultimo comando ne sono il segnale. Quei dispositivi vanno trattati
@@ -317,3 +380,16 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   indirizzo lento, diagnostica aperta subito) arriva a "pronto". Resta aperto il
   sintomo simile visto nella controprova con `updateViaCache: 'all'`: se si
   ripresenta sul tablet vero, partire da lì. Aggiunto lo stato "in download…".
+- **v0.2.0 si sovrapponeva sui telefoni, prove verdi.** Le prove giravano solo a
+  1024×600: a 412×915 la barra fissa copriva il pulsante della TV. Ora
+  `layout.spec.ts` prova 6 misure (anche offline, che allunga le stanze) e
+  controlla intersezioni tra riquadri, card fuori dalla stanza e testi tagliati.
+  **Controprova fatta**: rimettendo la barra `position: fixed` bocciano tutte e
+  5 le misure da telefono.
+- **Nel CSS dei componenti le regole "compatte" vanno in fondo.** A parità di
+  specificità vince quella scritta dopo: il blocco `@media` messo in mezzo veniva
+  annullato dalle regole base successive, senza nessun errore.
+- **Una scritta in più può rompere un layout "a schermata unica".** Sul tablet
+  offline la riga "Valori non aggiornati" allungava la Camera fuori schermo: il
+  "non aggiornato" ora si mostra colorando il clima di arancione, e a parole
+  nel banner ("valori non aggiornati"), senza righe in più. Ogni testo nuovo va provato offline.

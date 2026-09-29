@@ -14,8 +14,9 @@ export class JarvisDiagnostica extends RiquadroSicuro {
     stileBase,
     css`
       :host {
-        position: absolute;
+        position: fixed;
         inset: 0;
+        overflow: auto;
         background: color-mix(in srgb, var(--sfondo) 94%, transparent);
         z-index: 30;
         display: flex;

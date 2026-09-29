@@ -34,6 +34,12 @@ export class JarvisOrologio extends RiquadroSicuro {
         color: var(--attenuato);
         margin-top: 4px;
       }
+      @media (orientation: landscape) and (max-height: 559px) {
+        .data {
+          font-size: 15px;
+          margin-top: 2px;
+        }
+      }
       .premuto .ora {
         opacity: 0.6;
         transition: opacity 3s linear;

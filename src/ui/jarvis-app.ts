@@ -28,6 +28,31 @@ class OsservaRegistri implements ReactiveController {
   }
 }
 
+/**
+ * Schermata unica (solo il tablet): il banner offline va al posto della barra
+ * dell'assistente; altrimenti (pagina che scorre) va in cima.
+ * Deve restare uguale alla media query "TABLET" qui sotto.
+ */
+const SCHERMATA_UNICA = "(min-width: 900px) and (min-height: 560px)";
+
+/** Ridisegna quando la finestra passa da schermata unica a pagina che scorre (e viceversa). */
+class OsservaSchermata implements ReactiveController {
+  private readonly query = window.matchMedia(SCHERMATA_UNICA);
+  constructor(private readonly host: ReactiveControllerHost) {
+    host.addController(this);
+  }
+  get unica(): boolean {
+    return this.query.matches;
+  }
+  private readonly cambia = (): void => this.host.requestUpdate();
+  hostConnected(): void {
+    this.query.addEventListener("change", this.cambia);
+  }
+  hostDisconnected(): void {
+    this.query.removeEventListener("change", this.cambia);
+  }
+}
+
 /** Scene decise il 26/09 (CLAUDE.md): arrivano con la F3, qui solo il posto. */
 const SCENE = [
   { nome: "Buonanotte", icona: mdiWeatherNight },
@@ -36,29 +61,39 @@ const SCENE = [
 ];
 
 /**
- * Schermata principale, con la struttura del mockup approvato (docs/mockup.html):
- *  - sinistra: orologio, meteo con previsione, sotto le scene;
- *  - destra: le stanze tutte insieme (Soggiorno e Veranda sopra, Camera sotto),
- *    pallino di connessione in alto a destra;
- *  - in basso a tutta larghezza: la barra dell'assistente.
- * Le stanze e le loro card arrivano dai registri di Home Assistant (F2). Le
- * zone delle fasi future (scene, assistente) ci sono già, ma dichiarate "in
+ * Schermata principale, con la struttura del mockup approvato (docs/mockup.html).
+ * Regola: MAI sovrapposizioni, a nessuna dimensione da 320 px di larghezza in su.
+ * Il tablet a muro è montato in ORIZZONTALE e ha il pannello completo. I telefoni
+ * possono aprirlo anch'essi (anche fuori casa): lì la pagina scorre. Tre modi:
+ *  - TABLET (≥ 900×560): il mockup, schermata unica senza scorrere. A sinistra
+ *    orologio e meteo, sotto le scene; a destra le stanze; in basso la barra
+ *    dell'assistente. Il banner offline prende il posto della barra (senza HA è
+ *    inattiva comunque).
+ *  - ORIZZONTALE (telefono, anche dentro Chrome): stesse due colonne, compatte
+ *    in altezza; la pagina scorre; barra in fondo; banner e pallino in cima.
+ *  - VERTICALE (< 700 px di larghezza): una colonna sola che scorre.
+ * Le card e il meteo hanno lo stesso "compatto" nelle loro media query.
+ * (I telefoni-pannello fissi avranno una "Modalità Hub" a parte, dopo la F5.)
+ * Le zone delle fasi future (scene, assistente) ci sono già, ma dichiarate "in
  * arrivo" e non toccabili: mai controlli che sembrano funzionare e non fanno niente.
  */
 export class JarvisApp extends LitElement {
   static override styles = css`
+    /* ---- base = modo ORIZZONTALE BASSO: la pagina scorre ---- */
     :host {
-      position: fixed;
-      inset: 0;
       display: grid;
-      grid-template-columns: 330px minmax(0, 1fr);
-      grid-template-rows: minmax(0, 1fr) 60px;
+      min-height: 100dvh;
+      box-sizing: border-box;
+      grid-template-columns: 300px minmax(0, 1fr);
+      grid-template-rows: auto;
       grid-template-areas:
-        "sinistra destra"
+        "stato stato"
+        "info destra"
+        "scene destra"
         "barra barra";
+      align-content: start;
       gap: 16px;
       padding: 16px;
-      overflow: hidden;
       color: var(--testo);
       background:
         radial-gradient(
@@ -67,6 +102,7 @@ export class JarvisApp extends LitElement {
           transparent 70%
         ),
         var(--sfondo);
+      --dimensione-ora: 76px;
     }
     .icona {
       width: 28px;
@@ -74,21 +110,32 @@ export class JarvisApp extends LitElement {
       fill: currentColor;
       flex: none;
     }
-    .sinistra {
-      grid-area: sinistra;
+    .stato {
+      grid-area: stato;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px 16px;
+      min-width: 0;
+    }
+    .info {
+      grid-area: info;
       display: flex;
       flex-direction: column;
       gap: 14px;
-      min-height: 0;
+      min-width: 0;
     }
     .scene {
-      margin-top: auto;
+      grid-area: scene;
+      align-self: end;
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
     .scena {
-      height: 88px;
+      min-height: 72px;
+      padding: 6px 4px;
       border-radius: var(--raggio);
       border: 1px dashed #343a46;
       display: flex;
@@ -98,6 +145,7 @@ export class JarvisApp extends LitElement {
       gap: 4px;
       font-size: 16px;
       font-weight: 500;
+      text-align: center;
       color: var(--attenuato);
     }
     .scena small {
@@ -108,28 +156,32 @@ export class JarvisApp extends LitElement {
       grid-area: destra;
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 1fr);
+      grid-template-rows: auto auto;
       grid-template-areas:
         "soggiorno veranda"
         "camera camera";
+      align-content: start;
       gap: 12px;
-      padding-top: 22px; /* spazio per il pallino di connessione */
-      min-height: 0;
+      min-width: 0;
     }
     .barra {
       grid-area: barra;
       display: flex;
       gap: 12px;
       align-items: center;
+      min-width: 0;
     }
     .chiedi {
       flex: 1;
-      height: 60px;
+      min-width: 0;
+      min-height: 60px;
       border-radius: 30px;
       border: 1px dashed #343a46;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      padding: 0 24px;
+      column-gap: 12px;
+      padding: 6px 24px;
       font-size: 18px;
       color: var(--attenuato);
     }
@@ -138,6 +190,7 @@ export class JarvisApp extends LitElement {
       font-size: 13px;
     }
     .mic {
+      flex: none;
       width: 76px;
       height: 60px;
       border-radius: 30px;
@@ -146,11 +199,126 @@ export class JarvisApp extends LitElement {
       place-items: center;
       color: var(--attenuato);
     }
+    .posto-banner {
+      min-width: 0;
+    }
+
+    /* ---- modo VERTICALE: una colonna sola ---- */
+    @media (max-width: 699px) {
+      :host {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "stato"
+          "info"
+          "destra"
+          "scene"
+          "barra";
+        padding: 12px;
+        --dimensione-ora: 64px;
+      }
+      .destra {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+          "soggiorno"
+          "veranda"
+          "camera";
+      }
+      .mic {
+        width: 60px;
+      }
+      .chiedi {
+        padding: 6px 16px;
+      }
+    }
+
+    /* ---- compatto: schermi orizzontali bassi (telefono), la pagina scorre ---- */
+    @media (orientation: landscape) and (max-height: 559px) {
+      :host {
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 8px;
+        padding: 8px;
+        --dimensione-ora: 72px;
+      }
+      .info {
+        gap: 6px;
+      }
+      .scene {
+        gap: 6px;
+      }
+      .scena {
+        min-height: 48px;
+        font-size: 13px;
+        gap: 0;
+      }
+      .scena .icona {
+        width: 20px;
+        height: 20px;
+      }
+      .scena small {
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .scena .fase {
+        display: none;
+      }
+      .destra {
+        gap: 8px;
+      }
+      .chiedi {
+        min-height: 48px;
+        font-size: 15px;
+        padding: 4px 16px;
+      }
+      .mic {
+        height: 48px;
+        width: 64px;
+      }
+    }
+
+    /* ---- modo TABLET: il mockup, schermata unica senza scorrere ---- */
+    @media (min-width: 900px) and (min-height: 560px) {
+      :host {
+        height: 100dvh;
+        overflow: hidden;
+        position: relative;
+        grid-template-columns: 330px minmax(0, 1fr);
+        grid-template-rows: minmax(0, 1fr) auto 60px;
+        grid-template-areas:
+          "info destra"
+          "scene destra"
+          "barra barra";
+        --dimensione-ora: 108px;
+      }
+      .stato {
+        position: absolute;
+        top: 14px;
+        right: 22px;
+        z-index: 3;
+      }
+      .scena {
+        height: 88px;
+      }
+      .destra {
+        grid-template-rows: auto minmax(0, 1fr);
+        padding-top: 22px; /* spazio per il pallino di connessione */
+        min-height: 0;
+      }
+      .barra .posto-banner {
+        display: flex;
+        flex: 1;
+        justify-content: center;
+      }
+      .barra.offline .chiedi,
+      .barra.offline .mic {
+        display: none;
+      }
+    }
   `;
 
   static override properties = { diagnostica: { state: true } };
   declare diagnostica: boolean;
   private readonly connessione = new OsservaConnessione(this);
+  private readonly schermata = new OsservaSchermata(this);
 
   constructor() {
     super();
@@ -171,21 +339,32 @@ export class JarvisApp extends LitElement {
     const r = connessione.registri;
     const stanze = costruisciStanze(r.aree, r.dispositivi, r.entita, connessione.negozio.tutte, PREFERENZE);
     const loginRichiesto = this.connessione.info.stato === "login-richiesto";
+    // il banner esiste in UN posto solo: al posto della barra (schermata unica) o in cima
+    const banner = offline && !loginRichiesto;
+    const bannerNellaBarra = banner && this.schermata.unica;
+    const bannerInCima = banner && !this.schermata.unica;
     return html`
-      <jarvis-connessione></jarvis-connessione>
       <jarvis-avvisi></jarvis-avvisi>
-      <section class="sinistra">
+      <div class="stato">
+        ${
+          bannerInCima
+            ? html`<div class="posto-banner"><jarvis-connessione parte="banner"></jarvis-connessione></div>`
+            : nothing
+        }
+        <jarvis-connessione parte="pallino"></jarvis-connessione>
+      </div>
+      <section class="info">
         <jarvis-orologio></jarvis-orologio>
         <jarvis-meteo .nonAggiornato=${offline}></jarvis-meteo>
-        <div class="scene" role="group" aria-label="Scene, in arrivo" data-test="zona-scene">
-          ${SCENE.map(
-            (s) =>
-              html`<div class="scena" aria-disabled="true">
-                ${icona(s.icona)}${s.nome}<small>in arrivo (F3)</small>
-              </div>`,
-          )}
-        </div>
       </section>
+      <div class="scene" role="group" aria-label="Scene, in arrivo" data-test="zona-scene">
+        ${SCENE.map(
+          (s) =>
+            html`<div class="scena" aria-disabled="true">
+              ${icona(s.icona)}${s.nome}<small>in arrivo<span class="fase"> (F3)</span></small>
+            </div>`,
+        )}
+      </div>
       <section class="destra" aria-label="Stanze">
         ${stanze.map(
           (s) =>
@@ -198,7 +377,16 @@ export class JarvisApp extends LitElement {
             ></jarvis-stanza>`,
         )}
       </section>
-      <div class="barra" data-test="zona-assistente" aria-label="Assistente, in arrivo">
+      <div
+        class="barra ${bannerNellaBarra ? "offline" : ""}"
+        data-test="zona-assistente"
+        aria-label="Assistente, in arrivo"
+      >
+        ${
+          bannerNellaBarra
+            ? html`<div class="posto-banner"><jarvis-connessione parte="banner"></jarvis-connessione></div>`
+            : nothing
+        }
         <div class="chiedi" aria-disabled="true">
           Chiedi a Jarvis… <small>assistente in arrivo (F4)</small>
         </div>

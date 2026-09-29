@@ -59,7 +59,8 @@ test("HA che cade e torna: banner dopo 10 s, valori non aggiornati, poi risincro
   await expect(page.getByTestId("banner")).toBeHidden();
   await expect(page.getByTestId("banner")).toBeVisible({ timeout: 12_000 });
   await expect(page.getByTestId("banner")).toContainText("valori non aggiornati");
-  await expect(soggiorno).toContainText("Valori non aggiornati");
+  // valori della stanza in arancione (il banner lo dice a parole)
+  await expect(soggiorno.locator(".clima.non-aggiornato")).toBeVisible();
   await expect(pallino(page)).toContainText("Offline");
 
   // mentre HA è giù: un valore cambia e un sensore viene cancellato

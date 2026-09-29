@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.2.1
+
+Solo layout, nessuna funzione nuova: il pannello non si sovrappone più a
+nessuna misura da 320 px di larghezza in su.
+
+- Tablet 1024×600: invariato, schermata unica come il mockup.
+- Telefono in orizzontale e schermi bassi: due colonne compatte e la pagina
+  scorre. Telefono in verticale: una colonna, la pagina scorre. La barra
+  "Chiedi a Jarvis…" non è più fissa sopra le stanze (copriva i pulsanti).
+- Offline: sui telefoni il banner sta in cima alla pagina; sul tablet prende il
+  posto della barra come prima. Il "non aggiornato" delle stanze si vede dal
+  clima in arancione, senza la riga in più che allungava la Camera.
+- Card: nomi lunghi vanno a capo invece di essere tagliati, i pulsanti vanno a
+  capo se non c'è posto; sui telefoni in orizzontale nome e stato stanno accanto
+  ai pulsanti e le spiegazioni lunghe si nascondono.
+- Nuova prova di layout a 6 misure (1024×600, 915×412, 915×330, 412×915,
+  360×740, 320×640), con la TV accesa e poi offline.
+
 ## v0.2.0
 
 Fase F2: stanze e comandi dei dispositivi.

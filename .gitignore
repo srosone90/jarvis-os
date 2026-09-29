@@ -8,3 +8,5 @@ __pycache__/
 test-results/
 playwright-report/
 jarvis-dist.zip
+.prima/
+schermate/

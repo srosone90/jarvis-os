@@ -50,21 +50,23 @@ export class JarvisCardInterruttore extends CardBase {
           `Programma di ${this.card.entita} non leggibile: manca ${!modalita ? p.modalita : p.prossimoCambio}`,
         );
       }
-      return html`<small data-test="programma">Programma non disponibile</small>`;
+      return html`<small class="secondario" data-test="programma">Programma non disponibile</small>`;
     }
     const attivo = modalita.state === "on";
     const nGiorni = giorni ? Number(giorni.state) : NaN;
-    return html`<small data-test="programma">
+    return html`<small class="secondario" data-test="programma">
       ${attivo ? html`Inverno attivo${Number.isFinite(nGiorni) ? ` · ${nGiorni} gg nuvolosi` : ""}<br />` : nothing}${prossimo.state}
     </small>`;
   }
 
   protected disegna(): TemplateResult {
     if (this.infrarossi) {
-      return html`<div class="card ${this.nonAggiornato ? "vecchio" : ""}" data-test="card-tasto">
-        <div class="riga">${icona(mdiPower)}<span class="nome">${this.card.nome}</span></div>
-        <span class="etichetta">Infrarossi · stato non verificabile</span>
-        <small>Come il tasto del telecomando: accende o spegne.</small>
+      return html`<div class="card in-riga ${this.nonAggiornato ? "vecchio" : ""}" data-test="card-tasto">
+        <div class="testo">
+          <div class="riga">${icona(mdiPower)}<span class="nome">${this.card.nome}</span></div>
+          <span class="etichetta">Infrarossi · stato non verificabile</span>
+          <small class="spiegazione">Come il tasto del telecomando: accende o spegne.</small>
+        </div>
         <div class="comandi">
           <button
             ?disabled=${this.disabilitata || this.inAttesa}
@@ -77,7 +79,7 @@ export class JarvisCardInterruttore extends CardBase {
     }
     const acceso = this.statoMostrato === "on";
     return html`<div
-      class="card ${acceso ? "acceso" : ""} ${this.nonAggiornato ? "vecchio" : ""}"
+      class="card in-riga ${acceso ? "acceso" : ""} ${this.nonAggiornato ? "vecchio" : ""}"
       data-test="card-interruttore"
     >
       <button
