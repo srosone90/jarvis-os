@@ -168,6 +168,10 @@ se ne scrive una nuova che annulla la precedente.
   premuto l'orologio 3 secondi**.
 - **2026-09-29** — Le **release** le pubblica Claude a fine fase, con i test verdi:
   tag `vX.Y.Z` → il workflow allega `jarvis-dist.zip`.
+- **2026-09-29** — **v0.1.1 verificata su HA vero** (Chrome desktop su
+  `https://casa.tail8392c1.ts.net`, dalla sessione server): 65 entità ricevute,
+  latenza WebSocket 23 ms, un `{c:…}` reale non svuota più niente, "Aggiorna ora"
+  passa dalla 0.1.0 alla 0.1.1 in ~15 s. Manca solo la conferma sul tablet.
 - **2026-09-27** — Le 5 regolazioni (soglia nuvole, soglie e temperature del
   clima) **non hanno `initial:`**, così sopravvivono ai riavvii del server. I
   valori di partenza (90%, 26°, 24°, 18°, 21°) li imposta Salvatore una volta sola
