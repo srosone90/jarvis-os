@@ -41,7 +41,7 @@ In casa **non ci sono luci smart**.
 |---|---|
 | `home-assistant/packages/jarvis.yaml` | Tutto ciò che il pannello chiede a HA: aiutanti, sensori, scene, automazioni |
 | `home-assistant/README.md` | Istruzioni di installazione e verifiche per chi amministra HA |
-| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero (85 verifiche) |
+| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (96 verifiche) |
 | `docs/mockup.html` | Mockup statico della schermata principale (1024×600) |
 
 L'app (fasi F1–F6) non esiste ancora. Si parte dopo l'approvazione del mockup.
@@ -92,6 +92,10 @@ se ne scrive una nuova che annulla la precedente.
   hanno effetto **subito**.
 - **2026-09-26** — La **TV della camera** (infrarossi) non entra in nessuna
   automazione: il comando "spegni" potrebbe accenderla.
+- **2026-09-27** — Le 5 regolazioni (soglia nuvole, soglie e temperature del
+  clima) **non hanno `initial:`**, così sopravvivono ai riavvii del server. I
+  valori di partenza (90%, 26°, 24°, 18°, 21°) li imposta Salvatore una volta sola
+  lato server, subito dopo l'installazione.
 
 ## 6. Convenzioni
 
@@ -109,7 +113,7 @@ se ne scrive una nuova che annulla la precedente.
 ```bash
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
-.venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 85/85
+.venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 96/96
 .venv-ha/bin/hass --script check_config -c <cartella con configuration.yaml + packages/>
 ```
 
@@ -130,3 +134,12 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   il pacchetto. La prova usa `bootstrap.async_from_config_dict`.
 - **Le note nel registro (`logbook.log`) vanno sempre per ultime** in
   un'automazione: se il servizio manca, non devono bloccare i passi importanti.
+- **Mai `initial:` su un aiutante regolabile.** `input_number` (e simili) con
+  `initial` tornano a quel valore a ogni riavvio di HA, e il server si riavvia
+  spesso (blackout, guardiano). Senza `initial` HA ripristina l'ultimo valore; alla
+  prima installazione però parte dal `min`, quindi i valori di partenza si
+  documentano nel README e l'amministratore li imposta una volta sola. `counter`
+  con `restore: true` è diverso: lì `initial` vale solo la prima volta. Il
+  ripristino si salva ogni 15 minuti e allo spegnimento ordinato: con un blackout
+  si può perdere l'ultima regolazione. Verificato con un riavvio vero nella prova
+  (sezione 15), che fallisce se si rimette `initial:`.

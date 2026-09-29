@@ -11,7 +11,7 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
 | Programma scaldabagno | `binary_sensor.jarvis_scaldabagno_modalita_inverno`, `binary_sensor.jarvis_scaldabagno_programma`, automazione "segui il programma" | Accende e spegne `switch.scaldabagno` agli orari decisi, solo in modalità inverno |
 | Misura nuvole | `sensor.jarvis_copertura_nuvolosa`, `input_number.jarvis_nuvole_somma`/`_campioni`, `counter.jarvis_giorni_nuvolosi`, 3 automazioni | Media della copertura nelle ore di luce, bilancio al tramonto |
 | Temperatura percepita | `sensor.jarvis_temperatura_percepita_camera`, `…_soggiorno` | Formula di Steadman da temperatura e umidità dei Meter |
-| Soglie clima | `input_number.jarvis_clima_*` (4) | Sopra 26° percepiti raffresca a 24°, sotto 18° riscalda a 21° |
+| Soglie clima | `input_number.jarvis_clima_*` (4) | Sopra 26° percepiti raffresca a 24°, sotto 18° riscalda a 21° (valori di partenza, vedi sotto) |
 | Scene | `script.jarvis_buonanotte`, `script.jarvis_esco`, `script.jarvis_rientro` | I tre pulsanti del pannello |
 | Notifiche | `script.jarvis_notifica` | Unico punto che scrive al telefono |
 | Presenza | automazioni "Uscita" (solo notifica + pulsante) e "Rientro" (clima all'arrivo) | |
@@ -44,6 +44,44 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
 3. Vai su **Strumenti per sviluppatori → YAML → Verifica configurazione**. Solo se
    è verde, **riavvia** Home Assistant. Ricaricare gli script non basta: ci sono
    aiutanti e template nuovi.
+4. **Subito dopo il riavvio, imposta i valori di partenza** (sezione qui sotto).
+   Va fatto una volta sola.
+
+## Valori di partenza (da impostare una volta sola)
+
+I 5 aiutanti regolabili **non hanno `initial:`**, ed è voluto. Con `initial`,
+Home Assistant li riporterebbe a quel valore a **ogni riavvio**, e sul server i
+riavvii sono frequenti (blackout, guardiano): le regolazioni fatte dal pannello si
+perderebbero. Senza `initial`, HA ripristina l'ultimo valore salvato.
+
+Il rovescio della medaglia: alla **prima installazione** ogni aiutante parte dal suo
+**minimo**. Finché non imposti i valori qui sotto, il Rientro raffredderebbe a 16°
+appena la camera supera 20° percepiti. Per questo il passo 4 va fatto subito.
+
+| Aiutante | Valore di partenza | Minimo (se non lo imposti) |
+|---|---|---|
+| `input_number.jarvis_soglia_nuvole` | **90** % | 50 % |
+| `input_number.jarvis_clima_soglia_caldo` | **26** °C | 20 °C |
+| `input_number.jarvis_clima_temp_raffresca` | **24** °C | 16 °C |
+| `input_number.jarvis_clima_soglia_freddo` | **18** °C | 10 °C |
+| `input_number.jarvis_clima_temp_riscalda` | **21** °C | 16 °C |
+
+Il modo più veloce è **Strumenti per sviluppatori → Azioni**, in modalità YAML:
+una chiamata a `input_number.set_value` per ogni riga della tabella. Per esempio:
+
+```yaml
+action: input_number.set_value
+target:
+  entity_id: input_number.jarvis_soglia_nuvole
+data:
+  value: 90
+```
+
+Poi controlla i 5 valori in *Strumenti per sviluppatori → Stati*.
+In alternativa si impostano da *Impostazioni → Dispositivi e servizi → Aiutanti*.
+
+Il contatore `counter.jarvis_giorni_nuvolosi` non va impostato: parte da 0 e
+anche lui sopravvive ai riavvii (`restore: true`).
 
 ## Da verificare in casa PRIMA di fidarsi (non verificabile da fuori)
 
@@ -99,11 +137,15 @@ rischierebbe di accenderla. Sul pannello compare come un tasto del telecomando.
   resta com'era e si azzerano solo i campioni.
 - Se HA resta acceso ma Met.no non risponde per quasi tutto il giorno (meno di 6
   campioni, cioè 1 ora), la giornata non si conta e arriva una notifica.
+- HA salva su disco i valori da ripristinare **ogni 15 minuti** e allo spegnimento
+  ordinato. Con un blackout, cioè uno spegnimento brusco, una regolazione fatta
+  dal pannello negli ultimi 15 minuti può tornare al valore precedente, non al
+  minimo. Lo stesso vale per il contatore delle giornate nuvolose.
 
 ## Prove
 
 `prove/prova_pacchetto.py` avvia un Home Assistant vero con il pacchetto, finge i
-dispositivi (stessi entity_id) e verifica 85 casi:
+dispositivi (stessi entity_id) e verifica 96 casi:
 - orari del programma giorno per giorno;
 - attivazione e disattivazione immediata;
 - comando a mano rispettato;
@@ -114,7 +156,9 @@ dispositivi (stessi entity_id) e verifica 85 casi:
 - Uscita solo con notifica;
 - pulsante della notifica;
 - Buonanotte;
-- batterie.
+- batterie;
+- valori di partenza e **riavvio**: le 5 regolazioni e il contatore sopravvivono
+  a uno spegnimento e riaccensione veri di HA.
 
 ```bash
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant

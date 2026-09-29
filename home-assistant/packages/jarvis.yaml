@@ -21,6 +21,13 @@
 
 # -----------------------------------------------------------------------------
 # Aiutanti (modificabili dal pannello Jarvis o da Impostazioni → Aiutanti)
+#
+# Niente `initial:` sugli input_number: con `initial` HA li riporta a quel valore
+# a OGNI riavvio (e sul nostro server i riavvii sono frequenti: blackout,
+# guardiano), perdendo le regolazioni fatte dal pannello. Senza, HA ripristina
+# l'ultimo valore. Alla prima installazione partono dal loro `min`: i valori di
+# partenza si impostano una volta sola a mano (home-assistant/README.md,
+# "Valori di partenza").
 # -----------------------------------------------------------------------------
 input_number:
   # Scaldabagno: soglia che fa contare una giornata come "nuvole pesanti"
@@ -30,7 +37,6 @@ input_number:
     max: 100
     step: 5
     unit_of_measurement: "%"
-    initial: 90
     mode: box
     icon: mdi:weather-cloudy
 
@@ -58,7 +64,6 @@ input_number:
     max: 35
     step: 0.5
     unit_of_measurement: "°C"
-    initial: 26
     mode: box
     icon: mdi:thermometer-chevron-up
   jarvis_clima_temp_raffresca:
@@ -67,7 +72,6 @@ input_number:
     max: 30
     step: 1
     unit_of_measurement: "°C"
-    initial: 24
     mode: box
     icon: mdi:snowflake
   jarvis_clima_soglia_freddo:
@@ -76,7 +80,6 @@ input_number:
     max: 24
     step: 0.5
     unit_of_measurement: "°C"
-    initial: 18
     mode: box
     icon: mdi:thermometer-chevron-down
   jarvis_clima_temp_riscalda:
@@ -85,7 +88,6 @@ input_number:
     max: 30
     step: 1
     unit_of_measurement: "°C"
-    initial: 21
     mode: box
     icon: mdi:fire
 

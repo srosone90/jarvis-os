@@ -204,7 +204,33 @@ class Banco:
         await self.attendi()
 
 
-async def prova() -> int:
+# Errori di HA (automazioni che falliscono, template rotti) = prova fallita
+errori_ha: list[str] = []
+
+
+class _Raccogli(logging.Handler):
+    def emit(self, record: logging.LogRecord) -> None:
+        # L'interfaccia web non è installata nel banco di prova: il suo
+        # errore di avvio è atteso e non riguarda il pacchetto.
+        if record.levelno >= logging.ERROR and "hass_frontend" not in record.getMessage():
+            errori_ha.append(record.getMessage()[:300])
+
+
+logging.basicConfig(level=logging.WARNING, format="    [HA] %(levelname)s %(name)s: %(message)s")
+logging.getLogger("homeassistant").addHandler(_Raccogli())
+
+# Valori di partenza che l'amministratore imposta una volta sola dopo
+# l'installazione (vedi home-assistant/README.md, "Valori di partenza").
+VALORI_PARTENZA = {
+    "input_number.jarvis_soglia_nuvole": 90,
+    "input_number.jarvis_clima_soglia_caldo": 26,
+    "input_number.jarvis_clima_temp_raffresca": 24,
+    "input_number.jarvis_clima_soglia_freddo": 18,
+    "input_number.jarvis_clima_temp_riscalda": 21,
+}
+
+
+def prepara_cartella() -> Path:
     cartella = Path(tempfile.mkdtemp(prefix="jarvis-ha-"))
     (cartella / "packages").mkdir()
     shutil.copy(PACCHETTO, cartella / "packages" / "jarvis.yaml")
@@ -218,34 +244,75 @@ async def prova() -> int:
         "  time_zone: Europe/Rome\n"
         "  packages: !include_dir_named packages\n"
     )
+    return cartella
 
-    # Errori di HA (automazioni che falliscono, template rotti) = prova fallita
-    errori_ha: list[str] = []
 
-    class Raccogli(logging.Handler):
-        def emit(self, record: logging.LogRecord) -> None:
-            # L'interfaccia web non è installata nel banco di prova: il suo
-            # errore di avvio è atteso e non riguarda il pacchetto.
-            if record.levelno >= logging.ERROR and "hass_frontend" not in record.getMessage():
-                errori_ha.append(record.getMessage()[:300])
-
-    logging.basicConfig(level=logging.WARNING, format="    [HA] %(levelname)s %(name)s: %(message)s")
-    logging.getLogger("homeassistant").addHandler(Raccogli())
-    # Avvio "nudo": solo il pacchetto e le integrazioni di base, senza interfaccia
-    # web (non installata qui e non serve alla prova).
+async def avvia(cartella: Path) -> Banco | None:
+    """Avvio "nudo": solo il pacchetto e le integrazioni di base, senza
+    interfaccia web (non installata qui e non serve alla prova). Sulla stessa
+    cartella, un secondo avvio è un riavvio vero: ripristina lo stato salvato."""
     hass = HomeAssistant(str(cartella))
     loader.async_setup(hass)
     hass.config.skip_pip = True
     configurazione = await conf_util.async_hass_config_yaml(hass)
     if await bootstrap.async_from_config_dict(configurazione, hass) is None:
         print("Home Assistant non è partito")
-        return 1
-
+        return None
     b = Banco(hass)
     await b.registra_servizi()
     b.stati_iniziali()
     await hass.async_start()
     await b.attendi()
+    return b
+
+
+async def imposta_numeri(b: Banco, valori: dict[str, float]) -> None:
+    for eid, valore in valori.items():
+        await b.hass.services.async_call(
+            "input_number", "set_value", {"entity_id": eid, "value": valore}, blocking=True
+        )
+    await b.attendi()
+
+
+async def prova_riavvio() -> None:
+    """Le regolazioni fatte dal pannello devono sopravvivere a un riavvio di HA
+    (blackout, guardiano): il server si riavvia spesso."""
+    print("\n15. Riavvio di Home Assistant: le regolazioni restano")
+    cartella = prepara_cartella()
+    try:
+        b = await avvia(cartella)
+        assert b is not None
+        regolati = {
+            "input_number.jarvis_soglia_nuvole": 85,
+            "input_number.jarvis_clima_soglia_caldo": 27.5,
+            "input_number.jarvis_clima_temp_raffresca": 23,
+            "input_number.jarvis_clima_soglia_freddo": 17,
+            "input_number.jarvis_clima_temp_riscalda": 22,
+        }
+        await imposta_numeri(b, regolati)
+        await b.hass.services.async_call(
+            "counter", "set_value", {"entity_id": "counter.jarvis_giorni_nuvolosi", "value": 3}, blocking=True
+        )
+        await b.attendi()
+        await b.hass.async_stop()
+
+        b = await avvia(cartella)
+        assert b is not None
+        for eid, valore in regolati.items():
+            verifica(b.stato(eid) == str(float(valore)), f"{eid} resta {valore} dopo il riavvio", b.stato(eid))
+        verifica(b.stato("counter.jarvis_giorni_nuvolosi") == "3", "contatore giornate nuvolose resta 3",
+                 b.stato("counter.jarvis_giorni_nuvolosi"))
+        await b.hass.async_stop()
+    finally:
+        shutil.rmtree(cartella, ignore_errors=True)
+
+
+async def prova() -> int:
+    cartella = prepara_cartella()
+    b = await avvia(cartella)
+    if b is None:
+        return 1
+    hass = b.hass
 
     try:
         print("\n1. Entità create dal pacchetto")
@@ -267,8 +334,15 @@ async def prova() -> int:
         verifica(n_auto == 8, "8 automazioni caricate", n_auto)
         spente = [s.entity_id for s in hass.states.async_all("automation") if s.state != "on"]
         verifica(not spente, "tutte le automazioni sono attive", spente)
-        verifica(b.stato("input_number.jarvis_soglia_nuvole") == "90.0", "soglia nuvole 90%",
+        # Prima installazione: senza `initial:` HA parte dal minimo di ogni
+        # aiutante. Lo verifichiamo perché è il motivo per cui l'amministratore
+        # DEVE impostare i valori di partenza (README).
+        verifica(b.stato("input_number.jarvis_soglia_nuvole") == "50.0",
+                 "prima installazione: soglia nuvole al minimo (50%) finché non la imposti",
                  b.stato("input_number.jarvis_soglia_nuvole"))
+        await imposta_numeri(b, VALORI_PARTENZA)
+        for eid, valore in VALORI_PARTENZA.items():
+            verifica(b.stato(eid) == str(float(valore)), f"valore di partenza {eid} = {valore}", b.stato(eid))
 
         print("\n2. Temperatura percepita (valori veri del 26/09)")
         await b.aggiorna_template()
@@ -471,11 +545,14 @@ async def prova() -> int:
         verifica(notifiche and "15%" in notifiche[0]["message"] and "programma" in notifiche[0]["message"],
                  "Bot scaldabagno al 15% → notifica con avviso sul programma", notifiche)
 
-        print("\n15. Nessun errore di Home Assistant durante la prova")
-        verifica(not errori_ha, "log senza errori", errori_ha)
     finally:
         await hass.async_stop(force=True)
         shutil.rmtree(cartella, ignore_errors=True)
+
+    await prova_riavvio()
+
+    print("\n16. Nessun errore di Home Assistant durante le prove")
+    verifica(not errori_ha, "log senza errori", errori_ha)
 
     falliti = [d for ok, d in esiti if not ok]
     print(f"\n{len(esiti) - len(falliti)}/{len(esiti)} verifiche passate")
