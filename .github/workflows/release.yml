@@ -19,6 +19,13 @@ on:
 permissions:
   contents: write
 
+# In fila, mai in parallelo: due push ravvicinati con la stessa versione nuova
+# vedrebbero entrambi "manca la release" e il secondo fallirebbe sul tag già
+# creato. In fila, il secondo trova la release fatta e non fa niente.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
