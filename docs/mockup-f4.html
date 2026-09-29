@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis OS — mockup F4 (assistente)</title>
+<style>
+  :root {
+    --accent: #5b8def; --bg: #0d0f13; --surface: #171a21; --surface-2: #1f232c;
+    --text: #eef1f6; --muted: #9aa3b2; --warn: #f0a33a; --ok: #3ecf8e; --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: #05060a; color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px;
+  }
+  button { font: inherit; color: inherit; }
+  h1 { font-size: 18px; font-weight: 600; margin: 0; }
+  .nota { color: var(--muted); font-size: 13px; max-width: 1024px; text-align: center; margin: 0; line-height: 1.45; }
+  .demo { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 1024px; align-items: center; }
+  .demo span { color: var(--muted); font-size: 13px; }
+  .demo button { background: #262a33; border: 1px solid #3a404c; border-radius: 8px; padding: 8px 12px; font-size: 14px; cursor: pointer; }
+  .demo button[aria-pressed="true"] { background: var(--accent); color: #0d0f13; border-color: var(--accent); font-weight: 600; }
+  .schermi { display: flex; gap: 24px; flex-wrap: wrap; justify-content: center; align-items: flex-start; }
+  .etichetta-schermo { color: var(--muted); font-size: 13px; margin: 0 0 6px; text-align: center; }
+  svg.i { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* ===== tablet 1024×600 ===== */
+  .tablet {
+    position: relative; width: 1024px; height: 600px; overflow: hidden; border-radius: 24px; border: 10px solid #000;
+    background: radial-gradient(900px 500px at 0% 0%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%), var(--bg);
+  }
+  .telefono {
+    position: relative; width: 412px; height: 760px; overflow: hidden; border-radius: 28px; border: 10px solid #000;
+    background: var(--bg);
+  }
+  /* pannello di sotto, semplificato: blocchi al posto giusto */
+  .sotto { position: absolute; inset: 0; padding: 16px; display: grid; grid-template-columns: 330px 1fr; grid-template-rows: 1fr 60px; gap: 16px; }
+  .sotto .sx { display: flex; flex-direction: column; gap: 10px; }
+  .ora { font-size: 108px; font-weight: 200; line-height: .95; letter-spacing: -3px; }
+  .data { font-size: 22px; color: var(--muted); }
+  .blocco { background: var(--surface); border-radius: var(--radius); }
+  .sotto .dx { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 150px 1fr; gap: 12px; padding-top: 22px; }
+  .sotto .dx .blocco:last-child { grid-column: 1 / 3; }
+  .barra { grid-column: 1 / 3; display: flex; gap: 12px; }
+  .chiedi {
+    flex: 1; display: flex; align-items: center; gap: 12px; padding: 0 20px; min-height: 48px;
+    background: var(--surface); border: 1px solid #2b303a; border-radius: 999px; color: var(--muted); font-size: 18px; cursor: text;
+  }
+  .mic { width: 60px; min-height: 48px; border-radius: 999px; background: var(--surface); border: 1px solid #2b303a; display: grid; place-items: center; color: var(--muted); }
+
+  /* ===== la chat ===== */
+  .chat {
+    position: absolute; display: flex; flex-direction: column; gap: 10px;
+    background: color-mix(in srgb, var(--surface) 96%, #000); border: 1px solid #2b303a;
+    border-radius: 20px; padding: 12px; box-shadow: 0 20px 60px #000a;
+  }
+  /* A: occupa il posto delle stanze, l'orologio resta visibile */
+  .tablet.a .chat { left: 362px; right: 16px; top: 16px; bottom: 16px; }
+  /* B: tutto lo schermo */
+  .tablet.b .chat { inset: 12px; }
+  .tablet.b .sotto { filter: blur(6px) brightness(.4); }
+  .tablet.a .sotto .dx, .tablet.a .sotto .barra { visibility: hidden; }
+  .telefono .chat { inset: 0; border-radius: 0; border: none; }
+
+  .testa { display: flex; align-items: center; gap: 10px; padding: 0 4px; }
+  .testa b { font-size: 17px; font-weight: 600; }
+  .testa small { color: var(--muted); font-size: 13px; }
+  .testa .spazio { flex: 1; }
+  .tondo { min-width: 48px; min-height: 48px; border-radius: 999px; border: none; background: var(--surface-2); display: grid; place-items: center; cursor: pointer; }
+
+  .messaggi { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding: 4px; }
+  .msg { max-width: 82%; padding: 10px 14px; border-radius: 18px; font-size: 17px; line-height: 1.4; }
+  .io { align-self: flex-end; background: color-mix(in srgb, var(--accent) 30%, var(--surface-2)); border-bottom-right-radius: 6px; }
+  .jarvis { align-self: flex-start; background: var(--surface-2); border-bottom-left-radius: 6px; }
+  .ora-msg { align-self: center; color: var(--muted); font-size: 12px; }
+  .azione {
+    align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; font-size: 14px;
+    color: var(--ok); border: 1px solid color-mix(in srgb, var(--ok) 45%, transparent); border-radius: 999px; padding: 4px 12px;
+  }
+  .pensa { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); }
+  .puntini span { display: inline-block; width: 7px; height: 7px; margin: 0 2px; border-radius: 50%; background: var(--muted); animation: su 1.2s infinite ease-in-out; }
+  .puntini span:nth-child(2) { animation-delay: .15s; } .puntini span:nth-child(3) { animation-delay: .3s; }
+  @keyframes su { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-4px); } }
+  .cursore::after { content: "▍"; color: var(--accent); animation: lampeggia 1s steps(2) infinite; }
+  @keyframes lampeggia { 50% { opacity: 0; } }
+  .errore { align-self: stretch; border: 1px solid color-mix(in srgb, var(--warn) 60%, transparent); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 12px; font-size: 15px; }
+  .errore .t { flex: 1; } .errore b { color: var(--warn); }
+  .errore button { min-height: 48px; padding: 0 16px; border-radius: 12px; border: none; background: var(--warn); color: #1a1205; font-weight: 600; cursor: pointer; }
+
+  .campo { display: flex; gap: 10px; align-items: center; }
+  .campo .input { flex: 1; min-height: 52px; display: flex; align-items: center; padding: 0 18px; border-radius: 999px; background: var(--bg); border: 2px solid var(--accent); font-size: 17px; }
+  .campo .input.spento { border-color: #2b303a; color: var(--muted); }
+  .invia { min-width: 52px; min-height: 52px; border-radius: 999px; border: none; background: var(--accent); color: #0d0f13; display: grid; place-items: center; }
+  .invia[disabled] { opacity: .4; }
+  .tastiera {
+    position: absolute; left: 0; right: 0; bottom: 0; height: 45%;
+    background: repeating-linear-gradient(90deg, #22262e 0 8.5%, #1a1d23 8.5% 9.2%), #1a1d23;
+    border-top: 1px solid #333; display: none; color: #555; font-size: 13px; align-items: flex-start; justify-content: center; padding-top: 8px;
+  }
+  .con-tastiera .tastiera { display: flex; }
+  .tablet.con-tastiera.a .chat, .tablet.con-tastiera.b .chat { bottom: calc(45% + 8px); }
+  .telefono.con-tastiera .chat { bottom: 45%; }
+</style>
+</head>
+<body>
+  <h1>F4 — assistente testuale: mockup da scegliere</h1>
+  <p class="nota">Pannello sotto semplificato (blocchi grigi). Tocca i pulsanti per vedere gli stati. Le domande sono nella chat di Claude: il mockup serve a vederle.</p>
+
+  <div class="demo" id="layout">
+    <span>Dove si apre (tablet):</span>
+    <button data-v="a" aria-pressed="true">A · al posto delle stanze</button>
+    <button data-v="b" aria-pressed="false">B · a tutto schermo</button>
+  </div>
+  <div class="demo" id="stato">
+    <span>Stato:</span>
+    <button data-v="pensa" aria-pressed="false">Sta pensando</button>
+    <button data-v="scrive" aria-pressed="false">Risposta mentre arriva</button>
+    <button data-v="azione" aria-pressed="true">Risposta con azione</button>
+    <button data-v="errore" aria-pressed="false">Errore di Gemini</button>
+    <button data-v="caduta" aria-pressed="false">Connessione persa a metà</button>
+    <button data-v="offline" aria-pressed="false">Offline</button>
+  </div>
+  <div class="demo" id="tast">
+    <button data-v="t" aria-pressed="false">Mostra la tastiera virtuale</button>
+  </div>
+
+  <div class="schermi">
+    <div>
+      <p class="etichetta-schermo">Tablet 1024×600</p>
+      <div class="tablet a" id="tablet"></div>
+    </div>
+    <div>
+      <p class="etichetta-schermo">Telefono 412 px (sempre a tutto schermo)</p>
+      <div class="telefono" id="telefono"></div>
+    </div>
+  </div>
+
+<script>
+  const ic = {
+    chiudi: '<svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    invia: '<svg class="i" viewBox="0 0 24 24"><path d="M4 12l16-8-6 16-2-7z"/></svg>',
+    mic: '<svg class="i" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>',
+    ok: '<svg class="i" viewBox="0 0 24 24" style="width:18px;height:18px"><path d="M5 12l5 5 9-10"/></svg>',
+    nuova: '<svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  };
+  const storia = `
+    <div class="ora-msg">oggi 18:02</div>
+    <div class="msg io">Che temperatura c'è in camera?</div>
+    <div class="msg jarvis">In camera ci sono 25,1°, con umidità al 43%. Il condizionatore è in modalità ventola.</div>`;
+  const domanda = `<div class="msg io">Spegni la TV del salotto e dimmi se domani piove</div>`;
+  const stati = {
+    pensa: domanda + `<div class="msg jarvis pensa"><span class="puntini"><span></span><span></span><span></span></span> Sto pensando…</div>`,
+    scrive: domanda + `<div class="azione">${ic.ok} TV Salotto · spenta</div><div class="msg jarvis cursore">Fatto, ho spento la TV del salotto. Per domani è previsto</div>`,
+    azione: domanda + `<div class="azione">${ic.ok} TV Salotto · spenta</div><div class="msg jarvis">Fatto, ho spento la TV del salotto. Per domani è previsto cielo sereno, massima 24°: niente pioggia.</div>`,
+    errore: domanda + `<div class="errore"><div class="t"><b>Jarvis non è riuscito a rispondere.</b><br>Gemini ha dato un errore. La domanda è ancora qui.</div><button>Riprova</button></div>`,
+    caduta: domanda + `<div class="errore"><div class="t"><b>Connessione persa durante la risposta.</b><br>Non so se l'azione è stata eseguita: guarda le card. La domanda non si è persa.</div><button>Rimanda</button></div>`,
+    offline: `<div class="errore"><div class="t"><b>Home Assistant non raggiungibile.</b><br>Quando torna la connessione puoi scrivere di nuovo.</div></div>`,
+  };
+  let v = "a", s = "azione", t = false;
+  function chat(stretto) {
+    const off = s === "offline";
+    const inCorso = s === "pensa" || s === "scrive";
+    return `<div class="chat">
+      <div class="testa"><b>Jarvis</b><small>${inCorso ? "sta rispondendo…" : "Gemini"}</small><span class="spazio"></span>
+        <button class="tondo" title="Nuova conversazione">${ic.nuova}</button>
+        <button class="tondo" title="Chiudi">${ic.chiudi}</button></div>
+      <div class="messaggi">${storia}${stati[s]}</div>
+      <div class="campo">
+        <div class="input ${off ? "spento" : ""}">${off ? "Chiedi a Jarvis… (non disponibile offline)" : inCorso ? "" : "Scrivi…"}</div>
+        <button class="invia" ${off || inCorso ? "disabled" : ""}>${ic.invia}</button>
+      </div></div><div class="tastiera">tastiera virtuale</div>`;
+  }
+  function sotto() {
+    return `<div class="sotto"><div class="sx"><div class="ora">18:04</div><div class="data">martedì 29 settembre</div>
+      <div class="blocco" style="height:110px"></div><div class="blocco" style="height:88px;margin-top:auto"></div></div>
+      <div class="dx"><div class="blocco"></div><div class="blocco"></div><div class="blocco"></div></div>
+      <div class="barra"><div class="chiedi">Chiedi a Jarvis…</div><div class="mic">${ic.mic}</div></div></div>`;
+  }
+  function disegna() {
+    const tb = document.getElementById("tablet");
+    tb.className = `tablet ${v}${t ? " con-tastiera" : ""}`;
+    tb.innerHTML = sotto() + chat(false);
+    const tf = document.getElementById("telefono");
+    tf.className = `telefono${t ? " con-tastiera" : ""}`;
+    tf.innerHTML = chat(true);
+    // come nell'app: la chat mostra sempre gli ultimi messaggi
+    for (const m of document.querySelectorAll(".messaggi")) m.scrollTop = m.scrollHeight;
+  }
+  function gruppo(id, fn) {
+    document.getElementById(id).addEventListener("click", (e) => {
+      const b = e.target.closest("button"); if (!b) return;
+      if (id === "tast") { t = !t; b.setAttribute("aria-pressed", String(t)); }
+      else { for (const x of document.querySelectorAll(`#${id} button`)) x.setAttribute("aria-pressed", String(x === b)); fn(b.dataset.v); }
+      disegna();
+    });
+  }
+  gruppo("layout", (x) => (v = x));
+  gruppo("stato", (x) => (s = x));
+  gruppo("tast", () => {});
+  disegna();
+</script>
+</body>
+</html>
