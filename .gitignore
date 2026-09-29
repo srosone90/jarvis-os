@@ -5,3 +5,6 @@ __pycache__/
 .env
 .env.*
 !.env.example
+test-results/
+playwright-report/
+jarvis-dist.zip

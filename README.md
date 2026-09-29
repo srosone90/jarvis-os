@@ -8,14 +8,35 @@ orizzontale acceso 24/7.
 | Parte | Stato |
 |---|---|
 | Pacchetto Home Assistant (scaldabagno, scene, presenza, batterie) | Pronto e provato: [`home-assistant/`](home-assistant/README.md) |
-| Mockup della schermata principale | [`docs/mockup.html`](docs/mockup.html), in attesa di approvazione |
-| App (F1–F6) | Da iniziare dopo l'approvazione del mockup |
+| F1 — scheletro PWA, connessione, orologio e meteo, clima stanze, diagnostica | **v0.1.0** |
+| F2–F6 — comandi, scene, assistente, voce, modalità notte | Da fare |
 
-## Lato server
+## Installazione sul server (Home Assistant)
 
-L'app sarà servita da Home Assistant stesso, nella cartella
-`/config/www/jarvis/`, all'indirizzo `<HA>/local/jarvis/`. Si apre sulla stessa
-origine di HA, quindi non serve configurare CORS. Il microfono funziona solo in
-HTTPS. I dettagli arrivano con la fase F1.
+1. Scarica `jarvis-dist.zip` dall'[ultima release](https://github.com/srosone90/jarvis-os/releases/latest).
+2. Scompatta il **contenuto** dello zip in `/config/www/jarvis/`, così che esista
+   `/config/www/jarvis/index.html`. Se la cartella `www` non esisteva, HA va
+   riavviato una volta perché la veda.
+3. Apri **`<indirizzo di HA>/local/jarvis/index.html`**, con `index.html` nel
+   percorso: HA non serve l'indice della cartella, quindi `/local/jarvis/` da solo
+   dà errore 403.
+4. Tocca **Accedi**, entra con l'utente di HA e il pannello si collega. Il login si
+   fa una volta per indirizzo.
+
+Non serve configurare niente in HA: l'app sta sulla stessa origine, quindi niente
+CORS, e usa il login OAuth standard. Il microfono (dalla F5) funziona solo
+sull'indirizzo **HTTPS**.
+
+**Aggiornare**: si scompatta il nuovo zip sopra il vecchio. Il pannello scarica la
+versione nuova da solo, entro 6 ore o alla prima ricarica, e la applica alla
+ricarica delle 04:00. Si può anche applicare subito dalla diagnostica, tenendo
+premuto l'orologio 3 s e poi "Aggiorna ora".
+
+## Sviluppo
+
+```bash
+npm ci
+npm run verifica   # lint, typecheck, unit test, build, prove e2e contro un finto HA
+```
 
 Architettura, decisioni e convenzioni sono in [`CLAUDE.md`](CLAUDE.md).

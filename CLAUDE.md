@@ -18,12 +18,33 @@ Il lato server (certificato HTTPS, configurazione di HA, installazione del
 pacchetto) lo gestisce **un'altra sessione di Claude** che amministra HA. Qui si
 prepara il materiale e le istruzioni per lei.
 
-## 2. La casa (elenco reale del 26/09/2026)
+## 2. La casa (elenco reale del 26/09/2026, server aggiornato al 29/09)
 
-HA 2026.9 gira su un vecchio Redmi (Termux + Debian proot), con **poca RAM**:
-il pannello non deve caricare il server. L'indirizzo è `http://192.168.1.250:8123`,
-in futuro HTTPS. Dal cloud **non è raggiungibile**: i dati arrivano da Salvatore o
-dall'altra sessione.
+HA **2026.9.3** gira su un Redmi Note 9 (Termux + Debian proot), ~4 GB di RAM quasi
+tutta usata e CPU modesta: **il pannello non deve caricare il server**. Dal cloud
+**non è raggiungibile**: i dati arrivano da Salvatore o dall'altra sessione.
+
+Tre indirizzi, stessa istanza:
+
+| Indirizzo | Note |
+|---|---|
+| `http://192.168.1.250:8123` | LAN, ~20 ms |
+| `http://casa-veloce.tail8392c1.ts.net:8123` (`100.113.206.56`) | Tailscale, veloce, HTTP |
+| `https://casa.tail8392c1.ts.net` | Tailscale **HTTPS**, certificato valido, ma **~1,5 s per richiesta** (proxy dentro proot) |
+
+Il microfono funziona solo in HTTPS, quindi il tablet usa
+`https://casa.tail8392c1.ts.net/local/jarvis/index.html`. Da qui discendono il
+bundle di pochi file e la cache completa nel service worker.
+
+**Come HA serve `/local/`** (verificato nel codice di HA,
+`components/http/static.py`): niente indice di cartella, quindi `/local/jarvis/`
+dà 403 e si apre sempre `/local/jarvis/index.html`; ogni file ha
+`Cache-Control: public, max-age=2678400`, cioè un mese.
+
+Assistente: agente `conversation.google_ai_conversation` (Gemini), STT
+`stt.google_ai_stt`, TTS `tts.google_translate_en_com`, pipeline Assist
+predefinita in italiano. Il condizionatore ha i modi `heat_cool, cool, dry,
+fan_only, heat, off`.
 
 | Stanza | Entità | Note |
 |---|---|---|
@@ -42,9 +63,20 @@ In casa **non ci sono luci smart**.
 | `home-assistant/packages/jarvis.yaml` | Tutto ciò che il pannello chiede a HA: aiutanti, sensori, scene, automazioni |
 | `home-assistant/README.md` | Istruzioni di installazione e verifiche per chi amministra HA |
 | `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (96 verifiche) |
-| `docs/mockup.html` | Mockup statico della schermata principale (1024×600) |
-
-L'app (fasi F1–F6) non esiste ancora. Si parte dopo l'approvazione del mockup.
+| `docs/mockup.html` | Mockup statico della schermata principale (1024×600), approvato |
+| `src/main.ts` | Avvio: gestori d'errore globali, service worker, ricarica notturna, connessione |
+| `src/configurazione.ts` | Preferenze: entità meteo e sensori del clima interno (F1) |
+| `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
+| `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
+| `src/meteo/` | Previsione in push, testi e icone delle condizioni |
+| `src/pwa/` | Service worker, aggiornamenti controllati, ricarica delle 04:00 |
+| `src/diagnostica/log.ts` | Log circolare (200 voci, salvato nel localStorage) |
+| `src/ui/` | Componenti Lit; `base.ts` ha il riquadro protetto e i controller |
+| `scripts/dopo-build.mjs` | Genera `dist/sw.js` dal modello e controlla i limiti (file, KB) |
+| `scripts/crea-zip.sh` | `jarvis-dist.zip` da `dist/` |
+| `test/unit/` | Vitest |
+| `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket, `/local/`) |
+| `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (su tag `v*`) |
 
 ## 4. Architettura prevista dell'app (dal prompt, decisa)
 
@@ -63,7 +95,37 @@ L'app (fasi F1–F6) non esiste ancora. Si parte dopo l'approvazione del mockup.
 - Moduli: `connessione/` (auth, backoff con jitter, risincronizzazione),
   `stato/` (store per entità, aggiornamenti granulari), `registri/`, `comandi/`
   (feedback ottimistico + rollback), `assistente/`, `diagnostica/` (log circolare,
-  versione; si apre con un tocco prolungato sul logo).
+  versione; si apre **tenendo premuto l'orologio 3 s**).
+
+### Com'è fatta davvero (F1, v0.1.0)
+
+- **Build**: un solo file JS (stile compreso), `index.html`, `sw.js`, manifest, 3
+  icone. Niente font: su Android il carattere di sistema è già Roboto.
+  `scripts/dopo-build.mjs` blocca il build se i file superano 10, se il JS non è
+  uno solo o se il codice supera 200 KB gzip. Oggi: 7 file, ~23 KB gzip.
+- **Service worker**: in `install` mette in cache tutti i file (con
+  `cache: 'reload'`, per scavalcare la cache di un mese di HA). Serve tutto dalla
+  cache; la navigazione riceve sempre la `index.html` in cache (anche col
+  `?auth_callback` del login). **Mai `skipWaiting` automatico**: la versione nuova
+  aspetta la ricarica delle 04:00 o "Aggiorna ora" in diagnostica.
+  `register(..., { updateViaCache: 'none' })`.
+- **Connessione**: la libreria si riconnette da sola; in più ci sono attese
+  esponenziali con jitter dentro `createSocket` (fino a 30 s, sommate allo 0-5 s
+  fisso della libreria), un ping ogni 30 s con timeout 10 s che forza la
+  riconnessione, e l'evento `online` che interrompe l'attesa.
+- **Entità**: iscrizione diretta a `subscribe_entities` con il nostro
+  `applicaAggiornamento`. Il primo messaggio dopo ogni (ri)sottoscrizione
+  **sostituisce** tutto; la libreria invece lo fonderebbe, lasciando "fantasmi" le
+  entità cancellate mentre il pannello era offline.
+- **Offline**: il pallino è sempre visibile. Dopo 10 s senza HA compaiono il
+  banner e i valori "non aggiornati" (in arancione e scritto a parole).
+- **Login**: senza token, schermata "Collega" con un pulsante; prima del redirect
+  si verifica che HA risponda (`/auth/providers`). Token nel localStorage per
+  origine (`jarvis-token`). Se HA rifiuta il login salvato: schermata "accedi di
+  nuovo", mai redirect a sorpresa.
+- **Preferenze F1** in `src/configurazione.ts` (entità meteo e sensori del clima):
+  cambiarle richiede un nuovo build. Dalla F2 stanze e dispositivi arrivano dai
+  registri di HA.
 
 ## 5. Decisioni di prodotto (log)
 
@@ -92,6 +154,10 @@ se ne scrive una nuova che annulla la precedente.
   hanno effetto **subito**.
 - **2026-09-26** — La **TV della camera** (infrarossi) non entra in nessuna
   automazione: il comando "spegni" potrebbe accenderla.
+- **2026-09-29** — Mockup approvato per la F1. La **diagnostica si apre tenendo
+  premuto l'orologio 3 secondi**.
+- **2026-09-29** — Le **release** le pubblica Claude a fine fase, con i test verdi:
+  tag `vX.Y.Z` → il workflow allega `jarvis-dist.zip`.
 - **2026-09-27** — Le 5 regolazioni (soglia nuvole, soglie e temperature del
   clima) **non hanno `initial:`**, così sopravvivono ai riavvii del server. I
   valori di partenza (90%, 26°, 24°, 18°, 21°) li imposta Salvatore una volta sola
@@ -111,6 +177,17 @@ se ne scrive una nuova che annulla la precedente.
 ## 7. Comandi (tutti eseguiti)
 
 ```bash
+npm ci
+npm run verifica        # lint + typecheck + test + build + e2e: è il comando che conta
+npm run build           # dist/ (7 file) + controllo dei limiti
+npm test                # Vitest
+npm run e2e             # Playwright contro il finto HA (serve dist/ già compilata)
+bash scripts/crea-zip.sh
+node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/jarvis/index.html
+
+# Release: versione in package.json + sezione in CHANGELOG.md, poi
+git tag vX.Y.Z && git push origin vX.Y.Z
+
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 .venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 96/96
@@ -143,3 +220,20 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   ripristino si salva ogni 15 minuti e allo spegnimento ordinato: con un blackout
   si può perdere l'ultima regolazione. Verificato con un riavvio vero nella prova
   (sezione 15), che fallisce se si rimette `initial:`.
+- **Il finto server deve essere fedele al vero, o le prove mentono.** La prima
+  versione serviva `index.html` per la cartella `/local/jarvis/`: tutte le prove
+  passavano, ma su HA il service worker avrebbe fallito l'installazione (c'era
+  `./` nell'elenco dei file). Guardando il codice di HA è venuto fuori che
+  `/local/` non ha indice e ha una cache di un mese. Ora il finto server fa lo
+  stesso e una prova apposta controlla sia il 403 sia l'elenco del service worker.
+- **La libreria `home-assistant-js-websocket` fonde lo stato dopo una
+  riconnessione**: le entità cancellate nel frattempo restano. Per questo
+  l'iscrizione alle entità è gestita da noi (`stato/entita.ts`). La prova e2e
+  "HA che cade e torna" fallisce se si toglie la sostituzione (verificato).
+- **Mai `pkill -f` o `grep` con il nome del processo scritto per intero** nella
+  stessa riga di comando: il pattern compare anche nella riga della shell, che si
+  uccide da sola (è successo due volte). Si usa `pkill -f "server[.]mjs"`.
+- **Controprova non conclusiva su `updateViaCache`.** Con `'all'` la prova di
+  aggiornamento fallisce, ma non nel punto atteso: il browser trova comunque la
+  versione nuova. Si tiene `'none'` perché è corretto con la cache di un mese di HA,
+  senza sostenere che sia dimostrato indispensabile.

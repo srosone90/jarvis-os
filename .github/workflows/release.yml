@@ -1,0 +1,41 @@
+name: Release
+
+# Si pubblica una release pushando un tag uguale alla versione di package.json:
+#   git tag v0.1.0 && git push origin v0.1.0
+# Il workflow rifà TUTTE le verifiche e allega jarvis-dist.zip, il cui
+# contenuto va scompattato così com'è in /config/www/jarvis/ sul server.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Il tag corrisponde alla versione di package.json
+        run: |
+          versione="v$(node -p "require('./package.json').version")"
+          if [ "$versione" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME diverso dalla versione $versione in package.json"
+            exit 1
+          fi
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run verifica
+      - run: bash scripts/crea-zip.sh
+      - name: Pubblica la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" jarvis-dist.zip \
+            --title "Jarvis OS $GITHUB_REF_NAME" \
+            --notes-file <(awk -v t="## $GITHUB_REF_NAME" '$0==t{f=1;next} /^## /{f=0} f' CHANGELOG.md)
