@@ -8,7 +8,7 @@ orizzontale acceso 24/7.
 | Parte | Stato |
 |---|---|
 | Pacchetto Home Assistant (scaldabagno, scene, presenza, batterie) | Pronto e provato: [`home-assistant/`](home-assistant/README.md) |
-| F1 — scheletro PWA, connessione, orologio e meteo, clima stanze, diagnostica | **v0.1.1** |
+| F1 — scheletro PWA, connessione, orologio e meteo, clima stanze, diagnostica | **v0.1.2** |
 | F2–F6 — comandi, scene, assistente, voce, modalità notte | Da fare |
 
 ## Installazione sul server (Home Assistant)

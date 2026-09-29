@@ -17,6 +17,7 @@ async function info(request: APIRequestContext): Promise<{
 }
 
 const pallino = (page: Page) => page.getByTestId("pallino");
+const stanza = (page: Page, nome: string) => page.getByTestId("stanza").filter({ hasText: nome });
 
 /** Primo accesso: schermata "Collega", login OAuth, pannello connesso. */
 async function accedi(page: Page): Promise<void> {
@@ -59,23 +60,24 @@ test("primo accesso: login OAuth, dati reali di HA, indirizzo ripulito, login ri
   await expect(page.getByTestId("meteo-temp")).toHaveText("22°");
   await expect(page.getByTestId("meteo-cond")).toHaveText("Parz. nuvoloso");
   await expect(page.getByTestId("previsione").locator(".giorno")).toHaveCount(4);
-  const stanze = page.getByTestId("stanza");
-  await expect(stanze).toHaveCount(2);
-  await expect(stanze.nth(0)).toContainText("Soggiorno");
-  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("25,7°");
-  await expect(stanze.nth(0).getByTestId("stanza-percepita")).toHaveText("26,5°");
-  await expect(stanze.nth(1).getByTestId("stanza-percepita")).toHaveText("25,6°");
+  await expect(page.getByTestId("stanza")).toHaveCount(3);
+  const soggiorno = stanza(page, "Soggiorno");
+  const camera = stanza(page, "Camera da letto");
+  await expect(soggiorno).toContainText("Soggiorno");
+  await expect(soggiorno.getByTestId("stanza-temp")).toHaveText("25,7°");
+  await expect(soggiorno.getByTestId("stanza-percepita")).toHaveText("26,5°");
+  await expect(camera.getByTestId("stanza-percepita")).toHaveText("25,6°");
 
   // un cambio in HA arriva in push (differenza "c", come HA vero)...
   await comando(request, "stato", { entity_id: "sensor.meter_salone_temperatura", state: "24.2" });
-  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("24,2°");
+  await expect(soggiorno.getByTestId("stanza-temp")).toHaveText("24,2°");
   // ...e NON cancella le altre entità (bug della v0.1.0 sul tablet vero)
   await comando(request, "stato", { entity_id: "sensor.meter_letto_temperatura", state: "25.3" });
-  await expect(stanze.nth(1).getByTestId("stanza-temp")).toHaveText("25,3°");
+  await expect(camera.getByTestId("stanza-temp")).toHaveText("25,3°");
   await expect(page.getByTestId("meteo-temp")).toHaveText("22°");
-  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("24,2°");
-  await expect(stanze.nth(0).getByTestId("stanza-percepita")).toHaveText("26,5°");
-  await expect(stanze.nth(1).getByTestId("stanza-percepita")).toHaveText("25,6°");
+  await expect(soggiorno.getByTestId("stanza-temp")).toHaveText("24,2°");
+  await expect(soggiorno.getByTestId("stanza-percepita")).toHaveText("26,5°");
+  await expect(camera.getByTestId("stanza-percepita")).toHaveText("25,6°");
   await expect(page.getByText("non trovato")).toHaveCount(0);
   await apriDiagnostica(page);
   await expect(page.getByTestId("entita-ricevute")).toHaveText("9");
@@ -92,8 +94,9 @@ test("HA che cade e torna: banner dopo 10 s, valori non aggiornati, poi risincro
   request,
 }) => {
   await accedi(page);
-  const stanze = page.getByTestId("stanza");
-  await expect(stanze.nth(1)).toContainText("43%");
+  const soggiorno = stanza(page, "Soggiorno");
+  const camera = stanza(page, "Camera da letto");
+  await expect(camera).toContainText("43%");
 
   await comando(request, "spegni");
   await expect(pallino(page)).toHaveAttribute("data-stato", "riconnessione", { timeout: 5000 });
@@ -101,7 +104,7 @@ test("HA che cade e torna: banner dopo 10 s, valori non aggiornati, poi risincro
   await expect(page.getByTestId("banner")).toBeHidden();
   await expect(page.getByTestId("banner")).toBeVisible({ timeout: 12_000 });
   await expect(page.getByTestId("banner")).toContainText("valori non aggiornati");
-  await expect(stanze.nth(0)).toContainText("Valori non aggiornati");
+  await expect(soggiorno).toContainText("Valori non aggiornati");
   await expect(pallino(page)).toContainText("Offline");
 
   // mentre HA è giù: un valore cambia e un sensore viene cancellato
@@ -111,15 +114,15 @@ test("HA che cade e torna: banner dopo 10 s, valori non aggiornati, poi risincro
 
   await expect(pallino(page)).toHaveAttribute("data-stato", "connesso", { timeout: 45_000 });
   await expect(page.getByTestId("banner")).toBeHidden();
-  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("27,3°");
+  await expect(soggiorno.getByTestId("stanza-temp")).toHaveText("27,3°");
   // il sensore cancellato NON resta come "fantasma" col vecchio valore
-  await expect(stanze.nth(1)).toContainText("Sensore non trovato: sensor.meter_letto_umidita");
-  await expect(stanze.nth(1)).not.toContainText("43%");
+  await expect(camera).toContainText("Sensore non trovato: sensor.meter_letto_umidita");
+  await expect(camera).not.toContainText("43%");
 
   // dopo la riconnessione, un piccolo aggiornamento NON deve cancellare il resto
   await comando(request, "stato", { entity_id: "sensor.meter_letto_temperatura", state: "24.8" });
-  await expect(stanze.nth(1).getByTestId("stanza-temp")).toHaveText("24,8°");
-  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("27,3°");
+  await expect(camera.getByTestId("stanza-temp")).toHaveText("24,8°");
+  await expect(soggiorno.getByTestId("stanza-temp")).toHaveText("27,3°");
   await expect(page.getByTestId("meteo-temp")).toHaveText("22°");
 
   await apriDiagnostica(page);
@@ -178,12 +181,11 @@ test("entità mancanti: il riquadro lo dice, il resto funziona, l'errore finisce
   await accedi(page);
 
   await expect(page.getByText("Meteo non disponibile (weather.forecast_casa non trovato)")).toBeVisible();
-  const stanze = page.getByTestId("stanza");
-  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("25,7°");
-  await expect(stanze.nth(1)).toContainText(
-    "Sensore non trovato: sensor.jarvis_temperatura_percepita_camera",
-  );
-  await expect(stanze.nth(1).getByTestId("stanza-temp")).toHaveText("25,1°");
+  const soggiorno = stanza(page, "Soggiorno");
+  const camera = stanza(page, "Camera da letto");
+  await expect(soggiorno.getByTestId("stanza-temp")).toHaveText("25,7°");
+  await expect(camera).toContainText("Sensore non trovato: sensor.jarvis_temperatura_percepita_camera");
+  await expect(camera.getByTestId("stanza-temp")).toHaveText("25,1°");
 
   // un'entità che ricompare torna visibile senza ricaricare
   await comando(request, "stato", {
@@ -282,4 +284,35 @@ test("aggiornamento come sul tablet: ricarica su indirizzo lento, diagnostica ap
   await expect(page.getByTestId("aggiornamento")).toHaveText("pronto (si applica alle 04:00)", {
     timeout: 45_000,
   });
+});
+
+test("layout del mockup approvato: zone delle fasi future presenti ma dichiarate non attive", async ({
+  page,
+}) => {
+  await accedi(page);
+  // stanze tutte insieme, con il clima nell'intestazione
+  await expect(page.getByTestId("stanza")).toHaveCount(3);
+  await expect(stanza(page, "Veranda")).toBeVisible();
+  await expect(stanza(page, "Soggiorno").getByTestId("stanza-temp")).toHaveText("25,7°");
+  // zone future: si vedono, dicono "in arrivo" e non contengono niente di toccabile
+  const scene = page.getByTestId("zona-scene");
+  await expect(scene).toContainText("Buonanotte");
+  await expect(scene).toContainText("in arrivo");
+  const assistente = page.getByTestId("zona-assistente");
+  await expect(assistente).toContainText("in arrivo");
+  for (const zona of [scene, assistente, ...(await page.getByTestId("in-arrivo").all())]) {
+    await expect(zona.locator("button, input, a, [role=button]")).toHaveCount(0);
+  }
+  await expect(page.getByTestId("in-arrivo")).toHaveCount(3);
+  // niente esce dallo schermo del tablet (1024×600)
+  const fuori = await page.evaluate(() => {
+    const app = document.querySelector("jarvis-app");
+    const radice = app?.shadowRoot;
+    if (!radice) return ["jarvis-app mancante"];
+    return [...radice.querySelectorAll("section, .barra, jarvis-stanza, .scena")]
+      .map((e) => ({ e, r: e.getBoundingClientRect() }))
+      .filter(({ r }) => r.right > innerWidth + 1 || r.bottom > innerHeight + 1)
+      .map(({ e }) => e.className || e.localName);
+  });
+  expect(fuori).toEqual([]);
 });

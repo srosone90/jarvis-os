@@ -1,7 +1,20 @@
 # Changelog
 
-## Non ancora rilasciato
+## v0.1.2
 
+Solo layout, nessuna funzione nuova: la pagina torna alla struttura del mockup
+approvato (`docs/mockup.html`), così le fasi successive riempiono zone già pronte.
+
+- Sinistra: orologio, meteo con previsione, sotto le 3 scene (Buonanotte, Esco,
+  Rientro). Destra: le stanze tutte insieme, Soggiorno e Veranda sopra, Camera
+  sotto; il pallino di connessione in alto a destra. In basso, a tutta
+  larghezza, la barra "Chiedi a Jarvis…" con il microfono.
+- Il clima (temperatura · umidità · percepita) passa nell'intestazione di ogni
+  stanza, al posto dei due grandi riquadri.
+- Scene, comandi dei dispositivi e assistente sono al loro posto ma dichiarati
+  "in arrivo" (F2, F3, F4, F5), bordo tratteggiato e niente di toccabile.
+- Il banner offline sta sopra la barra dell'assistente (inattiva senza HA),
+  non sopra orologio o stanze.
 - Diagnostica: "Aggiornamento app" mostra anche "in download…" mentre la
   versione nuova si sta scaricando (sull'HTTPS richiede qualche secondo).
 - Nuova prova e2e che simula il tablet: versione nuova sul server, ricarica

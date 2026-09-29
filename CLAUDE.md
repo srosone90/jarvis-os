@@ -73,7 +73,7 @@ In casa **non ci sono luci smart**.
 | `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (96 verifiche) |
 | `docs/mockup.html` | Mockup statico della schermata principale (1024×600), approvato |
 | `src/main.ts` | Avvio: gestori d'errore globali, service worker, ricarica notturna, connessione |
-| `src/configurazione.ts` | Preferenze: entità meteo e sensori del clima interno (F1) |
+| `src/configurazione.ts` | Preferenze: entità meteo, stanze con la loro zona nel mockup e i sensori del clima |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
 | `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
 | `src/meteo/` | Previsione in push, testi e icone delle condizioni |
@@ -168,6 +168,11 @@ se ne scrive una nuova che annulla la precedente.
   premuto l'orologio 3 secondi**.
 - **2026-09-29** — Le **release** le pubblica Claude a fine fase, con i test verdi:
   tag `vX.Y.Z` → il workflow allega `jarvis-dist.zip`.
+- **2026-09-29** — **Layout = mockup approvato** (`docs/mockup.html`),
+  confermato di nuovo dopo che una richiesta descriveva le linguette del primo
+  mockup: stanze tutte insieme, clima nell'intestazione della stanza, 3 scene in
+  riga, barra assistente in basso. Le zone delle fasi future si vedono ma sono
+  dichiarate "in arrivo" e non toccabili (v0.1.2).
 - **2026-09-29** — **v0.1.1 verificata su HA vero** (Chrome desktop su
   `https://casa.tail8392c1.ts.net`, dalla sessione server): 65 entità ricevute,
   latenza WebSocket 23 ms, un `{c:…}` reale non svuota più niente, "Aggiorna ora"
@@ -256,9 +261,11 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   mandare la richiesta, mai dopo l'`await`**. Il finto HA ora raggruppa i
   messaggi e manda i cambi come `c`; la prova riproduceva il bug prima della
   correzione. Trovato dalla sessione server leggendo il bundle pubblicato.
-- **Mai `pkill -f` o `grep` con il nome del processo scritto per intero** nella
-  stessa riga di comando: il pattern compare anche nella riga della shell, che si
-  uccide da sola (è successo due volte). Si usa `pkill -f "server[.]mjs"`.
+- **Mai `pkill -f` con un pattern per fermare il finto HA**: il testo compare
+  anche nella riga di comando della shell (anche nel comando che lo AVVIA, se è
+  nella stessa riga), che si uccide da sola: è successo tre volte. Si avvia con
+  `node test/finto-ha/server.mjs & echo $! > finto.pid` e si ferma con
+  `kill $(cat finto.pid)` in un comando separato.
 - **Dalle sessioni cloud di Claude il push dei tag non passa** (il proxy git
   accetta solo il branch di lavoro: "remote end hung up"), e nemmeno l'avvio di
   un workflow via API (403). Per questo la release parte dal push sul branch

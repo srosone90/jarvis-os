@@ -48,7 +48,7 @@ export class JarvisConnessione extends RiquadroSicuro {
       .banner {
         position: absolute;
         left: 50%;
-        bottom: 16px;
+        bottom: 26px;
         transform: translateX(-50%);
         background: var(--avviso-sfondo);
         color: var(--avviso-testo);
