@@ -3,7 +3,7 @@ import { calcolaAttesa, ATTESA_MASSIMA_MS } from "../../src/connessione/backoff"
 import { LogCircolare } from "../../src/diagnostica/log";
 import { condizione, numero, prossimiGiorni } from "../../src/meteo/testi";
 import { deveRicaricare, giornoDi } from "../../src/pwa/ricarica-notturna";
-import { applicaAggiornamento } from "../../src/stato/entita";
+import { applicaAggiornamento, scrittoDaUnAzione } from "../../src/stato/entita";
 import { Negozio } from "../../src/stato/negozio";
 
 describe("backoff della riconnessione", () => {
@@ -86,6 +86,61 @@ describe("aggiornamenti compressi delle entità", () => {
 
   it("una differenza su un'entità sconosciuta si ignora senza errori", () => {
     expect(applicaAggiornamento({}, { c: { "sensor.boh": { "+": { s: "1" } } } }, false)).toEqual({});
+  });
+
+  // Regole del context di HA (core.py as_compressed_state, messages.py _state_diff_event)
+  describe("context dello stato", () => {
+    const id = "climate.x";
+    const avvio = applicaAggiornamento({}, { a: { [id]: a("fan_only") } }, true);
+
+    it("stato completo come stringa: nessun utente né automazione (stato assunto all'avvio)", () => {
+      expect(avvio[id]?.context).toEqual({ id: "ctx", parent_id: null, user_id: null });
+      expect(scrittoDaUnAzione(avvio[id])).toBe(false);
+    });
+
+    it("comando di un utente: oggetto parziale, fuso col precedente", () => {
+      const st = applicaAggiornamento(
+        avvio,
+        { c: { [id]: { "+": { s: "cool", c: { user_id: "u1", id: "c2" } } } } },
+        false,
+      );
+      expect(st[id]?.context).toEqual({ id: "c2", parent_id: null, user_id: "u1" });
+      expect(scrittoDaUnAzione(st[id])).toBe(true);
+    });
+
+    it("comando di un'automazione: parent_id, user_id resta quello di prima", () => {
+      const st = applicaAggiornamento(
+        avvio,
+        { c: { [id]: { "+": { c: { parent_id: "auto", id: "c3" } } } } },
+        false,
+      );
+      expect(st[id]?.context).toEqual({ id: "c3", parent_id: "auto", user_id: null });
+      expect(scrittoDaUnAzione(st[id])).toBe(true);
+    });
+
+    it("differenza con la sola stringa: cambia solo l'id, user_id e parent_id restano", () => {
+      const utente = applicaAggiornamento(
+        avvio,
+        { c: { [id]: { "+": { c: { user_id: "u1", id: "c2" } } } } },
+        false,
+      );
+      const st = applicaAggiornamento(utente, { c: { [id]: { "+": { c: "c4" } } } }, false);
+      expect(st[id]?.context).toEqual({ id: "c4", parent_id: null, user_id: "u1" });
+    });
+
+    it("un cambio di sistema dopo un comando azzera l'utente (HA manda user_id: null)", () => {
+      const utente = applicaAggiornamento(
+        avvio,
+        { c: { [id]: { "+": { c: { user_id: "u1", id: "c2" } } } } },
+        false,
+      );
+      const st = applicaAggiornamento(
+        utente,
+        { c: { [id]: { "+": { c: { user_id: null, id: "c5" } } } } },
+        false,
+      );
+      expect(scrittoDaUnAzione(st[id])).toBe(false);
+    });
   });
 });
 

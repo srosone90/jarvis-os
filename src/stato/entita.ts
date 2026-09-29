@@ -15,7 +15,9 @@ interface StatoCompresso {
 }
 
 interface Differenza {
-  "+"?: Partial<StatoCompresso>;
+  "+"?: Partial<Omit<StatoCompresso, "c">> & {
+    c?: string | Partial<Exclude<StatoCompresso["c"], string>>;
+  };
   "-"?: { a?: string[] };
 }
 
@@ -25,12 +27,31 @@ export interface AggiornamentoEntita {
   r?: string[];
 }
 
+/**
+ * Context di uno stato, con le regole di HA (core.py `as_compressed_state` e
+ * websocket_api/messages.py `_state_diff_event`):
+ *  - stato completo: stringa = solo l'id (user_id e parent_id vuoti), oppure
+ *    l'oggetto intero;
+ *  - differenza: stringa = è cambiato SOLO l'id (gli altri restano), oppure un
+ *    oggetto con i SOLI campi cambiati, da fondere col precedente.
+ */
 function contesto(
-  c: StatoCompresso["c"] | undefined,
+  c: StatoCompresso["c"] | Partial<Exclude<StatoCompresso["c"], string>> | undefined,
   precedente?: HassEntity["context"],
 ): HassEntity["context"] {
-  if (c === undefined) return precedente ?? { id: "", parent_id: null, user_id: null };
-  return typeof c === "string" ? { ...(precedente ?? { parent_id: null, user_id: null }), id: c } : c;
+  const base = precedente ?? { id: "", parent_id: null, user_id: null };
+  if (c === undefined) return base;
+  return typeof c === "string" ? { ...base, id: c } : { ...base, ...c };
+}
+
+/**
+ * Lo stato è stato scritto da un'azione: un utente (pannello, HA, assistente) o
+ * un'automazione. Uno stato "di sistema" (avvio di HA, stato iniziale assunto da
+ * un dispositivo a infrarossi) non ha né user_id né parent_id. Un comando
+ * rifiutato non scrive lo stato, quindi non conta.
+ */
+export function scrittoDaUnAzione(e: HassEntity | undefined): boolean {
+  return Boolean(e?.context.user_id ?? e?.context.parent_id);
 }
 
 /**

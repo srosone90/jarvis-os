@@ -11,7 +11,8 @@
  *   /__prova/spegni              chiude tutti i WebSocket e rifiuta i nuovi (HA giù)
  *   /__prova/accendi             HA di nuovo su
  *   /__prova/latenza?ms=1500     ritardo su OGNI risposta HTTP e messaggio WebSocket
- *   /__prova/stato               {entity_id, state, attributes?}: cambia/crea un'entità
+ *   /__prova/stato               {entity_id, state, attributes?, contesto?}: cambia/crea un'entità
+ *                                (contesto {user_id?, parent_id?}: chi l'ha causato; senza = sistema)
  *   /__prova/rimuovi?entity_id=  toglie un'entità (anche mentre HA è "giù")
  *   /__prova/revoca              invalida i token: serve rifare il login
  *   /__prova/nuova-versione      il server pubblica un sw.js diverso (app aggiornata)
@@ -212,17 +213,53 @@ function trasmettiEvento(tipo, dati) {
         });
 }
 
-/** Cambia (o crea) un'entità e lo manda ai client, come fa HA. */
-function impostaEntita(entity_id, s, a) {
-  const vecchia = stato.entita[entity_id];
-  stato.entita[entity_id] = { s: String(s), a: a ?? vecchia?.a ?? {}, c: "ctx", lc: Date.now() / 1000 };
-  const n = stato.entita[entity_id];
-  trasmettiEntita(
-    vecchia ? { c: { [entity_id]: { "+": { s: n.s, a: n.a, lc: n.lc } } } } : { a: { [entity_id]: n } },
-  );
+/**
+ * Context dello stato, come HA (core.py e websocket_api/messages.py):
+ *  - stato completo: stringa se user_id e parent_id sono vuoti, altrimenti oggetto;
+ *  - differenza: stringa se è cambiato solo l'id, altrimenti oggetto con i SOLI
+ *    campi cambiati (parent_id, user_id, id).
+ * Un comando riuscito scrive lo stato col context della chiamata (user_id di chi
+ * l'ha mandato); un'automazione con parent_id; l'avvio senza nessuno dei due.
+ */
+let contatoreContesti = 0;
+const UTENTE_PROVA = "utente-prova";
+const nuovoContesto = (user_id = null, parent_id = null) => ({
+  id: `ctx-${++contatoreContesti}`,
+  parent_id,
+  user_id,
+});
+const oggettoContesto = (c) => (typeof c === "string" ? { id: c, parent_id: null, user_id: null } : c);
+const comprimiContesto = (c) => (c.user_id === null && c.parent_id === null ? c.id : c);
+function diffContesto(vecchio, nuovo) {
+  const v = oggettoContesto(vecchio);
+  let d;
+  if (v.parent_id !== nuovo.parent_id) d = { parent_id: nuovo.parent_id };
+  if (v.user_id !== nuovo.user_id) d = { ...(d ?? {}), user_id: nuovo.user_id };
+  if (v.id !== nuovo.id) d = d ? { ...d, id: nuovo.id } : nuovo.id;
+  return d;
 }
 
-/** Effetto dei servizi sui dispositivi finti (come si comporterebbero quelli veri). */
+/** Cambia (o crea) un'entità e lo manda ai client, come fa HA. */
+function impostaEntita(entity_id, s, a, contesto = nuovoContesto()) {
+  const vecchia = stato.entita[entity_id];
+  const n = {
+    s: String(s),
+    a: a ?? vecchia?.a ?? {},
+    c: comprimiContesto(contesto),
+    lc: Date.now() / 1000,
+  };
+  stato.entita[entity_id] = n;
+  if (!vecchia) return trasmettiEntita({ a: { [entity_id]: n } });
+  const dc = diffContesto(vecchia.c, contesto);
+  trasmettiEntita({
+    c: { [entity_id]: { "+": { s: n.s, a: n.a, lc: n.lc, ...(dc === undefined ? {} : { c: dc }) } } },
+  });
+}
+
+/**
+ * Effetto dei servizi sui dispositivi finti (come si comporterebbero quelli veri).
+ * Lo stato nuovo porta il context della chiamata, con lo user_id di chi l'ha fatta.
+ */
 function eseguiServizio(dominio, servizio, dati) {
   const ids = [].concat(dati.entity_id ?? []);
   for (const id of ids) {
@@ -230,14 +267,17 @@ function eseguiServizio(dominio, servizio, dati) {
     const e = stato.entita[id];
     if (!e) continue;
     const a = { ...e.a };
+    const ctx = nuovoContesto(UTENTE_PROVA);
     if (dominio === "media_player" || (dominio === "switch" && e.s !== "unknown")) {
-      if (servizio === "turn_on") setTimeout(() => impostaEntita(id, "on", a), 300);
-      if (servizio === "turn_off") setTimeout(() => impostaEntita(id, "off", a), 300);
-      if (servizio === "volume_mute") impostaEntita(id, e.s, { ...a, is_volume_muted: dati.is_volume_muted });
+      if (servizio === "turn_on") setTimeout(() => impostaEntita(id, "on", a, ctx), 300);
+      if (servizio === "turn_off") setTimeout(() => impostaEntita(id, "off", a, ctx), 300);
+      if (servizio === "volume_mute")
+        impostaEntita(id, e.s, { ...a, is_volume_muted: dati.is_volume_muted }, ctx);
     }
     if (dominio === "climate") {
-      if (servizio === "set_hvac_mode") impostaEntita(id, dati.hvac_mode, a);
-      if (servizio === "set_temperature") impostaEntita(id, e.s, { ...a, temperature: dati.temperature });
+      if (servizio === "set_hvac_mode") impostaEntita(id, dati.hvac_mode, a, ctx);
+      if (servizio === "set_temperature")
+        impostaEntita(id, e.s, { ...a, temperature: dati.temperature }, ctx);
     }
   }
 }
@@ -407,18 +447,14 @@ const server = createServer(async (req, res) => {
       impostaEntita(entita.ei, st, a);
       trasmettiEvento("entity_registry_updated", { action: "create", entity_id: entita.ei });
     } else if (comando === "stato") {
-      const { entity_id, state, attributes } = JSON.parse(await leggiCorpo(req));
-      const vecchia = stato.entita[entity_id];
-      stato.entita[entity_id] = {
-        s: String(state),
-        a: attributes ?? vecchia?.a ?? {},
-        c: "ctx",
-        lc: Date.now() / 1000,
-      };
+      // contesto facoltativo {user_id?, parent_id?}: senza, è un cambio "di sistema"
+      const { entity_id, state, attributes, contesto } = JSON.parse(await leggiCorpo(req));
       // Come HA: entità nuova → "a"; entità esistente → differenza "c"
-      const n = stato.entita[entity_id];
-      trasmettiEntita(
-        vecchia ? { c: { [entity_id]: { "+": { s: n.s, a: n.a, lc: n.lc } } } } : { a: { [entity_id]: n } },
+      impostaEntita(
+        entity_id,
+        state,
+        attributes,
+        nuovoContesto(contesto?.user_id ?? null, contesto?.parent_id ?? null),
       );
     } else if (comando === "rimuovi") {
       const id = url.searchParams.get("entity_id");

@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.3.1
+
+Correzione dalla prova vera della F2 (condizionatore).
+
+- Il condizionatore a infrarossi mostrava "Ultimo comando: Ventola · 21°", ma
+  quello era lo stato iniziale che Home Assistant assume all'avvio: nessun
+  comando era mai partito. Ora la card dice "Nessun comando inviato", senza
+  modalità evidenziata né temperatura, finché un comando non va a buon fine
+  (dal pannello, da HA, dall'assistente o da un'automazione). Lo si legge dallo
+  stato in HA, quindi tutti i pannelli vedono la stessa cosa.
+- Un comando rifiutato da HA (come succede col condizionatore "DIY" di
+  SwitchBot) non cambia questa scritta: torna allo stato vero con l'avviso,
+  come prima.
+- Corretto come si leggono le informazioni su chi ha cambiato uno stato
+  quando HA le manda solo in parte.
+
 ## v0.3.0
 
 Fase F4: assistente testuale.

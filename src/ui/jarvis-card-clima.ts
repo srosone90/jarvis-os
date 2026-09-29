@@ -1,6 +1,7 @@
 import { mdiAirConditioner } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE } from "../configurazione";
+import { scrittoDaUnAzione } from "../stato/entita";
 import { icona } from "./base";
 import { CardBase, stileCard, statoInItaliano } from "./card-base";
 
@@ -20,6 +21,11 @@ const ATTESA_TEMPERATURA_MS = 1200;
 /**
  * Condizionatore. Con gli infrarossi Home Assistant non sa cosa sta facendo
  * davvero: la card mostra l'ULTIMO COMANDO inviato, mai "acceso" come fatto certo.
+ * E finché nessun comando è andato a buon fine mostra "Nessun comando inviato":
+ * lo stato iniziale che HA assume all'avvio (es. Ventola · 21°) non è mai stato
+ * mandato. Lo si riconosce dal context dello stato (`scrittoDaUnAzione`), che è
+ * in HA e vale per tutti i pannelli. Dopo un riavvio di HA si torna a "Nessun
+ * comando inviato": HA non sa più cosa è stato mandato prima.
  * La temperatura si regola con −/+ e parte un solo comando 1,2 s dopo l'ultimo
  * tocco (ogni comando infrarossi rimanda tutto lo stato al condizionatore).
  */
@@ -145,11 +151,15 @@ export class JarvisCardClima extends CardBase {
     const principali = PRINCIPALI.filter((m) => modi.includes(m));
     const altri = modi.filter((m) => !PRINCIPALI.includes(m));
     const visibili = this.altro ? altri : principali;
-    const temperatura = this.temperaturaLocale ?? (e ? Number(e.attributes["temperature"]) : NaN);
-    const acceso = stato !== undefined && stato !== "off" && !this.nonDisponibile;
+    // a infrarossi, senza un comando andato a buon fine lo stato è solo quello assunto da HA
+    const ignoto = this.infrarossi && !this.nonDisponibile && !scrittoDaUnAzione(e);
+    const temperatura = this.temperaturaLocale ?? (e && !ignoto ? Number(e.attributes["temperature"]) : NaN);
+    const acceso = stato !== undefined && stato !== "off" && !this.nonDisponibile && !ignoto;
     const descrizione = this.nonDisponibile
       ? statoInItaliano(e?.state)
-      : (NOMI_MODI[stato ?? ""] ?? stato ?? "—");
+      : ignoto
+        ? "Nessun comando inviato"
+        : (NOMI_MODI[stato ?? ""] ?? stato ?? "—");
     return html`<div
       class="card ${acceso ? "acceso" : ""} ${this.nonAggiornato ? "vecchio" : ""}"
       data-test="card-clima"
@@ -157,7 +167,7 @@ export class JarvisCardClima extends CardBase {
       <div class="intestazione">
         <div class="riga">${icona(mdiAirConditioner)}<span class="nome">${this.card.nome}</span></div>
         <span class="stato ${this.inAttesa ? "in-attesa" : ""}" data-test="card-stato">
-          ${this.infrarossi && !this.nonDisponibile ? "Ultimo comando: " : ""}${descrizione}${Number.isFinite(temperatura) && acceso ? ` · ${String(temperatura).replace(".", ",")}°` : ""}
+          ${this.infrarossi && !this.nonDisponibile && !ignoto ? "Ultimo comando: " : ""}${descrizione}${Number.isFinite(temperatura) && acceso ? ` · ${String(temperatura).replace(".", ",")}°` : ""}
         </span>
       </div>
       <div class="controlli">
@@ -186,7 +196,7 @@ export class JarvisCardClima extends CardBase {
           ${visibili.map(
             (m) =>
               html`<button
-                aria-pressed=${stato === m ? "true" : "false"}
+                aria-pressed=${stato === m && !ignoto ? "true" : "false"}
                 ?disabled=${this.disabilitata}
                 @click=${() => this.modo(m)}
               >

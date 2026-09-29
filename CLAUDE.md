@@ -166,6 +166,19 @@ In casa **non ci sono luci smart**.
   in accensione, Bot 30 s, altrimenti 15 s); se HA rifiuta o non conferma si torna
   allo stato vero con un avviso. A infrarossi: solo "comando inviato".
 
+### Context degli stati (v0.3.1)
+
+- Lo stato di un'entità **viene da un comando vero** solo se il suo context ha
+  `user_id` (utente: pannello, HA, assistente) o `parent_id` (automazione):
+  `scrittoDaUnAzione()` in `stato/entita.ts`. Uno stato "di sistema" (avvio,
+  stato assunto da un dispositivo a infrarossi) non ha nessuno dei due; un
+  comando rifiutato non scrive lo stato. È in HA, quindi vale per tutti i
+  pannelli. Dopo un riavvio di HA si torna a "Nessun comando inviato".
+- Formato (verificato su HA 2026.2.3, invariato da anni): nello stato completo
+  il context è una stringa se user_id e parent_id sono vuoti; nelle differenze
+  è una stringa se è cambiato solo l'id, altrimenti un oggetto con i SOLI campi
+  cambiati, da **fondere** col precedente (prima della v0.3.1 lo sostituivamo).
+
 ### F4 (v0.3.0): assistente testuale
 
 - **Motore unico** in `src/assistente/`: la chat è solo una faccia; voce (F5) e
@@ -290,6 +303,12 @@ scrive nei registri di HA via WebSocket, mai un elenco parallelo. Contenuto:
    JSON (vedi "Multi-casa").
 9. **Tutto quello che chiede il requisito multi-casa** (sotto), che vale già
    da questa fase.
+10. **Clima a infrarossi "DIY" che degrada a solo on/off.** Un climate che HA
+    rifiuta sempre (es. SwitchBot "DIY Air Conditioner": il cloud risponde 190 a
+    ogni `setAll`) deve poter usare come entità principale lo switch dello
+    stesso dispositivo. **Impostazione per dispositivo** (rilevarlo dal modello
+    "DIY …" è solo un indizio, non affidabile) + messaggio chiaro quando HA
+    risponde errore.
 
 Verificato sul codice di HA 2026.9.3 (`components/config/*`,
 `frontend/storage.py`):
@@ -474,6 +493,14 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **Prova vera F2, condizionatore**: `climate.condizionatore` è
+  un SwitchBot "DIY Air Conditioner"; il cloud rifiuta ogni cambio di modalità
+  (9 su 9 falliti), funziona solo on/off con `switch.condizionatore`. Il
+  pannello ha fatto rollback e avviso come previsto. Salvatore prova a ricreare
+  il telecomando come condizionatore standard della libreria della marca.
+  Il pannello mostrava "Ultimo comando: Ventola · 21°", che era lo stato
+  iniziale assunto da HA e mai inviato: corretto in v0.3.1 ("Nessun comando
+  inviato" finché lo stato non è scritto da un'azione).
 - **2026-09-29** — **Requisito multi-casa**: Jarvis deve poter essere installato
   e usato agevolmente in altre case (parenti e amici, forse un servizio a
   pagamento: si decide dopo 1-2 case pilota). Dalla fase G niente dati di casa
@@ -634,3 +661,9 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **Una prova può dare per buono un difetto.** Quella del condizionatore
+  controllava "Ultimo comando: Ventola" all'avvio: era lo stato assunto da HA,
+  mai inviato, e la prova lo certificava. Il finto HA scriveva ogni stato con
+  lo stesso context, quindi non poteva distinguere un comando da un avvio. Ora
+  è fedele (context con `user_id` dopo un comando, stringa all'avvio). Quando
+  una prova si aspetta un valore, chiedersi da dove viene davvero in HA.

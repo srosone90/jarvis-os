@@ -101,11 +101,16 @@ test("condizionatore a infrarossi: 4 modalità + Altro, ultimo comando, temperat
 }) => {
   await accedi(page);
   const clima = card(page, "clima");
-  await expect(clima.getByTestId("card-stato")).toContainText("Ultimo comando: Ventola");
+  // "Ventola · 24°" all'avvio è lo stato assunto da HA, mai inviato: non si spaccia per un comando
+  await expect(clima.getByTestId("card-stato")).toHaveText("Nessun comando inviato");
+  await expect(clima.locator("[aria-pressed=true]")).toHaveCount(0);
+  await expect(clima.getByTestId("clima-temperatura")).toHaveText("—");
   const modi = clima.locator(".comandi button");
   await expect(modi).toHaveText(["Spento", "Freddo", "Caldo", "Ventola", "Altro"]);
   await clima.getByRole("button", { name: "Freddo" }).click();
   await expect(clima.getByTestId("card-stato")).toContainText("Ultimo comando: Freddo");
+  await expect(clima.getByRole("button", { name: "Freddo" })).toHaveAttribute("aria-pressed", "true");
+  await expect(clima.getByTestId("clima-temperatura")).toHaveText("24°");
   expect(await ultimaChiamata(request)).toMatchObject({
     servizio: "climate.set_hvac_mode",
     dati: { hvac_mode: "cool" },
@@ -125,6 +130,32 @@ test("condizionatore a infrarossi: 4 modalità + Altro, ultimo comando, temperat
     servizio: "climate.set_temperature",
     dati: { temperature: 26 },
   });
+});
+
+test("condizionatore DIY: HA rifiuta ogni modalità, resta 'Nessun comando inviato'; un'automazione invece conta", async ({
+  page,
+  request,
+}) => {
+  // caso vero del 29/09: SwitchBot "DIY Air Conditioner", il cloud risponde 190 a ogni setAll
+  await comando(request, "rifiuta?servizio=climate.set_hvac_mode");
+  await accedi(page);
+  const clima = card(page, "clima");
+  await clima.getByRole("button", { name: "Freddo" }).click();
+  await expect(page.getByTestId("avviso").filter({ hasText: "ha rifiutato" })).toBeVisible();
+  await expect(clima.getByTestId("card-stato")).toHaveText("Nessun comando inviato");
+  await expect(clima.locator("[aria-pressed=true]")).toHaveCount(0);
+
+  // un cambio "di sistema" (senza utente né automazione) non diventa un comando
+  await comando(request, "stato", { entity_id: "climate.condizionatore", state: "heat" });
+  await page.waitForTimeout(500);
+  await expect(clima.getByTestId("card-stato")).toHaveText("Nessun comando inviato");
+  // un comando mandato da un'automazione (parent_id) sì, e lo vedono tutti i pannelli
+  await comando(request, "stato", {
+    entity_id: "climate.condizionatore",
+    state: "heat",
+    contesto: { parent_id: "ctx-automazione-rientro" },
+  });
+  await expect(clima.getByTestId("card-stato")).toContainText("Ultimo comando: Caldo");
 });
 
 test("TV della camera a infrarossi: tasto unico, nessun finto stato", async ({ page, request }) => {
