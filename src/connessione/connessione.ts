@@ -8,7 +8,9 @@ import {
   type ConnectionOptions,
   type HaWebSocket,
 } from "home-assistant-js-websocket";
+import { Comandi } from "../comandi/comandi";
 import { descriviErrore, log } from "../diagnostica/log";
+import { Registri } from "../registri/registri";
 import { applicaAggiornamento, type AggiornamentoEntita } from "../stato/entita";
 import { Negozio } from "../stato/negozio";
 import { caricaAuth, dimenticaLogin } from "./autenticazione";
@@ -49,7 +51,9 @@ const TIMEOUT_PING_MS = 10_000;
  */
 export class Connessione {
   readonly negozio = new Negozio();
+  readonly registri = new Registri();
   conn: Connection | null = null;
+  readonly comandi = new Comandi(() => this.conn, this.negozio);
   private tentativo = 0;
   private info: InfoConnessione = {
     stato: "avvio",
@@ -110,6 +114,7 @@ export class Connessione {
         this.prossimoCompleto = true;
         await conn.subscribeMessage<AggiornamentoEntita>(this.suEntita, { type: "subscribe_entities" });
         this.segnaConnesso();
+        void this.registri.collega(conn);
         this.avviaPing();
         return;
       } catch (errore) {
@@ -169,6 +174,8 @@ export class Connessione {
   private readonly suRiconnessa = (): void => {
     this.prossimoCompleto = true;
     this.segnaConnesso();
+    // mentre il pannello era offline aree e dispositivi possono essere cambiati
+    if (this.conn) void this.registri.carica(this.conn);
   };
 
   /** Solo stato dell'interfaccia: NON tocca il segnale della foto completa. */

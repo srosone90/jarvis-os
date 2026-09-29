@@ -1,5 +1,5 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import { CONFIGURAZIONE } from "../configurazione";
+import { PREFERENZE } from "../configurazione";
 import { connessione } from "../connessione/connessione";
 import { log } from "../diagnostica/log";
 import { osservaPrevisione } from "../meteo/previsione";
@@ -83,7 +83,7 @@ export class JarvisMeteo extends RiquadroSicuro {
     super();
     this.nonAggiornato = false;
     this.previsione = null;
-    new OsservaEntita(this, () => [CONFIGURAZIONE.meteo]);
+    new OsservaEntita(this, () => [PREFERENZE.meteo]);
   }
 
   override connectedCallback(): void {
@@ -106,20 +106,20 @@ export class JarvisMeteo extends RiquadroSicuro {
     if (!conn || conn === this.connPrevisione || connessione.stato.stato !== "connesso") return;
     this.connPrevisione = conn;
     void this.smettiPrevisione?.();
-    this.smettiPrevisione = await osservaPrevisione(conn, CONFIGURAZIONE.meteo, (p) => {
+    this.smettiPrevisione = await osservaPrevisione(conn, PREFERENZE.meteo, (p) => {
       this.previsione = p;
     });
   }
 
   protected disegna(): TemplateResult {
     const negozio = connessione.negozio;
-    const meteo = negozio.entitaDi(CONFIGURAZIONE.meteo);
+    const meteo = negozio.entitaDi(PREFERENZE.meteo);
     if (!meteo) {
       if (!negozio.pronto) return html`<div class="mancante">In attesa di Home Assistant…</div>`;
-      if (!this.segnalataMancanza) log.errore(`Entità meteo non trovata: ${CONFIGURAZIONE.meteo}`);
+      if (!this.segnalataMancanza) log.errore(`Entità meteo non trovata: ${PREFERENZE.meteo}`);
       this.segnalataMancanza = true;
       return html`<div class="mancante" role="status">
-        Meteo non disponibile (${CONFIGURAZIONE.meteo} non trovato)
+        Meteo non disponibile (${PREFERENZE.meteo} non trovato)
       </div>`;
     }
     this.segnalataMancanza = false;

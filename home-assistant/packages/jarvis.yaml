@@ -156,22 +156,52 @@ template:
           {{ now().month in [10, 11, 12, 1, 2, 3, 4, 5, 6]
              and states('counter.jarvis_giorni_nuvolosi') | int(0) >= 2 }}
 
-      # Come DOVREBBE essere lo scaldabagno adesso secondo il programma:
-      #   00:00 spegni · 04:30 accendi (tutti i giorni)
-      #   11:00 spegni · 17:00 accendi (mar-sab)
+      # Come DOVREBBE essere lo scaldabagno adesso secondo il programma.
+      # Gli orari stanno nella macro scaldabagno_in_fascia
+      # (custom_templates/jarvis.jinja), unico posto dove sono scritti.
       # Solo con la modalità inverno attiva; fuori modalità è sempre "off"
       # e lo scaldabagno resta come l'hai lasciato tu.
       - name: "Jarvis scaldabagno programma"
         unique_id: jarvis_scaldabagno_programma
         icon: mdi:calendar-clock
         state: >
-          {% set n = now() %}
-          {% set minuti = n.hour * 60 + n.minute %}
-          {% set pausa_giorno = n.isoweekday() in [2, 3, 4, 5, 6]
-                                and 11 * 60 <= minuti < 17 * 60 %}
+          {% from 'jarvis.jinja' import scaldabagno_in_fascia %}
           {{ is_state('binary_sensor.jarvis_scaldabagno_modalita_inverno', 'on')
-             and minuti >= 4 * 60 + 30
-             and not pausa_giorno }}
+             and scaldabagno_in_fascia(now()) == 'True' }}
+
+  - sensor:
+      # Testo per il pannello: il prossimo cambio del programma, es.
+      # "Si spegne alle 11:00" o "Si accende domani alle 04:30".
+      # Con la modalità inverno spenta: "Modalità inverno spenta".
+      # Cerca a passi di 30 minuti nelle prossime 48 ore e si ferma al primo
+      # cambio (tutti gli orari cadono su :00 o :30).
+      - name: "Jarvis scaldabagno prossimo cambio"
+        unique_id: jarvis_scaldabagno_prossimo_cambio
+        icon: mdi:clock-outline
+        state: >
+          {% from 'jarvis.jinja' import scaldabagno_in_fascia %}
+          {% if not is_state('binary_sensor.jarvis_scaldabagno_modalita_inverno', 'on') %}
+            Modalità inverno spenta
+          {% else %}
+            {% set n = now().replace(second=0, microsecond=0) %}
+            {% set adesso = scaldabagno_in_fascia(n) %}
+            {% set ns = namespace(t=none) %}
+            {% set base = n.replace(minute=30 if n.minute >= 30 else 0) %}
+            {% for i in range(1, 97) %}
+              {% if ns.t is none %}
+                {% set t = base + timedelta(minutes=30 * i) %}
+                {% if scaldabagno_in_fascia(t) != adesso %}{% set ns.t = t %}{% endif %}
+              {% endif %}
+            {% endfor %}
+            {% if ns.t is none %}
+              Nessun cambio nelle prossime 48 ore
+            {% else %}
+              {% set mezzanotte_stanotte = ns.t.hour == 0 and ns.t.minute == 0
+                                           and (ns.t - n).total_seconds() <= 86400 %}
+              {% set giorno = ' domani' if ns.t.date() != n.date() and not mezzanotte_stanotte else '' %}
+              {{ ('Si accende' if adesso == 'False' else 'Si spegne') ~ giorno ~ ' alle ' ~ ns.t.strftime('%H:%M') }}
+            {% endif %}
+          {% endif %}
 
 # -----------------------------------------------------------------------------
 # Script: notifica unica + scene del pannello

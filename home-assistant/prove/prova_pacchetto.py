@@ -29,6 +29,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.util import dt as dt_util
 
 PACCHETTO = Path(__file__).resolve().parent.parent / "packages" / "jarvis.yaml"
+MACRO = Path(__file__).resolve().parent.parent / "custom_templates" / "jarvis.jinja"
 ROMA = ZoneInfo("Europe/Rome")
 
 # --- Orologio finto per i template (now()) --------------------------------------
@@ -161,6 +162,7 @@ class Banco:
             "sensor.jarvis_temperatura_percepita_soggiorno",
             "binary_sensor.jarvis_scaldabagno_modalita_inverno",
             "binary_sensor.jarvis_scaldabagno_programma",
+            "sensor.jarvis_scaldabagno_prossimo_cambio",
         ):
             await self.hass.services.async_call(
                 "homeassistant", "update_entity", {"entity_id": eid}, blocking=True
@@ -234,6 +236,8 @@ def prepara_cartella() -> Path:
     cartella = Path(tempfile.mkdtemp(prefix="jarvis-ha-"))
     (cartella / "packages").mkdir()
     shutil.copy(PACCHETTO, cartella / "packages" / "jarvis.yaml")
+    (cartella / "custom_templates").mkdir()
+    shutil.copy(MACRO, cartella / "custom_templates" / "jarvis.jinja")
     (cartella / "configuration.yaml").write_text(
         "homeassistant:\n"
         "  name: Prova Jarvis\n"
@@ -324,6 +328,7 @@ async def prova() -> int:
             "sensor.jarvis_temperatura_percepita_soggiorno",
             "binary_sensor.jarvis_scaldabagno_modalita_inverno",
             "binary_sensor.jarvis_scaldabagno_programma",
+            "sensor.jarvis_scaldabagno_prossimo_cambio",
             "script.jarvis_notifica",
             "script.jarvis_buonanotte",
             "script.jarvis_esco",
@@ -376,26 +381,28 @@ async def prova() -> int:
 
         print("\n4. Orari del programma (modalità attiva)")
         casi = [
-            # (data, ora, stato atteso del programma, descrizione)
-            ((2026, 10, 7, 0, 0), "off", "mer 00:00 → spento"),
-            ((2026, 10, 7, 4, 29), "off", "mer 04:29 → ancora spento"),
-            ((2026, 10, 7, 4, 30), "on", "mer 04:30 → acceso"),
-            ((2026, 10, 7, 10, 59), "on", "mer 10:59 → acceso"),
-            ((2026, 10, 7, 11, 0), "off", "mer 11:00 → spento (mar-sab)"),
-            ((2026, 10, 7, 16, 59), "off", "mer 16:59 → spento"),
-            ((2026, 10, 7, 17, 0), "on", "mer 17:00 → acceso"),
-            ((2026, 10, 7, 23, 59), "on", "mer 23:59 → acceso"),
-            ((2026, 10, 10, 11, 30), "off", "sab 11:30 → spento (sabato ha la pausa)"),
-            ((2026, 10, 11, 11, 30), "on", "dom 11:30 → acceso (domenica niente pausa)"),
-            ((2026, 10, 12, 11, 30), "on", "lun 11:30 → acceso (lunedì niente pausa)"),
-            ((2026, 10, 12, 2, 0), "off", "lun 02:00 → spento"),
+            # (data, ora, stato atteso del programma, descrizione, testo atteso del prossimo cambio)
+            ((2026, 10, 7, 0, 0), "off", "mer 00:00 → spento", "Si accende alle 04:30"),
+            ((2026, 10, 7, 4, 29), "off", "mer 04:29 → ancora spento", "Si accende alle 04:30"),
+            ((2026, 10, 7, 4, 30), "on", "mer 04:30 → acceso", "Si spegne alle 11:00"),
+            ((2026, 10, 7, 10, 59), "on", "mer 10:59 → acceso", "Si spegne alle 11:00"),
+            ((2026, 10, 7, 11, 0), "off", "mer 11:00 → spento (mar-sab)", "Si accende alle 17:00"),
+            ((2026, 10, 7, 16, 59), "off", "mer 16:59 → spento", "Si accende alle 17:00"),
+            ((2026, 10, 7, 17, 0), "on", "mer 17:00 → acceso", "Si spegne alle 00:00"),
+            ((2026, 10, 7, 23, 59), "on", "mer 23:59 → acceso", "Si spegne alle 00:00"),
+            ((2026, 10, 10, 11, 30), "off", "sab 11:30 → spento (sabato ha la pausa)", "Si accende alle 17:00"),
+            ((2026, 10, 11, 11, 30), "on", "dom 11:30 → acceso (domenica niente pausa)", "Si spegne alle 00:00"),
+            ((2026, 10, 12, 11, 30), "on", "lun 11:30 → acceso (lunedì niente pausa)", "Si spegne alle 00:00"),
+            ((2026, 10, 12, 2, 0), "off", "lun 02:00 → spento", "Si accende alle 04:30"),
         ]
-        for data, atteso_p, descr in casi:
+        for data, atteso_p, descr, prossimo in casi:
             await b.ora(*data)
             verifica(b.stato("binary_sensor.jarvis_scaldabagno_programma") == atteso_p, descr,
                      b.stato("binary_sensor.jarvis_scaldabagno_programma"))
             verifica(b.stato("switch.scaldabagno") == atteso_p, f"   …e lo scaldabagno segue ({atteso_p})",
                      b.stato("switch.scaldabagno"))
+            verifica(b.stato("sensor.jarvis_scaldabagno_prossimo_cambio") == prossimo,
+                     f"   …e il pannello legge «{prossimo}»", b.stato("sensor.jarvis_scaldabagno_prossimo_cambio"))
 
         print("\n5. Comando a mano rispettato fino al prossimo orario")
         await b.ora(2026, 10, 13, 2, 0)  # mar 02:00: programma spento
@@ -415,6 +422,9 @@ async def prova() -> int:
         await b.giornata(copertura=60, campioni=60)
         verifica(b.stato("counter.jarvis_giorni_nuvolosi") == "0", "giornata al 60% → contatore azzerato")
         verifica(b.stato("binary_sensor.jarvis_scaldabagno_modalita_inverno") == "off", "modalità inverno spenta")
+        await b.aggiorna_template()
+        verifica(b.stato("sensor.jarvis_scaldabagno_prossimo_cambio") == "Modalità inverno spenta",
+                 "…e il pannello legge «Modalità inverno spenta»", b.stato("sensor.jarvis_scaldabagno_prossimo_cambio"))
         verifica(b.chiamate_di("switch", "turn_off") != [] and b.stato("switch.scaldabagno") == "off",
                  "scaldabagno spento SUBITO", b.chiamate)
         b.azzera_chiamate()

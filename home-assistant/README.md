@@ -9,6 +9,7 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
 | Cosa | Entità | A cosa serve |
 |---|---|---|
 | Programma scaldabagno | `binary_sensor.jarvis_scaldabagno_modalita_inverno`, `binary_sensor.jarvis_scaldabagno_programma`, automazione "segui il programma" | Accende e spegne `switch.scaldabagno` agli orari decisi, solo in modalità inverno |
+| Testo per il pannello | `sensor.jarvis_scaldabagno_prossimo_cambio` | "Si spegne alle 11:00", "Si accende domani alle 04:30", "Modalità inverno spenta" |
 | Misura nuvole | `sensor.jarvis_copertura_nuvolosa`, `input_number.jarvis_nuvole_somma`/`_campioni`, `counter.jarvis_giorni_nuvolosi`, 3 automazioni | Media della copertura nelle ore di luce, bilancio al tramonto |
 | Temperatura percepita | `sensor.jarvis_temperatura_percepita_camera`, `…_soggiorno` | Formula di Steadman da temperatura e umidità dei Meter |
 | Soglie clima | `input_number.jarvis_clima_*` (4) | Sopra 26° percepiti raffresca a 24°, sotto 18° riscalda a 21° (valori di partenza, vedi sotto) |
@@ -40,7 +41,10 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
    homeassistant:
      packages: !include_dir_named packages
    ```
-2. Copia `packages/jarvis.yaml` in `/config/packages/jarvis.yaml`.
+2. Copia `packages/jarvis.yaml` in `/config/packages/jarvis.yaml` **e**
+   `custom_templates/jarvis.jinja` in `/config/custom_templates/jarvis.jinja` (crea la
+   cartella se non c'è). Il secondo file contiene gli orari dello scaldabagno, usati
+   da due sensori del pacchetto: senza, quei due sensori non partono.
 3. Vai su **Strumenti per sviluppatori → YAML → Verifica configurazione**. Solo se
    è verde, **riavvia** Home Assistant. Ricaricare gli script non basta: ci sono
    aiutanti e template nuovi.
@@ -144,9 +148,9 @@ rischierebbe di accenderla. Sul pannello compare come un tasto del telecomando.
 
 ## Prove
 
-`prove/prova_pacchetto.py` avvia un Home Assistant vero con il pacchetto, finge i
-dispositivi (stessi entity_id) e verifica 96 casi:
-- orari del programma giorno per giorno;
+`prove/prova_pacchetto.py` avvia un Home Assistant vero con il pacchetto (e la macro
+di `custom_templates/`), finge i dispositivi (stessi entity_id) e verifica 110 casi:
+- orari del programma giorno per giorno, e il testo del prossimo cambio;
 - attivazione e disattivazione immediata;
 - comando a mano rispettato;
 - soglie delle nuvole (89% non conta);

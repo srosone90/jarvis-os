@@ -15,6 +15,9 @@
  *   /__prova/rimuovi?entity_id=  toglie un'entità (anche mentre HA è "giù")
  *   /__prova/revoca              invalida i token: serve rifare il login
  *   /__prova/nuova-versione      il server pubblica un sw.js diverso (app aggiornata)
+ *   /__prova/rifiuta?servizio=   HA rifiuta quel servizio (es. media_player.turn_on)
+ *   /__prova/muto?entity_id=     il dispositivo accetta i comandi ma non cambia stato
+ *   /__prova/aggiungi            {area?, dispositivo?, entita, s, a}: dispositivo nuovo nei registri
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -52,8 +55,87 @@ function entitaIniziali() {
     "sensor.meter_letto_umidita": e(43, { unit_of_measurement: "%" }),
     "sensor.jarvis_temperatura_percepita_soggiorno": e(26.5, { unit_of_measurement: "°C" }),
     "sensor.jarvis_temperatura_percepita_camera": e(25.6, { unit_of_measurement: "°C" }),
-    "switch.scaldabagno": e("off"),
-    "media_player.soggiorno_tv_salotto": e("off"),
+    "switch.scaldabagno": e("off", { friendly_name: "scaldabagno" }),
+    "media_player.soggiorno_tv_salotto": e("off", {
+      friendly_name: "TV Salotto",
+      is_volume_muted: false,
+      volume_level: 0.2,
+    }),
+    "remote.soggiorno_tv_salotto": e("off"),
+    // Condizionatore a infrarossi: lo "stato" è l'ultimo comando inviato
+    "climate.condizionatore": e("fan_only", {
+      hvac_modes: ["heat_cool", "cool", "dry", "fan_only", "heat", "off"],
+      temperature: 24,
+      min_temp: 16,
+      max_temp: 30,
+      target_temp_step: 1,
+      friendly_name: "Condizionatore",
+    }),
+    "switch.condizionatore": e("unknown"),
+    "switch.tv_camera_da_letto": e("unknown", { friendly_name: "TV camera da letto" }),
+    "sensor.scaldabagno_batteria": e(100),
+    // dal pacchetto HA
+    "binary_sensor.jarvis_scaldabagno_modalita_inverno": e("on"),
+    "counter.jarvis_giorni_nuvolosi": e(2),
+    "sensor.jarvis_scaldabagno_prossimo_cambio": e("Si spegne alle 00:00"),
+  };
+}
+
+// Registri come li restituisce HA (config/*_registry/list*), casa vera del 26/09
+function registriIniziali() {
+  return {
+    aree: [
+      { area_id: "soggiorno", name: "Soggiorno" },
+      { area_id: "cucina", name: "Cucina" },
+      { area_id: "camera_da_letto", name: "Camera da letto" },
+      { area_id: "veranda", name: "Veranda" },
+    ],
+    dispositivi: [
+      { id: "d-tv", area_id: "soggiorno", name: "TV Salotto", name_by_user: null, disabled_by: null },
+      { id: "d-meter-s", area_id: "soggiorno", name: "Meter salone", name_by_user: null, disabled_by: null },
+      {
+        id: "d-meter-l",
+        area_id: "camera_da_letto",
+        name: "Meter letto",
+        name_by_user: null,
+        disabled_by: null,
+      },
+      {
+        id: "d-clima",
+        area_id: "camera_da_letto",
+        name: "Condizionatore",
+        name_by_user: null,
+        disabled_by: null,
+      },
+      {
+        id: "d-tvc",
+        area_id: "camera_da_letto",
+        name: "TV camera da letto",
+        name_by_user: null,
+        disabled_by: null,
+      },
+      {
+        id: "d-bot",
+        area_id: "veranda",
+        name: "scaldabagno",
+        name_by_user: "Scaldabagno",
+        disabled_by: null,
+      },
+    ],
+    entita: [
+      { ei: "media_player.soggiorno_tv_salotto", di: "d-tv", pl: "samsungtv" },
+      { ei: "remote.soggiorno_tv_salotto", di: "d-tv", pl: "samsungtv" },
+      { ei: "sensor.meter_salone_temperatura", di: "d-meter-s", pl: "switchbot_cloud" },
+      { ei: "sensor.meter_salone_umidita", di: "d-meter-s", pl: "switchbot_cloud" },
+      { ei: "sensor.meter_letto_temperatura", di: "d-meter-l", pl: "switchbot_cloud" },
+      { ei: "sensor.meter_letto_umidita", di: "d-meter-l", pl: "switchbot_cloud" },
+      { ei: "climate.condizionatore", di: "d-clima", pl: "switchbot_cloud" },
+      { ei: "switch.condizionatore", di: "d-clima", pl: "switchbot_cloud" },
+      { ei: "switch.tv_camera_da_letto", di: "d-tvc", pl: "switchbot_cloud" },
+      { ei: "switch.scaldabagno", di: "d-bot", pl: "switchbot_cloud" },
+      { ei: "sensor.scaldabagno_batteria", di: "d-bot", pl: "switchbot_cloud", ec: 1 },
+      { ei: "weather.forecast_casa", pl: "met" },
+    ],
   };
 }
 
@@ -77,6 +159,10 @@ function reset() {
     latenza: 0,
     tokenValidi: true,
     nuovaVersione: false,
+    registri: registriIniziali(),
+    rifiuta: new Set(), // "dominio.servizio" che HA rifiuta
+    muti: new Set(), // entity_id che non cambiano stato dopo un comando
+    chiamate: [],
     generazioneToken: 1,
     info: { connessioni: 0, login: 0, rinnovi: 0, richieste: {} },
   };
@@ -109,6 +195,47 @@ async function invia(cliente, msg) {
   });
 }
 
+function trasmettiEvento(tipo, dati) {
+  for (const c of clienti)
+    for (const [id, t] of c.abbonamentiEventi)
+      if (t === tipo)
+        void invia(c, {
+          id,
+          type: "event",
+          event: { event_type: tipo, data: dati, origin: "LOCAL", time_fired: new Date().toISOString() },
+        });
+}
+
+/** Cambia (o crea) un'entità e lo manda ai client, come fa HA. */
+function impostaEntita(entity_id, s, a) {
+  const vecchia = stato.entita[entity_id];
+  stato.entita[entity_id] = { s: String(s), a: a ?? vecchia?.a ?? {}, c: "ctx", lc: Date.now() / 1000 };
+  const n = stato.entita[entity_id];
+  trasmettiEntita(
+    vecchia ? { c: { [entity_id]: { "+": { s: n.s, a: n.a, lc: n.lc } } } } : { a: { [entity_id]: n } },
+  );
+}
+
+/** Effetto dei servizi sui dispositivi finti (come si comporterebbero quelli veri). */
+function eseguiServizio(dominio, servizio, dati) {
+  const ids = [].concat(dati.entity_id ?? []);
+  for (const id of ids) {
+    if (stato.muti.has(id)) continue;
+    const e = stato.entita[id];
+    if (!e) continue;
+    const a = { ...e.a };
+    if (dominio === "media_player" || (dominio === "switch" && e.s !== "unknown")) {
+      if (servizio === "turn_on") setTimeout(() => impostaEntita(id, "on", a), 300);
+      if (servizio === "turn_off") setTimeout(() => impostaEntita(id, "off", a), 300);
+      if (servizio === "volume_mute") impostaEntita(id, e.s, { ...a, is_volume_muted: dati.is_volume_muted });
+    }
+    if (dominio === "climate") {
+      if (servizio === "set_hvac_mode") impostaEntita(id, dati.hvac_mode, a);
+      if (servizio === "set_temperature") impostaEntita(id, e.s, { ...a, temperature: dati.temperature });
+    }
+  }
+}
+
 function trasmettiEntita(agg) {
   for (const c of clienti)
     for (const id of c.abbonamentiEntita) void invia(c, { id, type: "event", event: agg });
@@ -135,13 +262,34 @@ const server = createServer(async (req, res) => {
   if (p.startsWith("/__prova/")) {
     const comando = p.slice("/__prova/".length);
     if (comando === "info")
-      return json(res, 200, { ...stato.info, clienti: clienti.size, acceso: stato.acceso });
+      return json(res, 200, {
+        ...stato.info,
+        chiamate: stato.chiamate,
+        clienti: clienti.size,
+        acceso: stato.acceso,
+      });
     if (comando === "spegni") {
       stato.acceso = false;
       for (const c of clienti) c.ws.terminate();
     } else if (comando === "accendi") stato.acceso = true;
     else if (comando === "latenza") stato.latenza = Number(url.searchParams.get("ms") ?? 0);
-    else if (comando === "stato") {
+    else if (comando === "rifiuta") stato.rifiuta.add(url.searchParams.get("servizio"));
+    else if (comando === "muto") stato.muti.add(url.searchParams.get("entity_id"));
+    else if (comando === "aggiungi") {
+      // {area?, dispositivo?, entita, s, a}: un dispositivo nuovo in HA
+      const { area, dispositivo, entita, s: st, a } = JSON.parse(await leggiCorpo(req));
+      if (area && !stato.registri.aree.some((x) => x.area_id === area.area_id)) {
+        stato.registri.aree.push(area);
+        trasmettiEvento("area_registry_updated", { action: "create", area_id: area.area_id });
+      }
+      if (dispositivo) {
+        stato.registri.dispositivi.push(dispositivo);
+        trasmettiEvento("device_registry_updated", { action: "create", device_id: dispositivo.id });
+      }
+      stato.registri.entita.push(entita);
+      impostaEntita(entita.ei, st, a);
+      trasmettiEvento("entity_registry_updated", { action: "create", entity_id: entita.ei });
+    } else if (comando === "stato") {
       const { entity_id, state, attributes } = JSON.parse(await leggiCorpo(req));
       const vecchia = stato.entita[entity_id];
       stato.entita[entity_id] = {
@@ -258,6 +406,7 @@ function gestisci(ws) {
   const cliente = {
     ws,
     autenticato: false,
+    abbonamentiEventi: new Map(),
     coalesce: false,
     coda: [],
     invioProgrammato: false,
@@ -306,7 +455,36 @@ function gestisci(ws) {
         void invia(cliente, { id, type: "result", success: true, result: null });
         return invia(cliente, { id, type: "event", event: { type: "daily", forecast: previsione() } });
       }
+      case "subscribe_events":
+        cliente.abbonamentiEventi.set(id, msg.event_type);
+        return invia(cliente, { id, type: "result", success: true, result: null });
+      case "config/area_registry/list":
+        return invia(cliente, { id, type: "result", success: true, result: stato.registri.aree });
+      case "config/device_registry/list":
+        return invia(cliente, { id, type: "result", success: true, result: stato.registri.dispositivi });
+      case "config/entity_registry/list_for_display":
+        return invia(cliente, {
+          id,
+          type: "result",
+          success: true,
+          result: { entity_categories: { 0: "config", 1: "diagnostic" }, entities: stato.registri.entita },
+        });
+      case "call_service": {
+        const chiave = `${msg.domain}.${msg.service}`;
+        const dati = { ...(msg.service_data ?? {}), ...(msg.target ?? {}) };
+        stato.chiamate.push({ servizio: chiave, dati });
+        if (stato.rifiuta.has(chiave))
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: false,
+            error: { code: "home_assistant_error", message: "Il dispositivo non risponde" },
+          });
+        eseguiServizio(msg.domain, msg.service, dati);
+        return invia(cliente, { id, type: "result", success: true, result: { context: { id: "ctx" } } });
+      }
       case "unsubscribe_events":
+        cliente.abbonamentiEventi.delete(msg.subscription);
         cliente.abbonamentiEntita.delete(msg.subscription);
         cliente.abbonamentiMeteo.delete(msg.subscription);
         return invia(cliente, { id, type: "result", success: true, result: null });

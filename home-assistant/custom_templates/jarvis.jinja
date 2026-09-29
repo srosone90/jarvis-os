@@ -1,0 +1,18 @@
+{#
+  Jarvis OS — macro condivise dai template del pacchetto (packages/jarvis.yaml).
+  Si installa in /config/custom_templates/jarvis.jinja.
+
+  UNICO posto dove sono scritti gli orari dello scaldabagno: li usano sia
+  binary_sensor.jarvis_scaldabagno_programma sia
+  sensor.jarvis_scaldabagno_prossimo_cambio.
+#}
+
+{#- Fascia "acceso" dello scaldabagno in modalità inverno (orari decisi da Salvatore):
+    00:00 spegni · 04:30 accendi (tutti i giorni) · 11:00 spegni · 17:00 accendi (mar-sab).
+    Tutti gli orari cadono su :00 o :30: il sensore "prossimo cambio" controlla a passi di 30 minuti.
+    Restituisce il testo "True" o "False" (le macro Jinja restituiscono testo). -#}
+{% macro scaldabagno_in_fascia(n) -%}
+  {%- set minuti = n.hour * 60 + n.minute -%}
+  {%- set pausa_giorno = n.isoweekday() in [2, 3, 4, 5, 6] and 11 * 60 <= minuti < 17 * 60 -%}
+  {{- minuti >= 4 * 60 + 30 and not pausa_giorno -}}
+{%- endmacro %}

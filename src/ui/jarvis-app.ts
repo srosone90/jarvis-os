@@ -1,13 +1,32 @@
 import { mdiExitRun, mdiHomeImportOutline, mdiMicrophone, mdiWeatherNight } from "@mdi/js";
 import { css, html, LitElement, nothing, type TemplateResult } from "lit";
-import { CONFIGURAZIONE } from "../configurazione";
+import type { ReactiveController, ReactiveControllerHost } from "lit";
+import { PREFERENZE } from "../configurazione";
+import { connessione } from "../connessione/connessione";
+import { costruisciStanze } from "../registri/modello";
 import { icona, OsservaConnessione } from "./base";
+import "./jarvis-avvisi";
 import "./jarvis-orologio";
 import "./jarvis-meteo";
 import "./jarvis-stanza";
 import "./jarvis-connessione";
 import "./jarvis-accesso";
 import "./jarvis-diagnostica";
+
+/** Ridisegna quando i registri di HA cambiano (stanze o dispositivi aggiunti/tolti). */
+class OsservaRegistri implements ReactiveController {
+  private smetti: (() => void) | null = null;
+  constructor(private readonly host: ReactiveControllerHost) {
+    host.addController(this);
+  }
+  hostConnected(): void {
+    this.smetti = connessione.registri.ascolta(() => this.host.requestUpdate());
+  }
+  hostDisconnected(): void {
+    this.smetti?.();
+    this.smetti = null;
+  }
+}
 
 /** Scene decise il 26/09 (CLAUDE.md): arrivano con la F3, qui solo il posto. */
 const SCENE = [
@@ -22,8 +41,9 @@ const SCENE = [
  *  - destra: le stanze tutte insieme (Soggiorno e Veranda sopra, Camera sotto),
  *    pallino di connessione in alto a destra;
  *  - in basso a tutta larghezza: la barra dell'assistente.
- * Le zone delle fasi future ci sono già, ma dichiarate "in arrivo" e non
- * toccabili: mai controlli che sembrano funzionare e non fanno niente.
+ * Le stanze e le loro card arrivano dai registri di Home Assistant (F2). Le
+ * zone delle fasi future (scene, assistente) ci sono già, ma dichiarate "in
+ * arrivo" e non toccabili: mai controlli che sembrano funzionare e non fanno niente.
  */
 export class JarvisApp extends LitElement {
   static override styles = css`
@@ -135,6 +155,7 @@ export class JarvisApp extends LitElement {
   constructor() {
     super();
     this.diagnostica = false;
+    new OsservaRegistri(this);
     this.addEventListener("apri-diagnostica", () => {
       this.diagnostica = true;
     });
@@ -145,9 +166,14 @@ export class JarvisApp extends LitElement {
 
   protected override render(): TemplateResult {
     const offline = this.connessione.offline;
+    // i comandi si disattivano appena HA manca (non partirebbero), i valori diventano "non aggiornati" dopo 10 s
+    const scollegato = this.connessione.info.stato !== "connesso";
+    const r = connessione.registri;
+    const stanze = costruisciStanze(r.aree, r.dispositivi, r.entita, connessione.negozio.tutte, PREFERENZE);
     const loginRichiesto = this.connessione.info.stato === "login-richiesto";
     return html`
       <jarvis-connessione></jarvis-connessione>
+      <jarvis-avvisi></jarvis-avvisi>
       <section class="sinistra">
         <jarvis-orologio></jarvis-orologio>
         <jarvis-meteo .nonAggiornato=${offline}></jarvis-meteo>
@@ -161,12 +187,14 @@ export class JarvisApp extends LitElement {
         </div>
       </section>
       <section class="destra" aria-label="Stanze">
-        ${CONFIGURAZIONE.stanze.map(
+        ${stanze.map(
           (s) =>
             html`<jarvis-stanza
-              style="grid-area: ${s.zona}"
+              style=${s.zona ? `grid-area: ${s.zona}` : "grid-column: 1 / -1"}
               .stanza=${s}
               .nonAggiornato=${offline}
+              .offline=${scollegato}
+              .caricati=${r.caricati}
             ></jarvis-stanza>`,
         )}
       </section>

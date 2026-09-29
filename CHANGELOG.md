@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.2.0
+
+Fase F2: stanze e comandi dei dispositivi.
+
+- Stanze e dispositivi letti dai registri di Home Assistant: una card per
+  dispositivo, stanze nell'ordine del mockup, Cucina nascosta finché è vuota. Un
+  dispositivo nuovo in HA compare da solo, senza ricaricare.
+- Condizionatore (infrarossi): ultimo comando inviato, 4 modalità + "Altro"
+  (Deumidifica, Auto), temperatura −/+ con un solo invio.
+- TV del salotto: accendi/spegni con conferma dallo stato vero, volume e muto.
+- TV della camera (infrarossi): un solo "Tasto accensione", mai un finto stato.
+- Scaldabagno: acceso/spento con conferma e lo stato del programma ("Inverno
+  attivo · 2 gg nuvolosi · Si spegne alle 00:00"), dal pacchetto HA.
+- Comandi: feedback immediato, conferma dal dispositivo, ritorno allo stato vero
+  con avviso se HA rifiuta o il dispositivo non conferma; offline disattivati.
+- Pacchetto HA: nuovo `sensor.jarvis_scaldabagno_prossimo_cambio` e macro
+  `custom_templates/jarvis.jinja` (da installare anche lei).
+
 ## v0.1.2
 
 Solo layout, nessuna funzione nuova: la pagina torna alla struttura del mockup

@@ -70,20 +70,23 @@ In casa **non ci sono luci smart**.
 |---|---|
 | `home-assistant/packages/jarvis.yaml` | Tutto ciò che il pannello chiede a HA: aiutanti, sensori, scene, automazioni |
 | `home-assistant/README.md` | Istruzioni di installazione e verifiche per chi amministra HA |
-| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (96 verifiche) |
+| `home-assistant/custom_templates/jarvis.jinja` | Macro con gli orari dello scaldabagno: UNICO posto dove sono scritti |
+| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (110 verifiche) |
 | `docs/mockup.html` | Mockup statico della schermata principale (1024×600), approvato |
 | `src/main.ts` | Avvio: gestori d'errore globali, service worker, ricarica notturna, connessione |
-| `src/configurazione.ts` | Preferenze: entità meteo, stanze con la loro zona nel mockup e i sensori del clima |
+| `src/configurazione.ts` | Preferenze (`PREFERENZE`): meteo, stanze → zona del mockup e sensori del clima, dispositivi a infrarossi, programmi, entità nascoste |
+| `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
+| `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
 | `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
 | `src/meteo/` | Previsione in push, testi e icone delle condizioni |
 | `src/pwa/` | Service worker, aggiornamenti controllati, ricarica delle 04:00 |
 | `src/diagnostica/log.ts` | Log circolare (200 voci, salvato nel localStorage) |
-| `src/ui/` | Componenti Lit; `base.ts` ha il riquadro protetto e i controller |
+| `src/ui/` | Componenti Lit; `base.ts` riquadro protetto e controller, `card-base.ts` base delle card, `jarvis-card-*` una per tipo |
 | `scripts/dopo-build.mjs` | Genera `dist/sw.js` dal modello e controlla i limiti (file, KB) |
 | `scripts/crea-zip.sh` | `jarvis-dist.zip` da `dist/` |
 | `test/unit/` | Vitest |
-| `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket, `/local/`) |
+| `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
 | `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (su tag `v*`) |
 
 ## 4. Architettura prevista dell'app (dal prompt, decisa)
@@ -133,9 +136,30 @@ In casa **non ci sono luci smart**.
   si verifica che HA risponda (`/auth/providers`). Token nel localStorage per
   origine (`jarvis-token`). Se HA rifiuta il login salvato: schermata "accedi di
   nuovo", mai redirect a sorpresa.
-- **Preferenze F1** in `src/configurazione.ts` (entità meteo e sensori del clima):
-  cambiarle richiede un nuovo build. Dalla F2 stanze e dispositivi arrivano dai
-  registri di HA.
+- **Preferenze** in `src/configurazione.ts`: cambiarle richiede un nuovo build.
+  Stanze e dispositivi invece arrivano dai registri di HA.
+
+### F2 (v0.2.0): stanze e comandi
+
+- **Registri**: `config/area_registry/list`, `config/device_registry/list`,
+  `config/entity_registry/list_for_display` (nessuno richiede admin, verificato
+  nel codice di HA). Riletti a ogni (ri)connessione e 1 s dopo un evento
+  `area|device|entity_registry_updated` (ascoltabili anche da non admin).
+- **Una card per dispositivo**, con l'entità di dominio più importante
+  (climate > media_player > cover > fan > light > lock > vacuum > switch). Niente
+  card per sensori, remote, entità nascoste o di configurazione/diagnostica.
+  L'area dell'entità vince su quella del dispositivo. Stanze delle preferenze
+  prima, con la loro zona del mockup; le aree nuove in coda da sole; una stanza
+  senza card e senza clima non si vede.
+- **Tipi di card**: `clima` (4 modalità + "Altro", temperatura −/+ con un solo
+  invio 1,2 s dopo l'ultimo tocco), `media` (accendi/spegni + volume e muto),
+  `interruttore` (normale con conferma; a infrarossi = "Tasto accensione" unico;
+  col programma dello scaldabagno letto dal pacchetto HA), `non-supportato`
+  (nome e stato, nessun controllo).
+- **Comandi**: offline non partono (card disattivate appena HA manca). Con stato
+  affidabile: stato atteso mostrato subito, poi conferma entro un tempo (TV 40 s
+  in accensione, Bot 30 s, altrimenti 15 s); se HA rifiuta o non conferma si torna
+  allo stato vero con un avviso. A infrarossi: solo "comando inviato".
 
 ## 5. Decisioni di prodotto (log)
 
@@ -168,6 +192,12 @@ se ne scrive una nuova che annulla la precedente.
   premuto l'orologio 3 secondi**.
 - **2026-09-29** — Le **release** le pubblica Claude a fine fase, con i test verdi:
   tag `vX.Y.Z` → il workflow allega `jarvis-dist.zip`.
+- **2026-09-29** — **F2**: condizionatore con 4 modalità sempre visibili
+  (Spento, Freddo, Caldo, Ventola) + "Altro" (Deumidifica, Auto); TV salotto
+  accendi/spegni + volume e muto; scaldabagno con lo stato del programma; i
+  dispositivi nuovi in HA compaiono da soli; offline comandi disattivati; TV
+  della camera con un solo "Tasto accensione" (Salvatore ha provato: con la TV
+  accesa `switch.turn_on` la spegne).
 - **2026-09-29** — **Layout = mockup approvato** (`docs/mockup.html`),
   confermato di nuovo dopo che una richiesta descriveva le linguette del primo
   mockup: stanze tutte insieme, clima nell'intestazione della stanza, 3 scene in
@@ -261,11 +291,16 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   mandare la richiesta, mai dopo l'`await`**. Il finto HA ora raggruppa i
   messaggi e manda i cambi come `c`; la prova riproduceva il bug prima della
   correzione. Trovato dalla sessione server leggendo il bundle pubblicato.
+- **Gli orari dello scaldabagno stanno in un posto solo**: la macro
+  `scaldabagno_in_fascia` in `custom_templates/jarvis.jinja`. Il "prossimo
+  cambio" la interroga a passi di 30 minuti invece di ripetere gli orari: se si
+  cambia un orario, cambia tutto insieme.
 - **Mai `pkill -f` con un pattern per fermare il finto HA**: il testo compare
   anche nella riga di comando della shell (anche nel comando che lo AVVIA, se è
   nella stessa riga), che si uccide da sola: è successo tre volte. Si avvia con
-  `node test/finto-ha/server.mjs & echo $! > finto.pid` e si ferma con
-  `kill $(cat finto.pid)` in un comando separato.
+  `node test/finto-ha/server.mjs & PID=$!` e si ferma con `kill $PID` **nello
+  stesso comando** (un server lanciato da una shell che poi si chiude può
+  restare vivo sulla porta con il codice vecchio: è successo).
 - **Dalle sessioni cloud di Claude il push dei tag non passa** (il proxy git
   accetta solo il branch di lavoro: "remote end hung up"), e nemmeno l'avvio di
   un workflow via API (403). Per questo la release parte dal push sul branch

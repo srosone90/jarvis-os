@@ -1,15 +1,18 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import type { Stanza } from "../configurazione";
+import type { StanzaVista } from "../registri/modello";
 import { connessione } from "../connessione/connessione";
 import { log } from "../diagnostica/log";
 import { numero } from "../meteo/testi";
 import { OsservaEntita, RiquadroSicuro, stileBase } from "./base";
+import "./jarvis-card-clima";
+import "./jarvis-card-generica";
+import "./jarvis-card-interruttore";
+import "./jarvis-card-media";
 
 /**
  * Riquadro di una stanza, come nel mockup approvato: intestazione con nome e
- * clima compatto (temperatura · umidità · percepita), sotto la zona dei
- * dispositivi. Nella v0.1.x la zona dispositivi è un segnaposto dichiarato
- * "in arrivo": i comandi veri arrivano con la F2, mai controlli finti prima.
+ * clima compatto (temperatura · umidità · percepita), sotto le card dei
+ * dispositivi, ricavate dai registri di Home Assistant (una per dispositivo).
  */
 export class JarvisStanza extends RiquadroSicuro {
   static override styles = [
@@ -61,29 +64,46 @@ export class JarvisStanza extends RiquadroSicuro {
         padding: 0 4px;
         color: var(--attenuato);
       }
-      .in-arrivo {
+      .carte {
         flex: 1;
-        min-height: 56px;
-        border: 1px dashed #343a46;
-        border-radius: var(--raggio);
-        display: grid;
-        place-items: center;
-        text-align: center;
-        padding: 8px;
+        min-height: 0;
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        gap: 10px;
+      }
+      .carte > * {
+        flex: 1 1 200px;
+      }
+      /* il condizionatore ha 5 pulsanti in riga: gli serve più spazio */
+      .carte > jarvis-card-clima {
+        flex: 1.6 1 320px;
+      }
+      .vuota {
         font-size: 14px;
         color: var(--attenuato);
+        padding: 8px 4px;
       }
     `,
   ];
 
-  static override properties = { stanza: { attribute: false }, nonAggiornato: { type: Boolean } };
-  declare stanza: Stanza;
+  static override properties = {
+    stanza: { attribute: false },
+    nonAggiornato: { type: Boolean },
+    offline: { type: Boolean },
+    caricati: { type: Boolean },
+  };
+  declare stanza: StanzaVista;
   declare nonAggiornato: boolean;
+  declare offline: boolean;
+  declare caricati: boolean;
   private readonly segnalate = new Set<string>();
 
   constructor() {
     super();
     this.nonAggiornato = false;
+    this.offline = false;
+    this.caricati = false;
     new OsservaEntita(this, () => {
       const c = this.stanza?.clima;
       return c ? [c.temperatura, c.umidita, c.percepita] : [];
@@ -117,6 +137,29 @@ export class JarvisStanza extends RiquadroSicuro {
     </span>`;
   }
 
+  private disegnaCard(c: StanzaVista["card"][number]): TemplateResult {
+    const na = this.nonAggiornato;
+    const off = this.offline;
+    switch (c.tipo) {
+      case "clima":
+        return html`<jarvis-card-clima .card=${c} .offline=${off} .nonAggiornato=${na}></jarvis-card-clima>`;
+      case "media":
+        return html`<jarvis-card-media .card=${c} .offline=${off} .nonAggiornato=${na}></jarvis-card-media>`;
+      case "interruttore":
+        return html`<jarvis-card-interruttore
+          .card=${c}
+          .offline=${off}
+          .nonAggiornato=${na}
+        ></jarvis-card-interruttore>`;
+      default:
+        return html`<jarvis-card-generica
+          .card=${c}
+          .offline=${off}
+          .nonAggiornato=${na}
+        ></jarvis-card-generica>`;
+    }
+  }
+
   protected disegna(): TemplateResult {
     const s = this.stanza;
     const negozio = connessione.negozio;
@@ -136,7 +179,13 @@ export class JarvisStanza extends RiquadroSicuro {
           ? html`<div class="nota" role="status">Sensore non trovato: ${mancanti.join(", ")}</div>`
           : nothing
       }
-      <div class="in-arrivo" data-test="in-arrivo">Comandi dei dispositivi: in arrivo (F2)</div>
+      ${
+        !this.caricati
+          ? html`<div class="vuota">Caricamento dei dispositivi…</div>`
+          : s.card.length === 0
+            ? html`<div class="vuota">Nessun dispositivo comandabile</div>`
+            : html`<div class="carte">${s.card.map((c) => this.disegnaCard(c))}</div>`
+      }
     </div>`;
   }
 }

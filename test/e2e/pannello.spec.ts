@@ -1,50 +1,5 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-
-const HA = "http://localhost:18123";
-
-async function comando(request: APIRequestContext, percorso: string, corpo?: unknown): Promise<void> {
-  const r = await request.post(`${HA}/__prova/${percorso}`, corpo === undefined ? {} : { data: corpo });
-  expect(r.ok()).toBeTruthy();
-}
-
-async function info(request: APIRequestContext): Promise<{
-  login: number;
-  rinnovi: number;
-  connessioni: number;
-  richieste: Record<string, number>;
-}> {
-  return (await request.get(`${HA}/__prova/info`)).json();
-}
-
-const pallino = (page: Page) => page.getByTestId("pallino");
-const stanza = (page: Page, nome: string) => page.getByTestId("stanza").filter({ hasText: nome });
-
-/** Primo accesso: schermata "Collega", login OAuth, pannello connesso. */
-async function accedi(page: Page): Promise<void> {
-  await page.goto("./index.html");
-  await expect(page.getByTestId("accesso")).toBeVisible();
-  await page.getByRole("button", { name: "Accedi" }).click();
-  await expect(pallino(page)).toHaveAttribute("data-stato", "connesso");
-}
-
-/** Aspetta che il service worker controlli la pagina (app in cache). */
-async function aspettaServiceWorker(page: Page): Promise<void> {
-  await page.waitForFunction(async () => {
-    const reg = await navigator.serviceWorker.ready;
-    return reg.active !== null && navigator.serviceWorker.controller !== null;
-  });
-}
-
-async function apriDiagnostica(page: Page): Promise<void> {
-  const ora = page.getByTestId("ora");
-  const box = await ora.boundingBox();
-  if (!box) throw new Error("orologio non visibile");
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.waitForTimeout(3300);
-  await page.mouse.up();
-  await expect(page.getByTestId("diagnostica")).toBeVisible();
-}
+import { expect, test } from "@playwright/test";
+import { HA, accedi, apriDiagnostica, aspettaServiceWorker, comando, info, pallino, stanza } from "./aiuti";
 
 test.beforeEach(async ({ request }) => {
   await comando(request, "reset");
@@ -80,7 +35,7 @@ test("primo accesso: login OAuth, dati reali di HA, indirizzo ripulito, login ri
   await expect(camera.getByTestId("stanza-percepita")).toHaveText("25,6°");
   await expect(page.getByText("non trovato")).toHaveCount(0);
   await apriDiagnostica(page);
-  await expect(page.getByTestId("entita-ricevute")).toHaveText("9");
+  await expect(page.getByTestId("entita-ricevute")).toHaveText("17");
   await page.getByTestId("chiudi-diagnostica").click();
 
   // ricaricando non si rifà il login
@@ -288,31 +243,62 @@ test("aggiornamento come sul tablet: ricarica su indirizzo lento, diagnostica ap
 
 test("layout del mockup approvato: zone delle fasi future presenti ma dichiarate non attive", async ({
   page,
+  request,
 }) => {
   await accedi(page);
   // stanze tutte insieme, con il clima nell'intestazione
   await expect(page.getByTestId("stanza")).toHaveCount(3);
   await expect(stanza(page, "Veranda")).toBeVisible();
   await expect(stanza(page, "Soggiorno").getByTestId("stanza-temp")).toHaveText("25,7°");
-  // zone future: si vedono, dicono "in arrivo" e non contengono niente di toccabile
+  // zone future (scene F3, assistente F4-F5): si vedono, dicono "in arrivo" e non contengono niente di toccabile
   const scene = page.getByTestId("zona-scene");
   await expect(scene).toContainText("Buonanotte");
   await expect(scene).toContainText("in arrivo");
   const assistente = page.getByTestId("zona-assistente");
   await expect(assistente).toContainText("in arrivo");
-  for (const zona of [scene, assistente, ...(await page.getByTestId("in-arrivo").all())]) {
+  for (const zona of [scene, assistente]) {
     await expect(zona.locator("button, input, a, [role=button]")).toHaveCount(0);
   }
-  await expect(page.getByTestId("in-arrivo")).toHaveCount(3);
-  // niente esce dallo schermo del tablet (1024×600)
-  const fuori = await page.evaluate(() => {
-    const app = document.querySelector("jarvis-app");
-    const radice = app?.shadowRoot;
-    if (!radice) return ["jarvis-app mancante"];
-    return [...radice.querySelectorAll("section, .barra, jarvis-stanza, .scena")]
-      .map((e) => ({ e, r: e.getBoundingClientRect() }))
-      .filter(({ r }) => r.right > innerWidth + 1 || r.bottom > innerHeight + 1)
-      .map(({ e }) => e.className || e.localName);
-  });
-  expect(fuori).toEqual([]);
+  // niente esce dallo schermo del tablet (1024×600), card comprese
+  await expect(page.locator("[data-test^=card-]").first()).toBeVisible();
+  expect(await sbordati(page)).toEqual([]);
+  // i testi dei pulsanti delle modalità non vengono tagliati
+  const tagliati = await page
+    .locator("jarvis-card-clima .comandi button")
+    .evaluateAll((bottoni) =>
+      bottoni.filter((b) => b.scrollWidth > b.clientWidth + 1).map((b) => b.textContent?.trim()),
+    );
+  expect(tagliati).toEqual([]);
+
+  // caso peggiore: TV accesa (riga del volume in più nel Soggiorno) e poi offline,
+  // con le righe "non aggiornato" in più: niente deve sbordare
+  await page.getByTestId("card-media").locator("button.principale").click();
+  await expect(page.getByRole("button", { name: "Volume su" })).toBeVisible();
+  expect(await sbordati(page)).toEqual([]);
+  await comando(request, "spegni");
+  await expect(page.getByTestId("banner")).toBeVisible({ timeout: 15_000 });
+  expect(await sbordati(page)).toEqual([]);
 });
+
+/**
+ * Elementi che escono dallo schermo o dal riquadro della propria stanza
+ * (per esempio una card che finisce sotto la barra dell'assistente).
+ */
+async function sbordati(page: import("@playwright/test").Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const fuori: string[] = [];
+    const guarda = (radice: Document | ShadowRoot, contenitore: DOMRect | null): void => {
+      for (const e of radice.querySelectorAll("*")) {
+        const r = e.getBoundingClientRect();
+        if (r.width === 0) continue;
+        const fuoriSchermo = r.right > innerWidth + 1 || r.bottom > innerHeight + 1;
+        const fuoriStanza = contenitore !== null && r.bottom > contenitore.bottom + 1;
+        if (fuoriSchermo || fuoriStanza) fuori.push(`${e.localName}.${String(e.className)}`);
+        const stanza = e.localName === "jarvis-stanza" ? r : contenitore;
+        if (e.shadowRoot) guarda(e.shadowRoot, stanza);
+      }
+    };
+    guarda(document, null);
+    return fuori;
+  });
+}
