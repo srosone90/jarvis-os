@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.0
+
+Fase F5: voce "tocca per parlare".
+
+- Microfono nella chat e nella barra. Con la chat aperta si parla nella chat;
+  con la chat chiusa compare un riquadro piccolo con quello che hai detto e la
+  risposta (toccandolo si apre la chat; sparisce da solo dopo qualche secondo).
+- Bip leggero quando il microfono si apre e si chiude. Home Assistant capisce da
+  solo quando hai finito di parlare; puoi anche toccare "ferma".
+- La risposta si legge e si sente. L'audio parte subito, anche per i comandi
+  che HA risolve da solo. Se l'altoparlante (anche Bluetooth) si scollega a
+  metà, il pannello va avanti e il testo resta.
+- Seguito come un Echo: se Jarvis fa una domanda, il microfono si riapre da solo.
+- Errori in italiano: microfono non consentito (con cosa toccare), serve
+  l'indirizzo https, microfono occupato o assente, non ho sentito niente,
+  Gemini al limite o occupato, connessione persa a metà.
+- Nessuna modifica al pacchetto HA.
+
 ## v0.3.2
 
 - Errori di Gemini in italiano: quando Gemini ha raggiunto il limite di

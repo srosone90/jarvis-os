@@ -30,6 +30,8 @@ export interface ConnessioneAssistente {
 
 export interface DipendenzeAssistente {
   conn: () => ConnessioneAssistente | null;
+  /** Manda un frame binario sul WebSocket di HA (audio del microfono). False se non è partito. */
+  inviaBinario: (dati: ArrayBuffer) => boolean;
   /** HA collegato adesso (non "da 10 s": una domanda non parte su un socket che non c'è). */
   collegato: () => boolean;
   /** Avvisa quando lo stato della connessione cambia; ritorna la funzione per smettere. */
@@ -52,7 +54,10 @@ interface Esecuzione {
   turnoId: number;
   smetti: (() => Promise<void>) | null;
   timerMassimo: ReturnType<typeof setTimeout>;
-  timerLenta: ReturnType<typeof setTimeout>;
+  /** Voce: parte solo quando finisci di parlare, non mentre parli. */
+  timerLenta: ReturnType<typeof setTimeout> | undefined;
+  /** Voce: la fine dell'audio è già stata mandata (si manda una volta sola). */
+  audioChiuso: boolean;
   timerChiusura: ReturnType<typeof setTimeout> | undefined;
   chiusa: boolean;
 }
@@ -124,10 +129,68 @@ export class Assistente {
     return true;
   }
 
+  /**
+   * Domanda a voce: pipeline da stt a tts. L'audio del microfono si manda con
+   * `inviaAudio` appena HA dà l'id (run-start); prima lo tiene chi registra.
+   * Ritorna l'id del turno, o null se non può partire (offline, già occupato).
+   */
+  parla(sampleRate: number): number | null {
+    if (this.occupato) return null;
+    const conn = this.dip.conn();
+    if (!conn || !this.dip.collegato()) return null;
+    this.controllaScadenza();
+    this.contatore += 1;
+    const turno = nuovoTurno(this.contatore, "", true);
+    this.elenco = [...this.elenco, turno];
+    this.ultimaAttivita = this.adesso();
+    this.avvia(conn, turno, sampleRate);
+    this.notifica();
+    return turno.id;
+  }
+
+  /** Toglie un turno a voce finito senza parole (seguito a cui nessuno ha risposto). */
+  scarta(turnoId: number): void {
+    const t = this.turno(turnoId);
+    if (!t?.voce || t.domanda || inCorso(t)) return;
+    this.elenco = this.elenco.filter((x) => x.id !== turnoId);
+    this.notifica();
+  }
+
+  turno(id: number): Turno | undefined {
+    return this.elenco.find((t) => t.id === id);
+  }
+
+  /** Manda un pezzo di audio del turno a voce. False se HA non ha ancora dato l'id o l'ascolto è finito. */
+  inviaAudio(turnoId: number, pcm: ArrayBuffer): boolean {
+    const t = this.turno(turnoId);
+    const esecuzione = this.esecuzione;
+    if (
+      t?.idAudio == null ||
+      t.fase !== "ascolto" ||
+      esecuzione?.turnoId !== turnoId ||
+      esecuzione.audioChiuso
+    )
+      return false;
+    const frame = new Uint8Array(pcm.byteLength + 1);
+    frame[0] = t.idAudio;
+    frame.set(new Uint8Array(pcm), 1);
+    return this.dip.inviaBinario(frame.buffer);
+  }
+
+  /** Fine dell'audio (tocco su "ferma" o fine del parlato): un frame col solo id, una volta sola. */
+  fineAudio(turnoId: number): void {
+    const t = this.turno(turnoId);
+    const esecuzione = this.esecuzione;
+    if (t?.idAudio == null || esecuzione?.turnoId !== turnoId || esecuzione.audioChiuso) return;
+    esecuzione.audioChiuso = true;
+    this.dip.inviaBinario(new Uint8Array([t.idAudio]).buffer);
+  }
+
   /** Rimanda la domanda di un turno finito in errore (lo sostituisce, non ne aggiunge uno). */
   rimanda(turnoId: number): boolean {
     const vecchio = this.elenco.find((t) => t.id === turnoId);
-    if (vecchio?.fase !== "errore" || this.occupato) return false;
+    // un turno a voce senza testo non si rimanda: si riparla
+    if (vecchio?.fase !== "errore" || !vecchio.domanda || this.occupato) return false;
     const conn = this.dip.conn();
     if (!conn || !this.dip.collegato()) return false;
     this.contatore += 1;
@@ -145,16 +208,21 @@ export class Assistente {
     return t && inCorso(t) ? t : null;
   }
 
-  private avvia(conn: ConnessioneAssistente, turno: Turno): void {
+  private armaLenta(): ReturnType<typeof setTimeout> {
+    return setTimeout(() => {
+      this.lentaDa = this.adesso();
+      this.notifica();
+    }, LENTA_MS);
+  }
+
+  private avvia(conn: ConnessioneAssistente, turno: Turno, sampleRate?: number): void {
     const esecuzione: Esecuzione = {
       turnoId: turno.id,
       smetti: null,
       chiusa: false,
+      audioChiuso: false,
       timerChiusura: undefined,
-      timerLenta: setTimeout(() => {
-        this.lentaDa = this.adesso();
-        this.notifica();
-      }, LENTA_MS),
+      timerLenta: turno.voce ? undefined : this.armaLenta(),
       timerMassimo: setTimeout(() => {
         log.avviso(`Assistente: nessuna risposta entro ${MASSIMO_MS / 1000} s`);
         this.chiudiConErrore(esecuzione, "tempo", `Nessuna risposta entro ${MASSIMO_MS / 1000} s`);
@@ -162,14 +230,23 @@ export class Assistente {
     };
     this.esecuzione = esecuzione;
     this.lentaDa = null;
-    const messaggio: Record<string, unknown> = {
-      type: "assist_pipeline/run",
-      start_stage: "intent",
-      end_stage: "intent",
-      input: { text: turno.domanda },
-      conversation_id: this.conversationId,
-      timeout: MASSIMO_MS / 1000,
-    };
+    const messaggio: Record<string, unknown> = turno.voce
+      ? {
+          type: "assist_pipeline/run",
+          start_stage: "stt",
+          end_stage: "tts",
+          input: { sample_rate: sampleRate ?? 16000 },
+          conversation_id: this.conversationId,
+          timeout: MASSIMO_MS / 1000,
+        }
+      : {
+          type: "assist_pipeline/run",
+          start_stage: "intent",
+          end_stage: "intent",
+          input: { text: turno.domanda },
+          conversation_id: this.conversationId,
+          timeout: MASSIMO_MS / 1000,
+        };
     conn
       .subscribeMessage<EventoPipeline>((ev) => this.suEvento(esecuzione, ev), messaggio, {
         resubscribe: false,
@@ -194,6 +271,9 @@ export class Assistente {
     if (dopo === prima) return;
     this.sostituisci(dopo);
     if (dopo.conversationId) this.conversationId = dopo.conversationId;
+    // voce: finito di parlare, da qui conta il tempo della risposta
+    if (prima.fase === "ascolto" && dopo.fase !== "ascolto" && esecuzione.timerLenta === undefined)
+      esecuzione.timerLenta = this.armaLenta();
     if (dopo.fase === "errore" && prima.fase !== "errore")
       log.errore(`Assistente: ${dopo.errore?.dettaglio ?? "errore"}`);
     if (!inCorso(dopo)) {

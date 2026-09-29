@@ -13,6 +13,7 @@ import "./jarvis-connessione";
 import "./jarvis-accesso";
 import "./jarvis-diagnostica";
 import "./jarvis-chat";
+import "./jarvis-voce-riquadro";
 
 /** Ridisegna quando i registri di HA cambiano (stanze o dispositivi aggiunti/tolti). */
 class OsservaRegistri implements ReactiveController {
@@ -51,6 +52,21 @@ class OsservaSchermata implements ReactiveController {
   }
   hostDisconnected(): void {
     this.query.removeEventListener("change", this.cambia);
+  }
+}
+
+/** Ridisegna quando la voce cambia fase o il riquadro piccolo compare/sparisce. */
+class OsservaVoce implements ReactiveController {
+  private smetti: (() => void) | null = null;
+  constructor(private readonly host: ReactiveControllerHost) {
+    host.addController(this);
+  }
+  hostConnected(): void {
+    this.smetti = connessione.voce.ascolta(() => this.host.requestUpdate());
+  }
+  hostDisconnected(): void {
+    this.smetti?.();
+    this.smetti = null;
   }
 }
 
@@ -210,9 +226,18 @@ export class JarvisApp extends LitElement {
       width: 76px;
       height: 60px;
       border-radius: 30px;
-      border: 1px dashed #343a46;
+      border: 1px solid #2b303a;
+      background: var(--superficie);
       display: grid;
       place-items: center;
+      color: var(--testo);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .mic[disabled] {
+      cursor: not-allowed;
+      border-style: dashed;
+      background: transparent;
       color: var(--attenuato);
     }
     .posto-banner {
@@ -359,8 +384,13 @@ export class JarvisApp extends LitElement {
     this.diagnostica = false;
     this.chat = false;
     new OsservaRegistri(this);
+    // la voce decide se mostrare il riquadro piccolo
+    new OsservaVoce(this);
     this.addEventListener("chiudi-chat", () => {
       this.chat = false;
+    });
+    this.addEventListener("apri-chat", () => {
+      this.chat = true;
     });
     this.addEventListener("apri-diagnostica", () => {
       this.diagnostica = true;
@@ -386,6 +416,11 @@ export class JarvisApp extends LitElement {
       ${this.diagnostica ? html`<jarvis-diagnostica tabindex="-1"></jarvis-diagnostica>` : nothing}
     `;
     const chatAperta = this.chat && !loginRichiesto;
+    // riquadro piccolo della voce: solo a chat chiusa (a chat aperta la voce sta nella chat)
+    const riquadro =
+      !chatAperta && connessione.voce.riquadroVisibile
+        ? html`<jarvis-voce-riquadro data-test="riquadro-voce"></jarvis-voce-riquadro>`
+        : nothing;
     if (chatAperta && !this.schermata.unica)
       return html`<jarvis-avvisi></jarvis-avvisi><jarvis-chat class="intera"></jarvis-chat>${sovrapposti}`;
     return html`
@@ -415,7 +450,7 @@ export class JarvisApp extends LitElement {
           ? html`<jarvis-chat class=${bannerNellaBarra ? "sopra-banner" : ""}></jarvis-chat>`
           : this.stanzeEBarra(stanze, offline, scollegato, bannerNellaBarra)
       }
-      ${chatAperta && bannerNellaBarra ? this.barra(true, scollegato) : nothing} ${sovrapposti}
+      ${chatAperta && bannerNellaBarra ? this.barra(true, scollegato) : nothing} ${riquadro} ${sovrapposti}
     `;
   }
 
@@ -454,14 +489,21 @@ export class JarvisApp extends LitElement {
         class="chiedi"
         ?disabled=${scollegato}
         @click=${() => {
+          // se la voce sta lavorando nel riquadro, la conversazione passa nella chat
+          if (connessione.voce.riquadroVisibile) connessione.voce.spostaInChat();
           this.chat = true;
         }}
       >
         Chiedi a Jarvis… ${scollegato ? html`<small>non disponibile senza Home Assistant</small>` : nothing}
       </button>
-      <div class="mic" aria-disabled="true" aria-label="Microfono, in arrivo (F5)">
+      <button
+        class="mic"
+        aria-label="Parla con Jarvis"
+        ?disabled=${scollegato || connessione.voce.attiva}
+        @click=${() => void connessione.voce.parla("riquadro")}
+      >
         ${icona(mdiMicrophone)}
-      </div>
+      </button>
     </div>`;
   }
 }

@@ -22,14 +22,60 @@ export type CausaErrore =
   | "altro" // errore di HA o della pipeline
   | "tempo"
   | "connessione"
-  | "offline";
+  | "offline"
+  | "nonSentito";
 
 export interface MessaggioErrore {
   causa: CausaErrore;
   titolo: string;
   spiegazione: string;
-  /** Testo del pulsante per rimandare la stessa domanda. */
+  /** Testo del pulsante. */
   pulsante: string;
+  /** Cosa fa il pulsante: rimanda la stessa frase, o riapre il microfono (voce senza frase). */
+  azione: "rimanda" | "parla";
+}
+
+/** Perché il microfono non si è aperto. */
+export type ProblemaMicrofono = "https" | "negato" | "assente" | "occupato" | "altro";
+
+export interface MessaggioMicrofono {
+  problema: ProblemaMicrofono;
+  titolo: string;
+  spiegazione: string;
+}
+
+/**
+ * Messaggi del microfono. Chrome lo concede solo su un indirizzo sicuro (HTTPS o
+ * localhost): sull'indirizzo di casa in http `navigator.mediaDevices` non esiste.
+ */
+export function messaggioMicrofono(problema: ProblemaMicrofono): MessaggioMicrofono {
+  const testi: Record<ProblemaMicrofono, [string, string]> = {
+    https: [
+      "Serve l'indirizzo sicuro.",
+      "Il microfono funziona solo sull'indirizzo https di casa. Intanto puoi scrivere.",
+    ],
+    negato: [
+      "Microfono non consentito.",
+      "Tocca il lucchetto accanto all'indirizzo → Autorizzazioni → Microfono → Consenti, poi riprova.",
+    ],
+    assente: ["Nessun microfono trovato.", "Questo dispositivo non ha un microfono disponibile."],
+    occupato: [
+      "Il microfono è occupato.",
+      "Un'altra app lo sta usando (una chiamata, un registratore). Chiudila e riprova.",
+    ],
+    altro: ["Il microfono non si è aperto.", "Riprova tra poco. Intanto puoi scrivere."],
+  };
+  const [titolo, spiegazione] = testi[problema];
+  return { problema, titolo, spiegazione };
+}
+
+/** Classifica l'errore di getUserMedia (nomi standard delle DOMException). */
+export function problemaDaErrore(errore: unknown): ProblemaMicrofono {
+  const nome = errore instanceof Error || errore instanceof DOMException ? errore.name : "";
+  if (nome === "NotAllowedError" || nome === "SecurityError") return "negato";
+  if (nome === "NotFoundError" || nome === "OverconstrainedError") return "assente";
+  if (nome === "NotReadableError" || nome === "AbortError") return "occupato";
+  return "altro";
 }
 
 const DA_GEMINI = /google generative ai|gemini/i;
@@ -45,8 +91,25 @@ export function causaDaDettaglio(dettaglio: string): "quota" | "occupato" | "gem
 
 const ANCORA_QUI = "La domanda è ancora qui.";
 
-export function messaggioErrore(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
+/**
+ * `senzaFrase`: turno a voce finito prima che HA riconoscesse le parole. Non
+ * c'è niente da rimandare: il pulsante riapre il microfono.
+ */
+export function messaggioErrore(errore: NonNullable<Turno["errore"]>, senzaFrase = false): MessaggioErrore {
+  const m = messaggioBase(errore);
+  return senzaFrase ? { ...m, pulsante: "Parla di nuovo", azione: "parla" } : m;
+}
+
+function messaggioBase(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
   switch (errore.tipo) {
+    case "nonSentito":
+      return {
+        causa: "nonSentito",
+        titolo: "Non ho sentito niente.",
+        spiegazione: "Tocca il microfono e parla dopo il bip, un po' più vicino.",
+        pulsante: "Parla di nuovo",
+        azione: "parla",
+      };
     case "connessione":
       return {
         causa: "connessione",
@@ -54,6 +117,7 @@ export function messaggioErrore(errore: NonNullable<Turno["errore"]>): Messaggio
         spiegazione:
           "Se avevi chiesto un comando, guarda le card prima di rimandare: potrebbe essere già stato eseguito.",
         pulsante: "Rimanda",
+        azione: "rimanda",
       };
     case "tempo":
       return {
@@ -61,6 +125,7 @@ export function messaggioErrore(errore: NonNullable<Turno["errore"]>): Messaggio
         titolo: "Jarvis non ha risposto in tempo.",
         spiegazione: `Gemini ci ha messo più di un minuto. ${ANCORA_QUI}`,
         pulsante: "Riprova",
+        azione: "rimanda",
       };
     case "offline":
       return {
@@ -68,6 +133,7 @@ export function messaggioErrore(errore: NonNullable<Turno["errore"]>): Messaggio
         titolo: "Home Assistant non raggiungibile.",
         spiegazione: "Quando torna la connessione puoi riprovare.",
         pulsante: "Riprova",
+        azione: "rimanda",
       };
     case "agente":
       break;
@@ -83,5 +149,5 @@ export function messaggioErrore(errore: NonNullable<Turno["errore"]>): Messaggio
     altro: ["Jarvis non è riuscito a rispondere.", `Home Assistant ha dato un errore. ${ANCORA_QUI}`],
   };
   const [titolo, spiegazione] = testi[causa];
-  return { causa, titolo, spiegazione, pulsante: "Riprova" };
+  return { causa, titolo, spiegazione, pulsante: "Riprova", azione: "rimanda" };
 }

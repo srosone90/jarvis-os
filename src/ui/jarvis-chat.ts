@@ -1,10 +1,11 @@
-import { mdiClose, mdiPlus, mdiSend } from "@mdi/js";
+import { mdiClose, mdiMicrophone, mdiPlus, mdiSend } from "@mdi/js";
 import { css, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import type { Azione, Turno } from "../assistente/eventi";
 import { messaggioErrore } from "../assistente/messaggi";
 import { connessione } from "../connessione/connessione";
 import { icona, OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 import { statoInItaliano } from "./card-base";
+import "./jarvis-voce";
 
 /** Senza tocchi per tanto, la chat si chiude da sola (mai mentre Jarvis risponde). */
 export const CHIUSURA_AUTOMATICA_MS = 60_000;
@@ -229,7 +230,8 @@ export class JarvisChat extends RiquadroSicuro {
       input::placeholder {
         color: var(--attenuato);
       }
-      .invia {
+      .invia,
+      .parla {
         flex: none;
         width: 52px;
         height: 52px;
@@ -238,6 +240,10 @@ export class JarvisChat extends RiquadroSicuro {
         color: var(--sfondo);
         display: grid;
         place-items: center;
+      }
+      .parla {
+        background: var(--superficie-2);
+        color: var(--testo);
       }
       /* telefono in orizzontale: poco spazio in altezza */
       @media (orientation: landscape) and (max-height: 559px) {
@@ -252,7 +258,8 @@ export class JarvisChat extends RiquadroSicuro {
         input {
           min-height: 48px;
         }
-        .invia {
+        .invia,
+        .parla {
           width: 48px;
           height: 48px;
         }
@@ -264,6 +271,7 @@ export class JarvisChat extends RiquadroSicuro {
   declare bozza: string;
   private readonly connessione = new OsservaConnessione(this);
   private smettiAssistente: (() => void) | null = null;
+  private smettiVoce: (() => void) | null = null;
   private smettiEntita: (() => void) | null = null;
   private entitaOsservate = "";
   private timerChiusura: ReturnType<typeof setTimeout> | undefined;
@@ -281,6 +289,7 @@ export class JarvisChat extends RiquadroSicuro {
     super.connectedCallback();
     this.assistente.controllaScadenza();
     this.smettiAssistente = this.assistente.ascolta(() => this.requestUpdate());
+    this.smettiVoce = connessione.voce.ascolta(() => this.requestUpdate());
     this.addEventListener("pointerdown", this.tocco);
     this.addEventListener("keydown", this.tocco);
     window.visualViewport?.addEventListener("resize", this.suTastiera);
@@ -293,7 +302,8 @@ export class JarvisChat extends RiquadroSicuro {
     super.disconnectedCallback();
     this.smettiAssistente?.();
     this.smettiEntita?.();
-    this.smettiAssistente = this.smettiEntita = null;
+    this.smettiVoce?.();
+    this.smettiAssistente = this.smettiEntita = this.smettiVoce = null;
     this.entitaOsservate = "";
     this.removeEventListener("pointerdown", this.tocco);
     this.removeEventListener("keydown", this.tocco);
@@ -303,7 +313,16 @@ export class JarvisChat extends RiquadroSicuro {
   }
 
   protected override firstUpdated(): void {
-    this.shadowRoot?.querySelector("input")?.focus();
+    // a voce niente tastiera: coprirebbe mezza chat mentre si parla
+    if (!this.voceQui) this.shadowRoot?.querySelector("input")?.focus();
+  }
+
+  /** La voce sta lavorando dentro questa chat (barra della voce al posto del campo). */
+  private get voceQui(): boolean {
+    const v = connessione.voce;
+    if (v.dove !== "chat") return false;
+    // un errore del turno si vede nei messaggi; nella barra solo quelli del microfono
+    return v.fase === "errore" ? v.erroreMicrofono !== null : v.attiva;
   }
 
   protected override updated(_: PropertyValues): void {
@@ -330,7 +349,8 @@ export class JarvisChat extends RiquadroSicuro {
   private armaChiusura(): void {
     clearTimeout(this.timerChiusura);
     this.timerChiusura = setTimeout(() => {
-      if (this.assistente.occupato) this.armaChiusura();
+      if (this.assistente.occupato || (connessione.voce.attiva && connessione.voce.fase !== "errore"))
+        this.armaChiusura();
       else this.chiudi();
     }, CHIUSURA_AUTOMATICA_MS);
   }
@@ -367,12 +387,13 @@ export class JarvisChat extends RiquadroSicuro {
   private errore(t: Turno): TemplateResult {
     if (!t.errore) return html``;
     // testi in assistente/messaggi.ts: gli stessi per chat, voce e Hub
-    const { titolo, spiegazione, pulsante, causa } = messaggioErrore(t.errore);
+    const { titolo, spiegazione, pulsante, causa, azione } = messaggioErrore(t.errore, t.voce && !t.domanda);
     return html`<div class="errore" role="alert" data-test="errore-assistente" data-causa=${causa}>
       <div class="t"><b>${titolo}</b><br />${spiegazione}</div>
       <button
-        ?disabled=${!this.collegato || this.assistente.occupato}
-        @click=${() => this.assistente.rimanda(t.id)}
+        ?disabled=${!this.collegato || this.assistente.occupato || (connessione.voce.attiva && connessione.voce.fase !== "errore")}
+        @click=${() =>
+          azione === "parla" ? void connessione.voce.parla("chat") : this.assistente.rimanda(t.id)}
       >
         ${pulsante}
       </button>
@@ -381,8 +402,9 @@ export class JarvisChat extends RiquadroSicuro {
 
   private turno(t: Turno): TemplateResult {
     const inArrivo = t.fase === "invio" || t.fase === "pensa";
+    // a voce la domanda compare quando HA l'ha riconosciuta (stt-end): prima non c'è testo
     return html`
-      <div class="msg io" data-test="domanda">${t.domanda}</div>
+      ${t.domanda ? html`<div class="msg io" data-test="domanda">${t.domanda}</div>` : nothing}
       ${t.azioni.length ? html`<div class="azioni">${t.azioni.map((a) => this.etichetta(a))}</div>` : nothing}
       ${
         inArrivo
@@ -401,13 +423,19 @@ export class JarvisChat extends RiquadroSicuro {
     const turni = this.assistente.turni;
     const occupato = this.assistente.occupato;
     const collegato = this.collegato;
-    const stato = occupato
-      ? this.assistente.lenta
-        ? "ci sta mettendo più del solito…"
-        : "sta rispondendo…"
-      : collegato
-        ? "Gemini"
-        : "non disponibile senza Home Assistant";
+    const fv = connessione.voce.dove === "chat" ? connessione.voce.fase : "spenta";
+    const stato =
+      fv === "ascolto"
+        ? "in ascolto"
+        : fv === "risponde"
+          ? "sta parlando…"
+          : occupato
+            ? this.assistente.lenta
+              ? "ci sta mettendo più del solito…"
+              : "sta rispondendo…"
+            : collegato
+              ? "Gemini"
+              : "non disponibile senza Home Assistant";
     return html`
       <div class="testa">
         <b>Jarvis</b>
@@ -442,6 +470,13 @@ export class JarvisChat extends RiquadroSicuro {
         }
         ${turni.map((t) => this.turno(t))}
       </div>
+      ${this.voceQui ? html`<jarvis-voce data-test="voce"></jarvis-voce>` : this.campo(collegato, occupato)}
+    `;
+  }
+
+  private campo(collegato: boolean, occupato: boolean): TemplateResult {
+    const voce = connessione.voce;
+    return html`
       <form @submit=${(e: Event) => this.invia(e)}>
         <input
           type="text"
@@ -460,6 +495,15 @@ export class JarvisChat extends RiquadroSicuro {
           ?disabled=${!collegato || occupato || this.bozza.trim() === ""}
         >
           ${icona(mdiSend)}
+        </button>
+        <button
+          class="parla"
+          type="button"
+          aria-label="Parla"
+          ?disabled=${!collegato || occupato || voce.attiva}
+          @click=${() => void voce.parla("chat")}
+        >
+          ${icona(mdiMicrophone)}
         </button>
       </form>
     `;

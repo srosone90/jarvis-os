@@ -11,7 +11,7 @@ orizzontale acceso 24/7.
 | F1 — scheletro PWA, connessione, orologio e meteo, clima stanze, diagnostica | v0.1.2 |
 | F2 — stanze e comandi dei dispositivi | **v0.2.2** (layout per tutte le misure) |
 | F4 — assistente testuale (Gemini) | **v0.3.2** |
-| F5 — voce "tocca per parlare" | **In corso** |
+| F5 — voce "tocca per parlare" | **v0.4.0** |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la F5 |
 | Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |

@@ -24,9 +24,17 @@ export default defineConfig({
     locale: "it-IT",
     timezoneId: "Europe/Rome",
     trace: "retain-on-failure",
-    ...(process.env.PLAYWRIGHT_CHROMIUM
-      ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM } }
-      : {}),
+    // voce (F5): microfono finto di Chromium (suona un tono di continuo), permesso
+    // già concesso, audio della risposta senza bisogno di un tocco
+    permissions: ["microphone"],
+    launchOptions: {
+      args: [
+        "--use-fake-device-for-media-stream",
+        "--use-fake-ui-for-media-stream",
+        "--autoplay-policy=no-user-gesture-required",
+      ],
+      ...(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {}),
+    },
   },
   webServer: {
     command: `node test/finto-ha/server.mjs`,

@@ -14,6 +14,7 @@ export interface Azione {
 }
 
 export type FaseTurno =
+  | "ascolto" // solo voce: il microfono è aperto, la domanda non c'è ancora
   | "invio" // domanda partita, HA non ha ancora confermato
   | "pensa" // HA ha preso la domanda, Gemini non ha ancora scritto niente
   | "scrive" // la risposta sta arrivando
@@ -24,7 +25,8 @@ export type TipoErrore =
   | "agente" // Gemini (o la pipeline) ha risposto con un errore
   | "connessione" // HA perso a metà: non si sa cosa è stato eseguito
   | "tempo" // nessuna risposta entro il tempo massimo
-  | "offline"; // HA non collegato: la domanda non è mai partita
+  | "offline" // HA non collegato: la domanda non è mai partita
+  | "nonSentito"; // voce: HA non ha riconosciuto nessuna parola
 
 export interface Turno {
   id: number;
@@ -39,13 +41,34 @@ export interface Turno {
   /** Arrivato un evento finale: la sottoscrizione si può chiudere. */
   concluso: boolean;
   conversationId: string | null;
+  /** Turno a voce (pipeline da stt a tts): la domanda arriva a `stt-end`. */
+  voce: boolean;
+  /** Voce: id per mandare l'audio del microfono (run-start → runner_data). */
+  idAudio: number | null;
+  /** Voce: HA ha sentito la fine del parlato (VAD) o ha già il testo: il microfono si chiude. */
+  fineParlato: boolean;
+  /** Voce: URL dell'audio della risposta (/api/tts_proxy/…, senza login). */
+  urlAudio: string | null;
+  /** Voce: HA manda l'audio in streaming (run-start → tts_output.stream_response). */
+  audioInStreaming: boolean;
+  /** Voce: l'audio si può scaricare adesso (tts-end, o tts-start se HA lo manda in streaming). */
+  audioPronto: boolean;
+  /** Voce: HA vuole un seguito (continue_conversation): il microfono si riapre da solo. */
+  continua: boolean;
 }
 
-export function nuovoTurno(id: number, domanda: string): Turno {
+export function nuovoTurno(id: number, domanda: string, voce = false): Turno {
   return {
     id,
     domanda,
-    fase: "invio",
+    voce,
+    idAudio: null,
+    fineParlato: false,
+    urlAudio: null,
+    audioInStreaming: false,
+    audioPronto: false,
+    continua: false,
+    fase: voce ? "ascolto" : "invio",
     risposta: "",
     azioni: [],
     errore: null,
@@ -66,6 +89,7 @@ type Oggetto = Record<string, unknown>;
 const oggetto = (v: unknown): Oggetto | null =>
   typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Oggetto) : null;
 const testo = (v: unknown): string | null => (typeof v === "string" ? v : null);
+const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** Testo parlato di una risposta di HA: `speech.plain.speech`. */
 export function testoRisposta(risposta: unknown): string {
@@ -99,11 +123,29 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
   if (t.concluso) return t;
   const dati = oggetto(ev.data) ?? {};
   switch (ev.type) {
-    case "run-start":
-    case "intent-start":
+    case "run-start": {
+      // voce: id per l'audio del microfono e URL della risposta (già noto qui)
+      const tts = oggetto(dati.tts_output);
       return {
         ...t,
         fase: t.fase === "invio" ? "pensa" : t.fase,
+        conversationId: testo(dati.conversation_id) ?? t.conversationId,
+        idAudio: numero(oggetto(dati.runner_data)?.stt_binary_handler_id) ?? t.idAudio,
+        urlAudio: testo(tts?.url) ?? t.urlAudio,
+        audioInStreaming: tts?.stream_response === true || t.audioInStreaming,
+      };
+    }
+    case "stt-vad-end":
+      return { ...t, fineParlato: true };
+    case "stt-end": {
+      const sentito = testo(oggetto(dati.stt_output)?.text)?.trim() ?? "";
+      return { ...t, domanda: sentito || t.domanda, fineParlato: true, fase: "pensa" };
+    }
+    case "intent-start":
+      return {
+        ...t,
+        fase: t.fase === "invio" || t.fase === "ascolto" ? "pensa" : t.fase,
+        fineParlato: true,
         conversationId: testo(dati.conversation_id) ?? t.conversationId,
       };
     case "intent-progress": {
@@ -136,7 +178,21 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
       }
       // il testo finale di HA vince su quello arrivato a pezzi
       const finale = testoRisposta(risposta) || t.risposta;
-      return { ...t, fase: "fatto", risposta: finale, conversationId };
+      return {
+        ...t,
+        fase: "fatto",
+        risposta: finale,
+        conversationId,
+        continua: uscita?.continue_conversation === true,
+      };
+    }
+    case "tts-start":
+      // In streaming l'audio si scarica SUBITO: per le risposte locali HA non
+      // manda run-end finché qualcuno non consuma l'audio (sessione server, 29/09).
+      return t.audioInStreaming && t.urlAudio && !t.audioPronto ? { ...t, audioPronto: true } : t;
+    case "tts-end": {
+      const url = testo(oggetto(dati.tts_output)?.url) ?? t.urlAudio;
+      return { ...t, urlAudio: url, audioPronto: url !== null };
     }
     case "error":
       return {
@@ -144,7 +200,12 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
         fase: "errore",
         concluso: true,
         errore: {
-          tipo: dati.code === "timeout" ? "tempo" : "agente",
+          tipo:
+            dati.code === "timeout"
+              ? "tempo"
+              : dati.code === "stt-no-text-recognized"
+                ? "nonSentito"
+                : "agente",
           dettaglio: `${testo(dati.code) ?? "errore"}: ${testo(dati.message) ?? ""}`.trim(),
         },
       };
@@ -163,5 +224,14 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
   }
 }
 
-/** Il turno non ha ancora una fine: aspetta eventi. */
-export const inCorso = (t: Turno): boolean => t.fase === "invio" || t.fase === "pensa" || t.fase === "scrive";
+/**
+ * Il turno non ha ancora una fine: aspetta eventi. Un turno a voce con la
+ * risposta scritta ma senza l'audio aspetta ancora tts-end: chiudere lì la
+ * pipeline la cancellerebbe prima della TTS.
+ */
+export const inCorso = (t: Turno): boolean =>
+  t.fase === "ascolto" ||
+  t.fase === "invio" ||
+  t.fase === "pensa" ||
+  t.fase === "scrive" ||
+  (t.voce && t.fase === "fatto" && !t.audioPronto);

@@ -24,6 +24,8 @@ export async function info(request: APIRequestContext): Promise<{
   richieste: Record<string, number>;
   chiamate: { servizio: string; dati: Record<string, unknown> }[];
   richiesteAssistente: RichiestaAssistente[];
+  audioVoce: { pipeline: number; byte: number; fine: boolean; sampleRate: number }[];
+  richiesteTts: string[];
   disiscrizioniPipeline: number;
   pipelineAperte: number;
 }> {

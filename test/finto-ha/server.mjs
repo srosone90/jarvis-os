@@ -22,9 +22,14 @@
  *   /__prova/assistente?modo=    come risponde Gemini (assist_pipeline/run):
  *                                normale | lenta (&ms=10000) | errore | quota | occupato
  *                                | cade | azione | lunga
+ *                                voce: &trascrizione=… (cosa "sente" l'STT), &stt=silenzio|manuale
+ *                                (nessuna parola), &tts=streaming (risposta locale: run-end
+ *                                solo dopo che l'audio è stato scaricato), &continua=N (le
+ *                                prossime N risposte chiedono un seguito)
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
+import { Buffer } from "node:buffer";
 import { createServer } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join, normalize, extname } from "node:path";
@@ -168,7 +173,19 @@ function reset() {
     muti: new Set(), // entity_id che non cambiano stato dopo un comando
     chiamate: [],
     // assistente (assist_pipeline/run): modo di risposta, conversazioni aperte, richieste ricevute
-    assistente: { modo: "normale", attesaMs: 10_000, conversazioni: new Set(), prossima: 1 },
+    assistente: {
+      modo: "normale",
+      attesaMs: 10_000,
+      conversazioni: new Set(),
+      prossima: 1,
+      trascrizione: "Che temperatura c'è in camera?",
+      stt: "normale",
+      tts: "normale",
+      continua: 0,
+    },
+    // voce: byte di audio ricevuti per ogni pipeline, fine dell'audio, audio TTS scaricati
+    audioVoce: [],
+    richiesteTts: [],
     richiesteAssistente: [],
     disiscrizioniPipeline: 0,
     generazioneToken: 1,
@@ -290,7 +307,7 @@ const pausa = (ms) => new Promise((r) => setTimeout(r, ms));
  * run-start, intent-start, intent-progress con chat_log_delta, intent-end,
  * run-end. Si ferma se il client si disiscrive (HA cancella il task).
  */
-async function rispondiAssistente(cliente, id, conversationId, testoDomanda) {
+async function rispondiAssistente(cliente, id, conversationId, testoDomanda, voce = null) {
   const { modo, attesaMs } = stato.assistente;
   const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
   const evento = (type, data) =>
@@ -308,24 +325,29 @@ async function rispondiAssistente(cliente, id, conversationId, testoDomanda) {
         data: tipo === "error" ? { code: "unknown" } : { targets: [], success: [], failed: [] },
       },
       conversation_id: conversationId,
-      continue_conversation: false,
+      continue_conversation: continua,
     },
   });
-  await evento("run-start", {
-    pipeline: "pipeline-italiano",
-    language: "it",
-    conversation_id: conversationId,
-    runner_data: { stt_binary_handler_id: null, timeout: 60 },
-  });
-  await evento("intent-start", {
-    engine: "conversation.google_ai_conversation",
-    language: "it",
-    intent_input: testoDomanda,
-    conversation_id: conversationId,
-    device_id: null,
-    satellite_id: null,
-    prefer_local_intents: false,
-  });
+  // seguito (continue_conversation) per le prossime N risposte, come quando Gemini fa una domanda
+  const continua = voce !== null && stato.assistente.continua > 0;
+  if (continua) stato.assistente.continua--;
+  if (voce === null)
+    await evento("run-start", {
+      pipeline: "pipeline-italiano",
+      language: "it",
+      conversation_id: conversationId,
+      runner_data: { stt_binary_handler_id: null, timeout: 60 },
+    });
+  if (voce === null)
+    await evento("intent-start", {
+      engine: "conversation.google_ai_conversation",
+      language: "it",
+      intent_input: testoDomanda,
+      conversation_id: conversationId,
+      device_id: null,
+      satellite_id: null,
+      prefer_local_intents: false,
+    });
   await pausa(modo === "lenta" ? attesaMs : 300);
   if (!vivo()) return;
   // Errori di Gemini con i testi veri di HA 2026.9.3 (google_generative_ai_conversation/entity.py):
@@ -393,7 +415,129 @@ async function rispondiAssistente(cliente, id, conversationId, testoDomanda) {
     await pausa(150);
   }
   await evento("intent-end", uscita(testi.join("")));
+  if (voce === null) return evento("run-end", null);
+  // TTS: tts-start, tts-end con l'URL (lo stesso già dato in run-start)
+  await evento("tts-start", {
+    engine: "tts.google_translate_en_com",
+    language: "it",
+    voice: null,
+    tts_input: testi.join(""),
+    acknowledge_override: false,
+  });
+  await pausa(150);
+  await evento("tts-end", {
+    tts_output: {
+      media_id: `media-source://tts/${voce.token}`,
+      token: voce.token,
+      url: voce.url,
+      mime_type: "audio/wav",
+    },
+  });
+  // Come HA con le risposte locali in streaming (sessione server, 29/09): run-end
+  // arriva solo dopo che qualcuno ha scaricato l'audio.
+  if (stato.assistente.tts === "streaming") await attendiTts(voce.token, 30_000);
   await evento("run-end", null);
+}
+
+/** Aspetta che il pannello scarichi l'audio della TTS (o il tempo massimo). */
+const attesaTts = new Map();
+function attendiTts(token, ms) {
+  if (stato.richiesteTts.includes(token)) return Promise.resolve();
+  return new Promise((ris) => {
+    const t = setTimeout(ris, ms);
+    attesaTts.set(token, () => {
+      clearTimeout(t);
+      ris();
+    });
+  });
+}
+
+/** WAV vero (PCM 16 bit, 16 kHz, mono): 0,4 s di un la leggero, perché il browser lo riproduca. */
+function wavProva() {
+  const campioni = 6400;
+  const b = Buffer.alloc(44 + campioni * 2);
+  b.write("RIFF", 0);
+  b.writeUInt32LE(36 + campioni * 2, 4);
+  b.write("WAVEfmt ", 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(16000, 24);
+  b.writeUInt32LE(32000, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write("data", 36);
+  b.writeUInt32LE(campioni * 2, 40);
+  for (let i = 0; i < campioni; i++)
+    b.writeInt16LE(Math.round(Math.sin((i / 16000) * 2 * Math.PI * 440) * 3000), 44 + i * 2);
+  return b;
+}
+
+/**
+ * Pipeline a voce (start_stage stt, end_stage tts), come HA 2026.9.3:
+ * run-start con runner_data.stt_binary_handler_id e tts_output; l'audio arriva
+ * in frame binari [id][PCM]; un frame col solo id chiude l'audio. Qui il "VAD"
+ * chiude dopo ~0,6 s di audio (il microfono finto di Chromium suona di continuo).
+ */
+async function voceAssistente(cliente, id, conversationId, sampleRate) {
+  const a = stato.assistente;
+  const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
+  const evento = (type, data) =>
+    vivo()
+      ? invia(cliente, { id, type: "event", event: { type, data, timestamp: new Date().toISOString() } })
+      : null;
+  const gestore = cliente.prossimoGestore++;
+  const token = `tts-${id}-${Date.now()}`;
+  const url = `/api/tts_proxy/${token}.wav`;
+  const registro = { pipeline: id, byte: 0, fine: false, sampleRate };
+  stato.audioVoce.push(registro);
+  // stt=manuale: nessun VAD, l'ascolto finisce solo col frame di fine (tocco su "ferma")
+  const sogliaVad = a.stt === "manuale" ? Infinity : sampleRate * 2 * 0.6;
+  const fineAscolto = new Promise((ris) => {
+    cliente.gestori.set(gestore, {
+      dati(n) {
+        if (registro.byte === 0 && n > 0) void evento("stt-vad-start", { timestamp: 0 });
+        registro.byte += n;
+        if (registro.byte >= sogliaVad) ris("vad");
+      },
+      fine() {
+        registro.fine = true;
+        ris("fine");
+      },
+    });
+    setTimeout(() => ris("tempo"), 15_000);
+  });
+  await evento("run-start", {
+    pipeline: "pipeline-italiano",
+    language: "it",
+    conversation_id: conversationId,
+    runner_data: { stt_binary_handler_id: gestore, timeout: 60 },
+    tts_output: { token, url, mime_type: "audio/wav", stream_response: a.tts === "streaming" },
+  });
+  await evento("stt-start", {
+    engine: "stt.google_ai_stt",
+    metadata: { language: "it", sample_rate: 16000 },
+  });
+  const perche = await fineAscolto;
+  cliente.gestori.delete(gestore);
+  if (!vivo()) return;
+  if (perche === "vad") await evento("stt-vad-end", { timestamp: 600 });
+  if (a.stt === "silenzio" || registro.byte === 0) {
+    await evento("error", { code: "stt-no-text-recognized", message: "No text recognized" });
+    return evento("run-end", null);
+  }
+  await pausa(200);
+  await evento("stt-end", { stt_output: { text: a.trascrizione } });
+  await evento("intent-start", {
+    engine: "conversation.google_ai_conversation",
+    language: "it",
+    intent_input: a.trascrizione,
+    conversation_id: conversationId,
+    device_id: null,
+    satellite_id: null,
+    prefer_local_intents: true,
+  });
+  return rispondiAssistente(cliente, id, conversationId, a.trascrizione, { token, url });
 }
 
 function trasmettiEntita(agg) {
@@ -426,6 +570,8 @@ const server = createServer(async (req, res) => {
         ...stato.info,
         chiamate: stato.chiamate,
         richiesteAssistente: stato.richiesteAssistente,
+        audioVoce: stato.audioVoce,
+        richiesteTts: stato.richiesteTts,
         disiscrizioniPipeline: stato.disiscrizioniPipeline,
         pipelineAperte: [...clienti].reduce((n, c) => n + c.pipeline.size, 0),
         clienti: clienti.size,
@@ -439,8 +585,14 @@ const server = createServer(async (req, res) => {
     else if (comando === "rifiuta") stato.rifiuta.add(url.searchParams.get("servizio"));
     else if (comando === "muto") stato.muti.add(url.searchParams.get("entity_id"));
     else if (comando === "assistente") {
-      stato.assistente.modo = url.searchParams.get("modo") ?? "normale";
-      stato.assistente.attesaMs = Number(url.searchParams.get("ms") ?? 10_000);
+      const q = url.searchParams;
+      const a = stato.assistente;
+      if (q.has("modo")) a.modo = q.get("modo");
+      if (q.has("ms")) a.attesaMs = Number(q.get("ms"));
+      if (q.has("trascrizione")) a.trascrizione = q.get("trascrizione");
+      if (q.has("stt")) a.stt = q.get("stt");
+      if (q.has("tts")) a.tts = q.get("tts");
+      if (q.has("continua")) a.continua = Number(q.get("continua"));
     } else if (comando === "aggiungi") {
       // {area?, dispositivo?, entita, s, a}: un dispositivo nuovo in HA
       const { area, dispositivo, entita, s: st, a } = JSON.parse(await leggiCorpo(req));
@@ -481,6 +633,16 @@ const server = createServer(async (req, res) => {
   }
 
   await ritardo();
+
+  // Audio della TTS: come HA, senza login (il token nell'URL basta)
+  if (p.startsWith("/api/tts_proxy/")) {
+    const token = p.slice("/api/tts_proxy/".length).replace(/\.wav$/, "");
+    stato.richiesteTts.push(token);
+    attesaTts.get(token)?.();
+    attesaTts.delete(token);
+    res.writeHead(200, { "content-type": "audio/wav", "cache-control": "no-cache" });
+    return res.end(wavProva());
+  }
 
   if (p === "/auth/providers") {
     if (!stato.acceso) return json(res, 502, { errore: "giù" });
@@ -575,13 +737,23 @@ function gestisci(ws) {
     abbonamentiEntita: new Set(),
     abbonamentiMeteo: new Map(),
     pipeline: new Set(), // assist_pipeline/run in corso (o finite e non ancora disiscritte, come in HA)
+    gestori: new Map(), // id (1 byte) → gestore dell'audio in arrivo, come async_register_binary_handler
+    prossimoGestore: 1,
   };
   clienti.add(cliente);
   stato.info.connessioni++;
   ws.on("close", () => clienti.delete(cliente));
   void invia(cliente, { type: "auth_required", ha_version: VERSIONE_HA });
 
-  ws.on("message", async (grezzo) => {
+  ws.on("message", async (grezzo, binario) => {
+    if (binario) {
+      // come websocket_api/http.py: primo byte = id del gestore, il resto è audio; solo l'id = fine
+      const g = cliente.gestori.get(grezzo[0]);
+      if (!g) return;
+      if (grezzo.length === 1) g.fine();
+      else g.dati(grezzo.length - 1);
+      return;
+    }
     const msg = JSON.parse(String(grezzo));
     await ritardo();
     if (!cliente.autenticato) {
@@ -655,7 +827,9 @@ function gestisci(ws) {
           end_stage: msg.end_stage,
           timeout: msg.timeout,
         });
-        if (msg.start_stage !== "intent" || typeof testoDomanda !== "string")
+        const aVoce =
+          msg.start_stage === "stt" && msg.end_stage === "tts" && typeof msg.input?.sample_rate === "number";
+        if (!aVoce && (msg.start_stage !== "intent" || typeof testoDomanda !== "string"))
           return invia(cliente, {
             id,
             type: "result",
@@ -671,7 +845,8 @@ function gestisci(ws) {
         a.conversazioni.add(conversationId);
         cliente.pipeline.add(id);
         await invia(cliente, { id, type: "result", success: true, result: null });
-        void rispondiAssistente(cliente, id, conversationId, testoDomanda);
+        if (aVoce) void voceAssistente(cliente, id, conversationId, msg.input.sample_rate);
+        else void rispondiAssistente(cliente, id, conversationId, testoDomanda);
         return;
       }
       case "unsubscribe_events": {

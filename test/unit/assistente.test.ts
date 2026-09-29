@@ -9,6 +9,7 @@ import {
 import {
   applicaEvento,
   azioniDaRisultato,
+  inCorso,
   nuovoTurno,
   type EventoPipeline,
 } from "../../src/assistente/eventi";
@@ -154,8 +155,13 @@ function connessioneFinta() {
   let collegato = true;
   const ascoltatori = new Set<() => void>();
   let ora = 1_000_000;
+  const binari: Uint8Array[] = [];
   const assistente = new Assistente({
     conn: () => conn,
+    inviaBinario: (d) => {
+      binari.push(new Uint8Array(d));
+      return true;
+    },
     collegato: () => collegato,
     ascoltaConnessione: (f) => {
       ascoltatori.add(f);
@@ -166,6 +172,7 @@ function connessioneFinta() {
   return {
     assistente,
     sottoscrizioni,
+    binari,
     ultima: () => {
       const s = sottoscrizioni.at(-1);
       if (!s) throw new Error("nessuna sottoscrizione");
@@ -351,5 +358,126 @@ describe("messaggi d'errore per le persone", () => {
     const m = messaggioErrore({ tipo: "connessione", dettaglio: "" });
     expect(m.pulsante).toBe("Rimanda");
     expect(m.spiegazione).toContain("guarda le card");
+  });
+});
+
+describe("voce: eventi della pipeline stt→tts", () => {
+  const avvio = {
+    type: "run-start",
+    data: {
+      conversation_id: "c1",
+      runner_data: { stt_binary_handler_id: 3, timeout: 60 },
+      tts_output: {
+        token: "t",
+        url: "/api/tts_proxy/t.mp3",
+        mime_type: "audio/mpeg",
+        stream_response: false,
+      },
+    },
+  };
+
+  it("ascolto → id per l'audio → fine del parlato → domanda sentita → audio pronto a tts-end", () => {
+    let t = nuovoTurno(1, "", true);
+    expect(t.fase).toBe("ascolto");
+    expect(inCorso(t)).toBe(true);
+    t = applicaEvento(t, avvio);
+    expect(t.idAudio).toBe(3);
+    expect(t.urlAudio).toBe("/api/tts_proxy/t.mp3");
+    expect(t.fase).toBe("ascolto");
+    t = applicaEvento(t, { type: "stt-vad-end", data: {} });
+    expect(t.fineParlato).toBe(true);
+    t = applicaEvento(t, { type: "stt-end", data: { stt_output: { text: " spegni la tv " } } });
+    expect(t.domanda).toBe("spegni la tv");
+    expect(t.fase).toBe("pensa");
+    t = applicaEvento(t, { type: "intent-end", data: uscita("Fatto.") });
+    // risposta scritta ma audio non ancora pronto: la pipeline NON va chiusa
+    expect(t.fase).toBe("fatto");
+    expect(inCorso(t)).toBe(true);
+    t = applicaEvento(t, { type: "tts-start", data: {} });
+    expect(t.audioPronto).toBe(false);
+    t = applicaEvento(t, { type: "tts-end", data: { tts_output: { url: "/api/tts_proxy/t.mp3" } } });
+    expect(t.audioPronto).toBe(true);
+    expect(inCorso(t)).toBe(false);
+  });
+
+  it("TTS in streaming: l'audio si scarica già a tts-start", () => {
+    let t = applicaEvento(nuovoTurno(1, "", true), {
+      type: "run-start",
+      data: { tts_output: { url: "/api/tts_proxy/s.mp3", stream_response: true } },
+    });
+    t = applicaEvento(t, { type: "tts-start", data: {} });
+    expect(t.audioPronto).toBe(true);
+  });
+
+  it("seguito: continue_conversation dalla risposta di HA", () => {
+    const out = uscita("Vuoi che accenda il condizionatore?");
+    out.intent_output.continue_conversation = true;
+    const t = applicaEvento(nuovoTurno(1, "", true), { type: "intent-end", data: out });
+    expect(t.continua).toBe(true);
+  });
+
+  it("nessuna parola riconosciuta → errore 'nonSentito'", () => {
+    const t = applicaEvento(nuovoTurno(1, "", true), {
+      type: "error",
+      data: { code: "stt-no-text-recognized", message: "No text recognized" },
+    });
+    expect(t.errore?.tipo).toBe("nonSentito");
+    expect(messaggioErrore(t.errore ?? { tipo: "agente", dettaglio: "" }, true).azione).toBe("parla");
+  });
+});
+
+describe("voce: invio dell'audio", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("pipeline da stt a tts; audio solo dopo l'id, con l'id nel primo byte; fine una volta sola", async () => {
+    const f = connessioneFinta();
+    const id = f.assistente.parla(16000);
+    expect(id).not.toBeNull();
+    expect(f.ultima().messaggio).toMatchObject({
+      start_stage: "stt",
+      end_stage: "tts",
+      input: { sample_rate: 16000 },
+      timeout: MASSIMO_MS / 1000,
+    });
+    expect(f.ultima().opzioni).toEqual({ resubscribe: false });
+    const pcm = new Int16Array([1, 2]).buffer;
+    // HA non ha ancora dato l'id: niente parte
+    expect(f.assistente.inviaAudio(id ?? -1, pcm)).toBe(false);
+    await Promise.resolve();
+    f.ultima().callback({ type: "run-start", data: { runner_data: { stt_binary_handler_id: 7 } } });
+    expect(f.assistente.inviaAudio(id ?? -1, pcm)).toBe(true);
+    expect(Array.from(f.binari[0] ?? [])).toEqual([7, 1, 0, 2, 0]);
+    f.assistente.fineAudio(id ?? -1);
+    f.assistente.fineAudio(id ?? -1);
+    expect(f.binari.slice(1).map((b) => Array.from(b))).toEqual([[7]]);
+    // dopo la fine niente più audio
+    expect(f.assistente.inviaAudio(id ?? -1, pcm)).toBe(false);
+  });
+
+  it("il 'più lento del solito' non scatta mentre si parla, solo dopo", async () => {
+    const f = connessioneFinta();
+    const id = f.assistente.parla(16000) ?? -1;
+    await Promise.resolve();
+    vi.advanceTimersByTime(LENTA_MS + 1);
+    expect(f.assistente.lenta).toBe(false);
+    f.ultima().callback({ type: "stt-end", data: { stt_output: { text: "ciao" } } });
+    vi.advanceTimersByTime(LENTA_MS + 1);
+    expect(f.assistente.lenta).toBe(true);
+    expect(f.assistente.turno(id)?.domanda).toBe("ciao");
+  });
+
+  it("un turno a voce senza frase non si 'rimanda': si riparla", async () => {
+    const f = connessioneFinta();
+    const id = f.assistente.parla(16000) ?? -1;
+    await Promise.resolve();
+    f.ultima().callback({ type: "error", data: { code: "stt-no-text-recognized" } });
+    expect(f.assistente.rimanda(id)).toBe(false);
+    f.assistente.scarta(id);
+    expect(f.assistente.turni).toHaveLength(0);
   });
 });

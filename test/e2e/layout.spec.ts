@@ -264,3 +264,75 @@ for (const v of MISURE) {
     await page.screenshot({ path: `schermate/layout/chat-${v.nome}-tastiera.png` });
   });
 }
+
+/** Rettangolo di un elemento dentro gli shadow DOM (percorso di selettori, uno per livello). */
+function rettangolo(page: Page, percorso: string[]) {
+  return page.evaluate((p) => {
+    let radice: Document | ShadowRoot | null | undefined = document;
+    let e: Element | null | undefined = null;
+    for (const [i, sel] of p.entries()) {
+      e = radice?.querySelector(sel);
+      if (!e) return null;
+      if (i < p.length - 1) radice = e.shadowRoot;
+    }
+    if (!e) return null;
+    const b = e.getBoundingClientRect();
+    return { nome: p.join(" › "), x: b.left, y: b.top, r: b.right, b: b.bottom };
+  }, percorso);
+}
+
+for (const v of MISURE) {
+  test(`layout ${v.nome} con la voce: riquadro con risposta lunga e barra della voce nella chat`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await comando(request, "assistente?modo=lunga");
+    await accedi(page);
+    const schermo = { nome: "schermo", x: 0, y: 0, r: v.width, b: v.height };
+
+    // 1. riquadro piccolo (chat chiusa)
+    await page.getByRole("button", { name: "Parla con Jarvis" }).click();
+    const riquadro = page.getByTestId("riquadro-voce");
+    await expect(riquadro.getByTestId("risposta")).toContainText("si riaccenderà alle 04:30.");
+    await page.screenshot({ path: `schermate/layout/voce-riquadro-${v.nome}.png` });
+    const r = await rettangolo(page, ["jarvis-app", "jarvis-voce-riquadro"]);
+    const barra = await rettangolo(page, ["jarvis-app", ".barra"]);
+    const problemi: string[] = [];
+    if (!r) problemi.push("riquadro non trovato");
+    else {
+      if (!dentro(r, schermo)) problemi.push("il riquadro esce dallo schermo");
+      // sul tablet la barra è sempre in vista: il riquadro non la copre mai
+      if (v.unica && barra && siIntersecano(r, barra)) problemi.push("il riquadro copre la barra");
+    }
+    const g = await misura(page);
+    problemi.push(...g.tagliati.map((t) => `testo tagliato: ${t}`));
+    problemi.push(...g.spezzate.map((t) => `parola spezzata: ${t}`));
+    if (g.larghezzaPagina > v.width) problemi.push(`scorrimento orizzontale: ${g.larghezzaPagina}`);
+    expect(problemi, "riquadro").toEqual([]);
+    await riquadro.getByRole("button", { name: "Chiudi il riquadro" }).click();
+    await expect(riquadro).toHaveCount(0);
+
+    // 2. barra della voce nella chat, durante l'ascolto
+    await comando(request, "assistente?stt=manuale");
+    await apriChat(page);
+    await page.getByRole("button", { name: "Parla", exact: true }).click();
+    await expect(page.getByTestId("voce-stato")).toContainText("Ti ascolto…");
+    await page.screenshot({ path: `schermate/layout/voce-chat-${v.nome}.png` });
+    const parti = await Promise.all([
+      rettangolo(page, ["jarvis-app", "jarvis-chat", ".testa"]),
+      rettangolo(page, ["jarvis-app", "jarvis-chat", ".messaggi"]),
+      rettangolo(page, ["jarvis-app", "jarvis-chat", "jarvis-voce"]),
+    ]);
+    const presenti = parti.filter((p): p is NonNullable<typeof p> => p !== null);
+    expect(presenti).toHaveLength(3);
+    const q: string[] = [];
+    for (const [a, b] of coppie(presenti)) if (siIntersecano(a, b)) q.push(`${a.nome} ↔ ${b.nome}`);
+    for (const p of presenti) if (!dentro(p, schermo)) q.push(`${p.nome} esce dallo schermo`);
+    const g2 = await misura(page);
+    q.push(...g2.tagliati.map((t) => `testo tagliato: ${t}`));
+    q.push(...g2.spezzate.map((t) => `parola spezzata: ${t}`));
+    expect(q, "barra della voce").toEqual([]);
+    await page.getByRole("button", { name: "Ferma l'ascolto" }).click();
+  });
+}

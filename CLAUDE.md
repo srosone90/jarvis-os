@@ -77,6 +77,7 @@ In casa **non ci sono luci smart**.
 | `src/configurazione.ts` | Preferenze (`PREFERENZE`): meteo, stanze → zona del mockup e sensori del clima, dispositivi a infrarossi, programmi, entità nascoste |
 | `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
+| `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
 | `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
@@ -89,6 +90,8 @@ In casa **non ci sono luci smart**.
 | `test/unit/` | Vitest |
 | `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
 | `docs/proposta-multicasa.md` | Proposta per le altre case: HACS, stima, esigenze da servizio, cosa progettare subito nella fase G |
+| `docs/mockup-f5.html` | Mockup della voce (F5) |
+| `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, offline |
 | `docs/mockup-f4.html` | Mockup della chat (F4), variante A approvata |
 | `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica |
 | `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline, e con la chat aperta + tastiera simulata): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
@@ -271,7 +274,7 @@ non l'app di HA. L'Hub viene anticipato, scene e notte vanno dopo.
 | F1 | Scheletro PWA, connessione, orologio e meteo, clima, diagnostica | v0.1.2 |
 | F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2, clima v0.3.1; prove sui dispositivi veri in corso |
 | F4 | **Assistente testuale** (barra + chat con Gemini) | v0.3.0, errori umani v0.3.2 |
-| F5 | Voce **"tocca per parlare"** (vedi "Voce") | **In corso**: mockup e domande brevi |
+| F5 | Voce **"tocca per parlare"** (vedi "Voce") | v0.4.0; prova vera da fare (telefono, tablet, Echo Pop) |
 | G | **Gestione dispositivi** dentro Jarvis (vedi sotto) | Dopo la F5 |
 | Hub | **Modalità Hub** + tasto di passaggio Hub ↔ completo (vedi sotto) | Da fare |
 | F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
@@ -416,6 +419,37 @@ Regole per la F5 (requisiti di Salvatore e fatti verificati):
 - Prove: finto HA con pipeline stt→tts (audio finto), microfono negato, caduta
   a metà, risposta locale in streaming.
 
+**Decisioni di Salvatore sulla F5** (29/09, mockup `docs/mockup-f5.html`):
+
+- **Chat aperta** + microfono della chat → la voce avviene nella chat (barra
+  della voce al posto del campo). **Chat chiusa** + microfono della barra → un
+  **riquadro piccolo** (stato + risposta breve; toccandolo si apre la chat). Lo
+  stesso riquadro servirà a "Ehi Jarvis" quando arriverà (dopo la prova di
+  fattibilità). L'Hub ha la sua schermata.
+- **Seguito come un Echo**: se HA dice `continue_conversation: true`, finito
+  l'audio il microfono si riapre da solo (il VAD di HA lo chiude dopo al
+  massimo 15 s).
+- **Bip leggero** all'apertura e alla chiusura del microfono.
+- Niente trascrizione parziale mentre si parla: l'STT di HA restituisce il testo
+  solo a `stt-end`.
+
+**Protocollo verificato sul codice di HA 2026.9.3** (`assist_pipeline/`,
+`websocket_api/`):
+
+- `assist_pipeline/run` con `start_stage: stt`, `end_stage: tts`,
+  `input: {sample_rate}`. L'audio è PCM 16 bit mono; se `sample_rate` non è
+  16000 HA ricampiona da solo (`audioop.ratecv`).
+- L'id per l'audio arriva in `run-start` → `runner_data.stt_binary_handler_id`.
+  Ogni frame binario è `[id (1 byte)][PCM]`; un frame col **solo** id chiude
+  l'audio.
+- **VAD di HA acceso per default** (`no_vad: false`): chiude dopo 0,7 s di
+  silenzio, massimo 15 s (`assist_pipeline/vad.py`), con gli eventi
+  `stt-vad-start` / `stt-vad-end`. Si usa quello, più il tocco per fermare.
+- Errori tipici: `stt-no-text-recognized`, `stt-stream-failed`, `timeout`.
+- L'URL dell'audio (`/api/tts_proxy/<token>…`, non richiede login) c'è già in
+  `run-start.tts_output`, con `stream_response`; è confermato in
+  `tts-end.tts_output.url`.
+
 ### Modalità Hub
 
 Schermata minimal solo voce. Dipende dall'assistente (F4) e dalla voce (F5). Si
@@ -459,6 +493,36 @@ progetta con **mockup animato e domande prima di scrivere codice**.
 su un telefono vecchio vero**: CPU, calore, batteria sempre in carica, falsi
 positivi, falsi negativi con la TV accesa. **"Tocca per parlare" deve funzionare
 sempre**, anche quando esisterà la parola di attivazione.
+
+### F5 (v0.4.0): com'è fatta la voce
+
+- **Una faccia del motore**: `connessione.voce` usa `connessione.assistente`
+  (`parla`, `inviaAudio`, `fineAudio`); domanda sentita e risposta sono turni
+  come quelli scritti e finiscono nella chat. I messaggi d'errore sono gli
+  stessi (`assistente/messaggi.ts`), più quelli del microfono.
+- **Microfono**: `AudioContext({sampleRate: 16000})` (se il browser rifiuta,
+  la sua frequenza, e HA ricampiona) + AudioWorklet caricato da un Blob URL (il
+  build resta un file solo). Pezzi da 1024 campioni: il ritmo lo dà il worklet,
+  mai un timer. L'audio arrivato prima dell'id di HA si tiene da parte (max ~10 s).
+- **Fine dell'ascolto**: VAD di HA (0,7 s di silenzio) o tocco su "ferma"; rete
+  di sicurezza a 20 s. Chiuso il microfono si fermano le tracce (si spegne
+  l'indicatore di Android) e si manda il frame di fine una volta sola.
+- **Il turno a voce resta aperto fino a tts-end**: chiuderlo alla risposta
+  scritta (come per il testo) cancellerebbe la pipeline prima della TTS.
+- **Audio**: `new Audio(url)` subito a tts-end (a tts-start se
+  `stream_response`). La promessa si risolve sempre: fine, errore, pausa non
+  chiesta (altoparlante Bluetooth scollegato) o tempo massimo. Il testo resta.
+- **Seguito**: solo se l'audio è finito da solo (non interrotto) e HA ha detto
+  `continue_conversation`. Se al seguito nessuno risponde, il turno vuoto si
+  scarta in silenzio, come un Echo.
+- **Dove**: chat aperta → barra della voce al posto del campo; chat chiusa →
+  riquadro piccolo (sopra le stanze sul tablet, mai sopra la barra; in fondo sul
+  telefono), che sparisce 6 s dopo la risposta. "Chiedi a Jarvis…" o un tocco sul
+  riquadro portano la voce nella chat.
+- **Prove**: il microfono finto di Chromium (`--use-fake-device-for-media-stream`)
+  suona di continuo; il finto HA chiude l'ascolto dopo ~0,6 s di audio o col
+  frame di fine (`stt=manuale`). Controprove fatte: audio fatto partire a run-end
+  → la risposta locale resta appesa; microfono non chiuso → bocciano 3 prove.
 
 ### Assistente: protocollo verificato (codice di HA 2026.9.3)
 
@@ -542,6 +606,8 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **F5**: chat aperta → voce nella chat; chat chiusa → riquadro
+  piccolo; seguito come un Echo; bip leggero. v0.4.0.
 - **2026-09-29** — **La F5 (voce) passa prima della fase G**: Salvatore usa solo
   il pannello, non l'app di HA. Ordine: F5 → G → Hub → F3 → F6. Annulla l'ordine
   F4 → G → F5 scritto poche ore prima. Mockup e domande della G non erano
@@ -724,3 +790,12 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   lo stesso context, quindi non poteva distinguere un comando da un avvio. Ora
   è fedele (context con `user_id` dopo un comando, stringa all'avvio). Quando
   una prova si aspetta un valore, chiedersi da dove viene davvero in HA.
+- **Un controllo automatico può scambiare il design per un difetto: si corregge
+  il markup, non la prova.** L'anello del livello, dentro il pulsante, lo faceva
+  "sbordare" e la prova lo segnava come testo tagliato. L'anello ora sta accanto
+  al pulsante, in un contenitore: il pulsante non sborda più e la prova resta
+  severa.
+- **Gli screenshot hanno trovato due difetti della F5 con tutte le prove verdi**:
+  "Sto pensando…" sotto una risposta già scritta (HA stava preparando l'audio) e
+  il pulsante blu invece che grigio (selettore rimasto indietro dopo lo
+  spostamento dell'anello).
