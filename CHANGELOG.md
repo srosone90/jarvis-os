@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.1
+
+Prova di fattibilità di "Ehi Jarvis" (non è ancora la funzione).
+
+- Nuova pagina separata `prova-ehi-jarvis.html`, da aprire a mano sul telefono
+  (`…/local/jarvis/prova-ehi-jarvis.html`, indirizzo https). Riconosce la parola
+  sul telefono, senza mandare audio a Home Assistant, e misura: punteggio in
+  tempo reale con soglia regolabile, attivazioni, tempo di calcolo per frame,
+  serie da 20 a 1 m e a 3 m ("Ehi Jarvis", "Jarvis" da solo, "Jarvis" in una
+  frase), falsi positivi con la TV accesa, batteria. Risultati da copiare.
+- Memoria circolare degli ultimi secondi (regolabile) solo in memoria, con
+  "Ascolta l'ultimo scatto" per sentire cosa verrebbe inviato; indicatore rosso
+  sempre visibile mentre il microfono ascolta.
+- Il pannello non cambia. Il service worker ora lascia passare le pagine che non
+  sono il pannello.
+- Modello openWakeWord "hey_jarvis": licenza non commerciale (va bene per casa e
+  case pilota, non per un servizio a pagamento).
+
 ## v0.4.0
 
 Fase F5: voce "tocca per parlare".

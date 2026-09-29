@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d0f13" />
+    <title>Prova «Ehi Jarvis»</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --accento: #5b8def;
+        --sfondo: #0d0f13;
+        --superficie: #171a21;
+        --superficie-2: #1f232c;
+        --testo: #eef1f6;
+        --attenuato: #9aa3b2;
+        --avviso: #f0a33a;
+        --ok: #3ecf7a;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: var(--sfondo);
+        color: var(--testo);
+        font-family: system-ui, Roboto, sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+      }
+      section {
+        background: var(--superficie);
+        border-radius: 16px;
+        padding: 14px;
+      }
+      small,
+      .nota {
+        color: var(--attenuato);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+      .licenza {
+        border: 1px solid color-mix(in srgb, var(--avviso) 50%, transparent);
+        border-radius: 12px;
+        padding: 10px 12px;
+      }
+      select {
+        max-width: 100%;
+      }
+      button,
+      select,
+      input[type="number"] {
+        font: inherit;
+        color: inherit;
+        background: var(--superficie-2);
+        border: 1px solid #2b303a;
+        border-radius: 12px;
+        min-height: 48px;
+        padding: 0 14px;
+      }
+      button {
+        cursor: pointer;
+      }
+      button.principale {
+        background: var(--accento);
+        color: var(--sfondo);
+        font-weight: 600;
+        border: none;
+      }
+      button[disabled] {
+        opacity: 0.45;
+        cursor: not-allowed;
+      }
+      .riga {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+      .punteggio {
+        font-size: 56px;
+        font-weight: 300;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .punteggio.sopra {
+        color: var(--ok);
+      }
+      canvas {
+        width: 100%;
+        height: 120px;
+        display: block;
+        background: var(--sfondo);
+        border-radius: 10px;
+      }
+      input[type="range"] {
+        flex: 1 1 200px;
+        min-height: 48px;
+      }
+      .scorre {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+        font-variant-numeric: tabular-nums;
+      }
+      td,
+      th {
+        white-space: nowrap;
+        text-align: left;
+        padding: 6px 4px;
+        border-bottom: 1px solid #2b303a;
+      }
+      .attivazione {
+        animation: lampo 0.8s ease-out;
+      }
+      @keyframes lampo {
+        from {
+          background: color-mix(in srgb, var(--ok) 35%, var(--superficie));
+        }
+      }
+      #registro {
+        max-height: 220px;
+        overflow-y: auto;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin: 0;
+      }
+      .privacy {
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        display: none;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: #3a1414;
+        color: #ffd0d0;
+        font-weight: 600;
+      }
+      .privacy.attiva {
+        display: flex;
+      }
+      .privacy i {
+        flex: none;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: #ff4d4d;
+        animation: pulsa 1.4s ease-in-out infinite;
+      }
+      @keyframes pulsa {
+        50% {
+          opacity: 0.35;
+        }
+      }
+      textarea {
+        width: 100%;
+        min-height: 160px;
+        background: var(--sfondo);
+        color: var(--testo);
+        border: 1px solid #2b303a;
+        border-radius: 10px;
+        font:
+          12px ui-monospace,
+          monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="privacy" role="status" data-test="privacy">
+        <i aria-hidden="true"></i>
+        <span
+          >Il microfono sta ascoltando. Gli ultimi <b data-memoria>3,5</b> s restano solo nella memoria del
+          telefono: non vengono né inviati né salvati.</span
+        >
+      </div>
+      <h1>Prova «<span data-parola>Ehi Jarvis</span>»</h1>
+      <p class="nota licenza" data-test="licenza">
+        Solo una prova di fattibilità, non fa parte del pannello. Modello
+        <b data-modello></b> di openWakeWord: licenza <b data-licenza></b>, uso <b>solo non commerciale</b>.
+        Tutto gira qui sul telefono: niente audio va a Home Assistant.
+      </p>
+
+      <section>
+        <div class="riga">
+          <button class="principale" data-azione="avvia">Avvia l'ascolto</button>
+          <button data-azione="ferma" disabled>Ferma</button>
+        </div>
+        <p class="nota" data-test="stato">Pronto. Tieni il telefono acceso e la pagina in primo piano.</p>
+      </section>
+
+      <section data-test="zona-punteggio">
+        <h2>Punteggio</h2>
+        <div class="riga">
+          <span class="punteggio" data-test="punteggio">0,00</span>
+          <small>Attivazioni: <b data-test="attivazioni">0</b></small>
+        </div>
+        <canvas width="720" height="120" aria-label="Punteggio negli ultimi 10 secondi"></canvas>
+        <div class="riga">
+          <label for="soglia">Soglia</label>
+          <input id="soglia" type="range" min="0.05" max="0.95" step="0.05" value="0.5" />
+          <b data-test="soglia">0,50</b>
+        </div>
+        <small>Sopra la soglia = attivazione (poi 2 s di pausa). openWakeWord consiglia 0,5.</small>
+      </section>
+
+      <section>
+        <h2>Tempo di calcolo (per frame da 80 ms)</h2>
+        <div class="scorre">
+          <table data-test="tempi">
+            <tr>
+              <th>Ultimo</th>
+              <th>Media</th>
+              <th>95%</th>
+              <th>Massimo</th>
+              <th>Carico</th>
+              <th>Frame</th>
+            </tr>
+            <tr>
+              <td data-t="ultimo">—</td>
+              <td data-t="media">—</td>
+              <td data-t="p95">—</td>
+              <td data-t="max">—</td>
+              <td data-t="carico">—</td>
+              <td data-t="frame">0</td>
+            </tr>
+          </table>
+        </div>
+        <small>Carico = media / 80 ms. Sopra il 100% il telefono non sta al passo.</small>
+      </section>
+
+      <section>
+        <h2>Serie: 20 «<span data-parola>Ehi Jarvis</span>»</h2>
+        <div class="riga">
+          <select data-test="distanza" aria-label="Distanza">
+            <option value="1 m">a 1 m</option>
+            <option value="3 m">a 3 m</option>
+          </select>
+          <select data-test="come" aria-label="Come dici la parola">
+            <option value="«Ehi Jarvis»">«Ehi Jarvis»</option>
+            <option value="«Jarvis» da solo">«Jarvis» da solo</option>
+            <option value="«Jarvis» in una frase">«Jarvis» in una frase</option>
+          </select>
+          <label
+            >Detti <input type="number" data-test="detti" min="1" max="100" value="20" style="width: 90px"
+          /></label>
+          <button data-azione="serie">Inizia serie</button>
+        </div>
+        <small
+          >Inizia, di' la parola quante volte hai scritto (una ogni 3-4 s, voce normale), poi tocca "Fine
+          serie". Per «Jarvis» da solo prova anche con la soglia più bassa (0,3).</small
+        >
+        <div class="scorre"><table data-test="serie"></table></div>
+      </section>
+
+      <section>
+        <h2>Memoria circolare e ultimo scatto</h2>
+        <div class="riga">
+          <label
+            >Secondi tenuti prima della parola
+            <input
+              type="number"
+              data-test="secondi-memoria"
+              min="1"
+              max="8"
+              step="0.5"
+              value="3.5"
+              style="width: 90px"
+            />
+          </label>
+          <button data-azione="ascolta-scatto" disabled>Ascolta l'ultimo scatto</button>
+          <button data-azione="cancella-scatto" disabled>Cancella</button>
+        </div>
+        <small data-test="scatto"
+          >Nessuno scatto. Allo scatto il telefono tiene i secondi prima della parola e i 4 s dopo: è
+          esattamente l'audio che la funzione vera manderebbe a Home Assistant. Qui non parte niente: lo puoi
+          solo riascoltare, poi si cancella.</small
+        >
+      </section>
+
+      <section>
+        <h2>Falsi positivi (TV accesa)</h2>
+        <div class="riga">
+          <button data-azione="falsi">Inizia il conteggio</button>
+          <span data-test="falsi">—</span>
+        </div>
+        <small>Accendi la TV a volume normale, non dire la parola, lascia andare 1 ora.</small>
+      </section>
+
+      <section>
+        <h2>Calore e batteria</h2>
+        <div class="riga">
+          <label
+            >Temperatura batteria dopo 1 h (°C)
+            <input type="number" data-test="temperatura" step="0.5" style="width: 110px" />
+          </label>
+          <select data-test="calore" aria-label="Calore al tatto">
+            <option value="">Calore al tatto…</option>
+            <option>freddo come prima</option>
+            <option>tiepido</option>
+            <option>caldo</option>
+            <option>molto caldo</option>
+          </select>
+        </div>
+        <small
+          >La temperatura la leggi dal telefono (Impostazioni → Batteria, o un'app). La batteria la registro
+          io ogni 5 minuti.</small
+        >
+      </section>
+
+      <section>
+        <h2>Risultati</h2>
+        <button data-azione="copia">Copia i risultati</button>
+        <textarea readonly data-test="risultati" aria-label="Risultati"></textarea>
+      </section>
+
+      <section>
+        <h2>Registro</h2>
+        <pre id="registro" data-test="registro"></pre>
+      </section>
+    </main>
+    <script type="module" src="./src/prova/ehi-jarvis.ts"></script>
+  </body>
+</html>

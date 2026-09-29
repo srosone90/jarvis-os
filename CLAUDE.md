@@ -78,6 +78,9 @@ In casa **non ci sono luci smart**.
 | `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
+| `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
+| `prova-ehi-jarvis.html`, `src/prova/`, `vite.prova.config.ts` | Pagina della prova di fattibilità "Ehi Jarvis": build a parte, fuori dal pannello e dal service worker |
+| `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
 | `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
@@ -91,6 +94,8 @@ In casa **non ci sono luci smart**.
 | `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
 | `docs/proposta-multicasa.md` | Proposta per le altre case: HACS, stima, esigenze da servizio, cosa progettare subito nella fase G |
 | `docs/mockup-f5.html` | Mockup della voce (F5) |
+| `test/e2e/prova-ehi-jarvis.spec.ts` | Pagina della prova: si apre col service worker installato, modello, frame, privacy, serie |
+| `test/unit/parola.test.ts` | Memoria circolare; rilevatore coi modelli veri |
 | `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, offline |
 | `docs/mockup-f4.html` | Mockup della chat (F4), variante A approvata |
 | `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica |
@@ -450,6 +455,104 @@ Regole per la F5 (requisiti di Salvatore e fatti verificati):
   `run-start.tts_output`, con `stream_response`; è confermato in
   `tts-end.tts_output.url`.
 
+### "Ehi Jarvis": prova di fattibilità (29/09, v0.4.1)
+
+Solo una prova, **non** la funzione: pagina `…/local/jarvis/prova-ehi-jarvis.html`,
+build a parte (`vite.prova.config.ts`, ~17 MB in `dist/prova/`), fuori dal
+service worker del pannello e dai suoi limiti. Il service worker ora risponde
+con `index.html` solo alle navigazioni verso `/` e `index.html` (controprova:
+col comportamento vecchio la pagina di prova non si apre).
+
+**Fatti verificati:**
+
+- **Modello**: openWakeWord `hey_jarvis_v0.1` + `melspectrogram` + `embedding`
+  (release v0.5.1), con onnxruntime-web 1.30.0 (MIT, WASM in un thread, nel
+  bundle, niente CDN). **I modelli pre-addestrati sono CC BY-NC-SA 4.0: solo non
+  commerciali** (`modelli/openwakeword/LICENZA.md`). Il rilevatore è
+  un'interfaccia (`RilevatoreParola`): per un servizio si cambia modello
+  (microWakeWord, Apache 2.0, o uno addestrato apposta). Parola e licenza
+  arrivano dalla descrizione del modello, mai dal codice.
+- **Fedeltà**: `src/parola/rilevatore.ts` riproduce `utils.py`/`model.py` di
+  openWakeWord 0.6.0 (melspettrogramma /10+2, finestre da 76 righe ogni 8, 16
+  embedding, prime 5 previsioni a 0). Sulle stesse 8 clip i punteggi sono
+  **identici all'originale in Python frame per frame** (differenza 0,0000).
+  Nel browser, con una clip come microfono, 3 attivazioni esatte su 3 e 0 sulle
+  frasi negative; ~6 ms per frame su un server (su 80 ms).
+- **"Jarvis" da solo e in qualsiasi punto** (voce sintetica Piper inglese
+  `lessac`, testo italiano letto da voce inglese): "Jarvis." 0,976-0,990;
+  all'inizio 0,918; in mezzo 0,996; alla fine 0,999; dopo la frase di un'altra
+  persona 0,999; "Buongiorno Jarvis"/"Spegni la TV Jarvis" 0,997-0,999; **"Good
+  morning Jarvis" 0,239 (mancato)**; parole simili (Travis, nervous, service,
+  Jason, harvest, Mavis) 0,000-0,001. Una sola voce sintetica: i numeri veri li
+  dà la prova sul telefono.
+- **VAD di HA e audio che inizia col parlato** (segmentatore di `vad.py` 2026.9.3
+  con `pymicro-vad` 1.0.1, stessa versione di HA): il pre-roll col parlato **non
+  è un problema** (servono 0,3 s di voce per "partire"). Il problema è DOPO la
+  parola: con il VAD di serie (0,7 s) una **pausa ≥ 1,0 s dopo "Jarvis" chiude
+  l'ascolto prima della domanda**; con "rilassato" (1,25 s) regge fino a 1,0 s ma
+  non 1,5 s. Chi dice "Jarvis", aspetta il bip e poi parla fa proprio quella
+  pausa. **Per la funzione vera**: fine del parlato decisa sul telefono
+  (`no_vad: true` in `assist_pipeline/run`, VAD locale tipo Silero, MIT) con
+  regole pensate per la parola in qualsiasi punto: dopo la parola si aspetta
+  fino a ~3 s che la frase cominci; se era già stata detta prima (es. "spegni la
+  TV, Jarvis") si manda il pre-roll.
+- **Privacy**: la memoria circolare (`src/parola/memoria.ts`, 3,5 s di default,
+  1-8 regolabile) vive **solo in RAM**, si sovrascrive di continuo, si azzera
+  davvero (`fill(0)`) quando l'ascolto si ferma; nella prova non parte niente
+  verso HA. Indicatore rosso **sempre visibile** mentre il microfono ascolta.
+  Per le altre case va detto nell'informativa: il microfono ascolta di continuo
+  solo sul dispositivo, e invia audio solo dopo la parola.
+- **Android**: il microfono funziona solo con la pagina in primo piano e lo
+  schermo acceso: Wake Lock + ripresa automatica quando la pagina torna visibile;
+  la chiusura del microfono da parte del sistema finisce nel registro.
+- Niente ascolto continuo lato server: il Redmi non regge l'audio di più pannelli.
+
+**Criteri della raccomandazione, decisi prima dei numeri:**
+
+| Esito | Tempo medio per frame | Serie a 1 m | Serie a 3 m | Falsi positivi con la TV | Calore dopo 1 h |
+|---|---|---|---|---|---|
+| **Si fa** | < 40 ms (carico < 50%) | ≥ 18/20 | ≥ 15/20 | ≤ 1 all'ora | tiepido o meno |
+| **Si fa con limiti** | 40-72 ms | 14-17/20 | 10-14/20 | 2-3 all'ora | caldo |
+| **Non si fa** | > 72 ms (non sta al passo) | < 14/20 | < 10/20 | > 3 all'ora | molto caldo |
+
+Vale il caso peggiore tra le colonne. "Con limiti" = si fa con accorgimenti
+(soglia più alta, parola più lunga "Ehi Jarvis" invece di "Jarvis", modello
+dedicato, solo su alcuni telefoni).
+
+**Modello dedicato "Jarvis"** (da valutare solo se la prova vera lo chiede): la
+procedura di openWakeWord genera migliaia di clip sintetiche (Piper), le mescola
+con rumore e parlato negativo (decine di GB di dati) e addestra il classificatore,
+di solito su una GPU (es. Colab), in circa un'ora. La pronuncia italiana si può
+aggiungere con le voci italiane di Piper, ma sono poche: poca varietà. Qui non si
+può fare (niente GPU, e Hugging Face è bloccato dalla rete). Da verificare prima:
+licenza dei modelli melspettrogramma ed embedding, se un servizio a pagamento
+può usarli anche con un classificatore nostro.
+
+### Profili di voce: tono per tipo di voce (deciso il 29/09, dopo "Ehi Jarvis")
+
+- Tono della risposta in base al tipo di voce: **uomo adulto / donna adulta /
+  bambino-a**. Riconoscimento preferito: classificatore leggero **nel browser**
+  (WASM, stesso tipo di modello di "Ehi Jarvis", nessun audio in più inviato),
+  con prova di fattibilità (accuratezza su frasi di 2-3 s, a 1 e 3 m, TV
+  accesa). Scartato salvo prove: etichetta chiesta allo STT di Gemini (rompe i
+  comandi locali, rallenta).
+- **Solo per il tono. I permessi non dipendono mai dalla voce** (fase G, per
+  dispositivo/profilo). Correzione a voce: "Jarvis, sono X".
+- Toni (testi originali della sessione server, niente citazioni dei film):
+  uomo = geniale, sicuro, sarcastico, battuta pronta, risposte brevi (prima
+  l'azione, poi la battuta); bambino/a = semplice, paziente, allegro, frasi
+  corte, niente sarcasmo; donna = da confermare con la moglie di Salvatore
+  (proposta: elegante, cordiale, ironia leggera, diretta). Testi configurabili
+  (multi-casa).
+- **Come passare il tono a Gemini** (codice di HA 2026.9.3): `assist_pipeline/run`
+  e `conversation/process` **non** accettano `extra_system_prompt` dal WebSocket
+  (c'è solo nell'API interna `async_pipeline_from_audio_stream`). Il prompt di
+  Gemini è un template che vede `llm_context.device_id` (quello mandato dal
+  pannello). Strade: (1) prima di ogni richiesta il pannello scrive il tono in un
+  aiutante legato al dispositivo, e il prompt lo legge; (2) l'integrazione HACS
+  offre un comando WebSocket suo che chiama l'API interna con
+  `extra_system_prompt`. Da decidere con mockup e prova.
+
 ### Modalità Hub
 
 Schermata minimal solo voce. Dipende dall'assistente (F4) e dalla voce (F5). Si
@@ -606,6 +709,13 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-09-29** — **Modalità Hub** per i telefoni-pannello, scelta e salvata sul
   dispositivo; è una fase a sé dopo la F5 (dettagli nel piano delle fasi).
   Anche il tablet resta in orizzontale.
+- **2026-09-29** — **"Ehi Jarvis": prova di fattibilità prima della fase G**
+  (pagina separata, v0.4.1). Richieste di Salvatore: anche "Jarvis" da solo, la
+  parola in qualsiasi punto della frase con memoria circolare (pre-roll) solo in
+  RAM, indicatore di privacy. Criteri del verdetto scritti prima dei numeri
+  (sezione 5).
+- **2026-09-29** — **Profili di voce (tono)**: uomo/donna/bambino-a, solo per il
+  tono, mai per i permessi; dopo "Ehi Jarvis", con mockup e prova.
 - **2026-09-29** — **F5**: chat aperta → voce nella chat; chat chiusa → riquadro
   piccolo; seguito come un Echo; bip leggero. v0.4.0.
 - **2026-09-29** — **La F5 (voce) passa prima della fase G**: Salvatore usa solo
@@ -799,3 +909,10 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   "Sto pensando…" sotto una risposta già scritta (HA stava preparando l'audio) e
   il pulsante blu invece che grigio (selettore rimasto indietro dopo lo
   spostamento dell'anello).
+- **Per verificare un'implementazione di un modello, confrontala con
+  l'originale sugli stessi dati, frame per frame.** Il rilevatore JS è stato
+  controllato contro openWakeWord in Python su clip generate con Piper (voce
+  sintetica, offline): stessa uscita a 4 decimali. Senza una sintesi vocale non
+  c'era modo di sapere se riconoscesse davvero "hey jarvis".
+- **Un comando con `rm -rf` va evitato anche nella scratchpad**: è stato
+  rifiutato di nuovo; si crea una cartella con un nome nuovo invece di cancellare.

@@ -42,8 +42,12 @@ self.addEventListener("fetch", (evento) => {
   const url = new URL(richiesta.url);
   if (url.origin !== self.location.origin || !url.href.startsWith(self.registration.scope)) return;
 
-  // Pagina: sempre la index.html in cache (anche con ?auth_callback=… del login).
+  // Pagina del pannello: sempre la index.html in cache (anche con ?auth_callback=…
+  // del login). Solo la radice e index.html: altre pagine (es. la prova "Ehi
+  // Jarvis") vanno alla rete, senza cache.
   if (richiesta.mode === "navigate") {
+    const scope = new URL(self.registration.scope).pathname;
+    if (url.pathname !== scope && url.pathname !== `${scope}index.html`) return;
     evento.respondWith(
       caches.match(new URL("./index.html", self.registration.scope).href).then((r) => r || fetch(richiesta)),
     );

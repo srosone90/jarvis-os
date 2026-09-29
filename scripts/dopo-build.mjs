@@ -21,10 +21,13 @@ function elenca(cartella) {
 }
 
 const versione = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
-const file = elenca(DIST)
-  .map((p) => relative(DIST, p).split("\\").join("/"))
-  .filter((p) => p !== "sw.js")
-  .sort();
+// La pagina della prova "Ehi Jarvis" (vite.prova.config.ts) NON fa parte del
+// pannello: fuori dal service worker e dai limiti, con un controllo suo.
+const DELLA_PROVA = (p) => p === "prova-ehi-jarvis.html" || p.startsWith("prova/");
+const MAX_PROVA_MB = 25;
+const tuttiIFile = elenca(DIST).map((p) => relative(DIST, p).split("\\").join("/"));
+const prova = tuttiIFile.filter(DELLA_PROVA).sort();
+const file = tuttiIFile.filter((p) => p !== "sw.js" && !DELLA_PROVA(p)).sort();
 
 const impronta = createHash("sha256");
 for (const f of file) impronta.update(f).update(readFileSync(join(DIST, f)));
@@ -63,5 +66,16 @@ const js = tutti.filter((f) => f.endsWith(".js") && f !== "sw.js");
 if (js.length !== 1) {
   console.error(`ERRORE: attesi 1 file JavaScript, trovati ${js.length}: ${js.join(", ")}`);
   errori++;
+}
+if (prova.length > 0) {
+  const mb = prova.reduce((s, f) => s + statSync(join(DIST, f)).size, 0) / 1024 / 1024;
+  console.log(
+    `\nProva "Ehi Jarvis" (fuori dal pannello e dal service worker): ${prova.length} file, ${mb.toFixed(1)} MB`,
+  );
+  for (const f of prova) console.log(`  ${f}  (${(statSync(join(DIST, f)).size / 1024).toFixed(1)} KB)`);
+  if (mb > MAX_PROVA_MB) {
+    console.error(`ERRORE: la prova pesa ${mb.toFixed(1)} MB, massimo ${MAX_PROVA_MB}`);
+    errori++;
+  }
 }
 process.exit(errori ? 1 : 0);

@@ -53,6 +53,8 @@ export class MicrofonoNonDisponibile extends Error {
 export interface Ascoltatori {
   pezzo: (pcm: ArrayBuffer) => void;
   livello: (livello: number) => void;
+  /** Il sistema ha chiuso il microfono da solo (es. Android con la pagina in secondo piano). */
+  interrotto?: () => void;
 }
 
 export class Microfono {
@@ -77,6 +79,10 @@ export class Microfono {
       audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
     });
     this.flusso = flusso;
+    for (const traccia of flusso.getTracks())
+      traccia.addEventListener("ended", () => {
+        if (this.flusso === flusso) ascolta.interrotto?.();
+      });
     try {
       let contesto: AudioContext;
       try {
