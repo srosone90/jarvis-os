@@ -86,9 +86,27 @@ reset();
 const clienti = new Set(); // { ws, abbonamentiEntita:Set<id>, abbonamentiMeteo:Map<id,entita> }
 const ritardo = () => new Promise((r) => setTimeout(r, stato.latenza));
 
+/**
+ * Come HA vero: se il client ha chiesto `coalesce_messages` (la libreria lo fa
+ * sempre), i messaggi pronti nello stesso giro del loop partono insieme in UN
+ * solo frame, come array JSON. È così che risultato di una sottoscrizione e
+ * primo evento arrivano attaccati: la v0.1.0 cadeva proprio lì.
+ */
 async function invia(cliente, msg) {
   await ritardo();
-  if (cliente.ws.readyState === 1) cliente.ws.send(JSON.stringify(msg));
+  if (!cliente.coalesce) {
+    if (cliente.ws.readyState === 1) cliente.ws.send(JSON.stringify(msg));
+    return;
+  }
+  cliente.coda.push(msg);
+  if (cliente.invioProgrammato) return;
+  cliente.invioProgrammato = true;
+  setImmediate(() => {
+    cliente.invioProgrammato = false;
+    const gruppo = cliente.coda.splice(0);
+    if (cliente.ws.readyState === 1)
+      cliente.ws.send(JSON.stringify(gruppo.length === 1 ? gruppo[0] : gruppo));
+  });
 }
 
 function trasmettiEntita(agg) {
@@ -132,7 +150,11 @@ const server = createServer(async (req, res) => {
         c: "ctx",
         lc: Date.now() / 1000,
       };
-      trasmettiEntita({ a: { [entity_id]: stato.entita[entity_id] } });
+      // Come HA: entità nuova → "a"; entità esistente → differenza "c"
+      const n = stato.entita[entity_id];
+      trasmettiEntita(
+        vecchia ? { c: { [entity_id]: { "+": { s: n.s, a: n.a, lc: n.lc } } } } : { a: { [entity_id]: n } },
+      );
     } else if (comando === "rimuovi") {
       const id = url.searchParams.get("entity_id");
       delete stato.entita[id];
@@ -233,7 +255,15 @@ server.on("upgrade", (req, socket, testa) => {
 });
 
 function gestisci(ws) {
-  const cliente = { ws, autenticato: false, abbonamentiEntita: new Set(), abbonamentiMeteo: new Map() };
+  const cliente = {
+    ws,
+    autenticato: false,
+    coalesce: false,
+    coda: [],
+    invioProgrammato: false,
+    abbonamentiEntita: new Set(),
+    abbonamentiMeteo: new Map(),
+  };
   clienti.add(cliente);
   stato.info.connessioni++;
   ws.on("close", () => clienti.delete(cliente));
@@ -256,12 +286,13 @@ function gestisci(ws) {
     const { id, type } = msg;
     switch (type) {
       case "supported_features":
+        cliente.coalesce = msg.features?.coalesce_messages === 1;
         return invia(cliente, { id, type: "result", success: true, result: null });
       case "ping":
         return invia(cliente, { id, type: "pong" });
       case "subscribe_entities":
         cliente.abbonamentiEntita.add(id);
-        await invia(cliente, { id, type: "result", success: true, result: null });
+        void invia(cliente, { id, type: "result", success: true, result: null });
         return invia(cliente, { id, type: "event", event: { a: stato.entita } });
       case "weather/subscribe_forecast": {
         if (!stato.entita[msg.entity_id])
@@ -272,7 +303,7 @@ function gestisci(ws) {
             error: { code: "not_found", message: "Entity not found" },
           });
         cliente.abbonamentiMeteo.set(id, msg.entity_id);
-        await invia(cliente, { id, type: "result", success: true, result: null });
+        void invia(cliente, { id, type: "result", success: true, result: null });
         return invia(cliente, { id, type: "event", event: { type: "daily", forecast: previsione() } });
       }
       case "unsubscribe_events":

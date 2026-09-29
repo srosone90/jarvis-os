@@ -101,12 +101,15 @@ export class Connessione {
       try {
         const conn = await createConnection({ auth, createSocket: this.creaSocket });
         this.conn = conn;
-        conn.addEventListener("ready", this.suPronta);
+        conn.addEventListener("ready", this.suRiconnessa);
         conn.addEventListener("disconnected", this.suDisconnessa);
         conn.addEventListener("reconnect-error", this.suErroreRiconnessione);
+        // Il segnale "foto completa in arrivo" si arma PRIMA di mandare l'iscrizione,
+        // mai dopo l'await: HA raggruppa risultato e foto completa nello stesso
+        // pacchetto, e la foto arriva prima che il codice dopo l'await riparta.
         this.prossimoCompleto = true;
         await conn.subscribeMessage<AggiornamentoEntita>(this.suEntita, { type: "subscribe_entities" });
-        this.suPronta();
+        this.segnaConnesso();
         this.avviaPing();
         return;
       } catch (errore) {
@@ -157,10 +160,19 @@ export class Connessione {
     this.negozio.aggiorna(applicaAggiornamento(this.negozio.tutte, agg, completo));
   };
 
-  private readonly suPronta = (): void => {
-    // Dopo una riconnessione la libreria risottoscrive subscribe_entities:
-    // il prossimo messaggio sostituisce tutto (vedi stato/entita.ts).
+  /**
+   * Evento "ready" della libreria dopo una riconnessione: nello stesso istante
+   * (sincrono, in `_setSocket`) la libreria ha appena rimandato
+   * subscribe_entities, e nessuna risposta può essere già arrivata. È quindi il
+   * momento giusto per armare "il prossimo messaggio sostituisce tutto".
+   */
+  private readonly suRiconnessa = (): void => {
     this.prossimoCompleto = true;
+    this.segnaConnesso();
+  };
+
+  /** Solo stato dell'interfaccia: NON tocca il segnale della foto completa. */
+  private segnaConnesso(): void {
     this.tentativo = 0;
     this.imposta({
       stato: "connesso",
@@ -170,7 +182,7 @@ export class Connessione {
     });
     if (this.info.riconnessioni > 0) log.info("Riconnesso a Home Assistant");
     void this.misuraLatenza();
-  };
+  }
 
   private readonly suDisconnessa = (): void => {
     log.avviso("Connessione a Home Assistant persa");

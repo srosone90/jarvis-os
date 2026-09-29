@@ -124,7 +124,9 @@ In casa **non ci sono luci smart**.
 - **Entità**: iscrizione diretta a `subscribe_entities` con il nostro
   `applicaAggiornamento`. Il primo messaggio dopo ogni (ri)sottoscrizione
   **sostituisce** tutto; la libreria invece lo fonderebbe, lasciando "fantasmi" le
-  entità cancellate mentre il pannello era offline.
+  entità cancellate mentre il pannello era offline. Il segnale `prossimoCompleto`
+  si arma solo prima di mandare l'iscrizione (primo collegamento) e nell'evento
+  `ready` (riconnessione, sincrono col reinvio): vedi lezioni, v0.1.0.
 - **Offline**: il pallino è sempre visibile. Dopo 10 s senza HA compaiono il
   banner e i valori "non aggiornati" (in arancione e scritto a parole).
 - **Login**: senza token, schermata "Collega" con un pulsante; prima del redirect
@@ -240,6 +242,16 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   riconnessione**: le entità cancellate nel frattempo restano. Per questo
   l'iscrizione alle entità è gestita da noi (`stato/entita.ts`). La prova e2e
   "HA che cade e torna" fallisce se si toglie la sostituzione (verificato).
+- **v0.1.0 rotta sul tablet vero ("Connesso" ma tutto "non trovato"), prove
+  verdi.** HA vero, con `coalesce_messages` (la libreria lo attiva sempre), manda
+  risultato dell'iscrizione e foto completa nello STESSO frame, e la libreria li
+  processa di fila in modo sincrono: il codice dopo `await subscribeMessage(...)`
+  riparte quando la foto è già arrivata. Riarmare lì "il prossimo è completo"
+  faceva scambiare il primo `{c:…}` per una foto completa → negozio svuotato.
+  Regola: **quello che deve succedere prima della risposta si fa prima di
+  mandare la richiesta, mai dopo l'`await`**. Il finto HA ora raggruppa i
+  messaggi e manda i cambi come `c`; la prova riproduceva il bug prima della
+  correzione. Trovato dalla sessione server leggendo il bundle pubblicato.
 - **Mai `pkill -f` o `grep` con il nome del processo scritto per intero** nella
   stessa riga di comando: il pattern compare anche nella riga della shell, che si
   uccide da sola (è successo due volte). Si usa `pkill -f "server[.]mjs"`.

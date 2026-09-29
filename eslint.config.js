@@ -39,6 +39,7 @@ export default tseslint.config(
   {
     // Finto Home Assistant delle prove: script Node, lo stato è una mappa di entità
     files: ["test/finto-ha/**"],
+    languageOptions: { globals: { setImmediate: "readonly" } },
     rules: { "@typescript-eslint/no-dynamic-delete": "off" },
   },
 );

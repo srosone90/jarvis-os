@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.1.1
+
+Correzione bloccante trovata sul tablet vero.
+
+- Con Home Assistant vero il pannello risultava "Connesso" ma tutte le entità
+  "non trovato". HA raggruppa in un solo pacchetto la conferma dell'iscrizione
+  e la foto completa degli stati; il pannello riarmava il segnale "il prossimo
+  messaggio è la foto completa" DOPO averla già ricevuta, e il primo piccolo
+  aggiornamento cancellava tutte le altre entità. Ora il segnale si arma solo
+  quando l'iscrizione viene (ri)mandata.
+- Il finto Home Assistant delle prove ora raggruppa i messaggi come quello vero
+  e manda i cambi come differenze: le prove riproducevano il bug prima della
+  correzione e passano dopo.
+- Diagnostica: il numero di "entità ricevute" è verificato dalle prove.
+
 ## v0.1.0
 
 Prima versione (fase F1).

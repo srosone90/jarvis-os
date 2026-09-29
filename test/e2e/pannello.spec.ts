@@ -66,9 +66,20 @@ test("primo accesso: login OAuth, dati reali di HA, indirizzo ripulito, login ri
   await expect(stanze.nth(0).getByTestId("stanza-percepita")).toHaveText("26,5°");
   await expect(stanze.nth(1).getByTestId("stanza-percepita")).toHaveText("25,6°");
 
-  // un cambio in HA arriva in push
+  // un cambio in HA arriva in push (differenza "c", come HA vero)...
   await comando(request, "stato", { entity_id: "sensor.meter_salone_temperatura", state: "24.2" });
   await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("24,2°");
+  // ...e NON cancella le altre entità (bug della v0.1.0 sul tablet vero)
+  await comando(request, "stato", { entity_id: "sensor.meter_letto_temperatura", state: "25.3" });
+  await expect(stanze.nth(1).getByTestId("stanza-temp")).toHaveText("25,3°");
+  await expect(page.getByTestId("meteo-temp")).toHaveText("22°");
+  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("24,2°");
+  await expect(stanze.nth(0).getByTestId("stanza-percepita")).toHaveText("26,5°");
+  await expect(stanze.nth(1).getByTestId("stanza-percepita")).toHaveText("25,6°");
+  await expect(page.getByText("non trovato")).toHaveCount(0);
+  await apriDiagnostica(page);
+  await expect(page.getByTestId("entita-ricevute")).toHaveText("9");
+  await page.getByTestId("chiudi-diagnostica").click();
 
   // ricaricando non si rifà il login
   await page.reload();
@@ -104,6 +115,12 @@ test("HA che cade e torna: banner dopo 10 s, valori non aggiornati, poi risincro
   // il sensore cancellato NON resta come "fantasma" col vecchio valore
   await expect(stanze.nth(1)).toContainText("Sensore non trovato: sensor.meter_letto_umidita");
   await expect(stanze.nth(1)).not.toContainText("43%");
+
+  // dopo la riconnessione, un piccolo aggiornamento NON deve cancellare il resto
+  await comando(request, "stato", { entity_id: "sensor.meter_letto_temperatura", state: "24.8" });
+  await expect(stanze.nth(1).getByTestId("stanza-temp")).toHaveText("24,8°");
+  await expect(stanze.nth(0).getByTestId("stanza-temp")).toHaveText("27,3°");
+  await expect(page.getByTestId("meteo-temp")).toHaveText("22°");
 
   await apriDiagnostica(page);
   await expect(page.getByTestId("riconnessioni")).toHaveText("1");

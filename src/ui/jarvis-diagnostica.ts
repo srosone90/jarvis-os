@@ -169,7 +169,7 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         <dt>Home Assistant</dt>
         <dd>${info.versioneHA ?? "—"}</dd>
         <dt>Entità ricevute</dt>
-        <dd>${connessione.negozio.quante}</dd>
+        <dd data-test="entita-ricevute">${connessione.negozio.quante}</dd>
         <dt>Aggiornamento app</dt>
         <dd data-test="aggiornamento">
           ${
