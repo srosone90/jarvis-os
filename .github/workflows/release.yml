@@ -1,14 +1,18 @@
 name: Release
 
 # Pubblica una release con jarvis-dist.zip, il cui contenuto va scompattato così
-# com'è in /config/www/jarvis/ sul server. Due modi:
-#   - push di un tag uguale alla versione di package.json (git push origin vX.Y.Z);
-#   - avvio a mano (workflow_dispatch) su un branch: il tag vX.Y.Z lo crea il
-#     workflow stesso sul commit verificato. Serve perché dalle sessioni cloud di
-#     Claude il push dei tag non passa.
-# In entrambi i casi il workflow rifà TUTTE le verifiche prima di pubblicare.
+# com'è in /config/www/jarvis/ sul server.
+#
+# Parte a ogni push sul branch principale: se la versione di package.json NON
+# ha ancora una release, rifà TUTTE le verifiche, crea il tag vX.Y.Z sul commit
+# verificato e pubblica; se la release esiste già, non fa niente. Quindi: per
+# pubblicare si alza la versione (package.json + CHANGELOG.md) e si fa push.
+# (Dalle sessioni cloud di Claude non passano né il push dei tag né l'avvio via
+# API: per questo il meccanismo è il push.) Si può avviare anche a mano da
+# GitHub, o con il push di un tag uguale alla versione.
 on:
   push:
+    branches: ["claude/new-session-vpjgbq", "main"]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -34,19 +38,30 @@ jobs:
             exit 1
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - name: La release non esiste già
+      - name: Serve una release nuova?
+        id: serve
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           if gh release view "${{ steps.versione.outputs.tag }}" >/dev/null 2>&1; then
-            echo "La release ${{ steps.versione.outputs.tag }} esiste già: alza la versione in package.json"
+            echo "La release ${{ steps.versione.outputs.tag }} esiste già: niente da pubblicare."
+            echo "nuova=no" >> "$GITHUB_OUTPUT"
+          elif ! grep -qx "## ${{ steps.versione.outputs.tag }}" CHANGELOG.md; then
+            echo "Manca la sezione '## ${{ steps.versione.outputs.tag }}' in CHANGELOG.md"
             exit 1
+          else
+            echo "nuova=si" >> "$GITHUB_OUTPUT"
           fi
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run verifica
-      - run: bash scripts/crea-zip.sh
+      - if: steps.serve.outputs.nuova == 'si'
+        run: npm ci
+      - if: steps.serve.outputs.nuova == 'si'
+        run: npx playwright install --with-deps chromium
+      - if: steps.serve.outputs.nuova == 'si'
+        run: npm run verifica
+      - if: steps.serve.outputs.nuova == 'si'
+        run: bash scripts/crea-zip.sh
       - name: Pubblica la release
+        if: steps.serve.outputs.nuova == 'si'
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.versione.outputs.tag }}

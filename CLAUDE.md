@@ -193,10 +193,10 @@ npm run e2e             # Playwright contro il finto HA (serve dist/ già compil
 bash scripts/crea-zip.sh
 node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/jarvis/index.html
 
-# Release: versione in package.json + sezione "## vX.Y.Z" in CHANGELOG.md, push,
-# poi si avvia a mano il workflow "Release" (workflow_dispatch) sul branch:
-# crea lui il tag vX.Y.Z e allega jarvis-dist.zip. Da una macchina normale va
-# bene anche: git tag vX.Y.Z && git push origin vX.Y.Z
+# Release: versione in package.json + sezione "## vX.Y.Z" in CHANGELOG.md, poi
+# push sul branch principale. Il workflow "Release" vede che vX.Y.Z non esiste,
+# rifà tutte le verifiche, crea il tag e allega jarvis-dist.zip. Se la release
+# esiste già non fa niente.
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
@@ -244,8 +244,9 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   stessa riga di comando: il pattern compare anche nella riga della shell, che si
   uccide da sola (è successo due volte). Si usa `pkill -f "server[.]mjs"`.
 - **Dalle sessioni cloud di Claude il push dei tag non passa** (il proxy git
-  accetta solo il branch di lavoro: "remote end hung up"). La release si avvia
-  quindi da GitHub con `workflow_dispatch` e il tag lo crea il workflow.
+  accetta solo il branch di lavoro: "remote end hung up"), e nemmeno l'avvio di
+  un workflow via API (403). Per questo la release parte dal push sul branch
+  principale quando la versione è nuova, e il tag lo crea il workflow.
 - **Il branch di default del repo è `claude/new-session-vpjgbq`**, non `main`:
   attenzione ai link "raw" e a "latest".
 - **Controprova non conclusiva su `updateViaCache`.** Con `'all'` la prova di
