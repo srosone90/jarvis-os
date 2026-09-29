@@ -11,11 +11,15 @@ import { deveRicaricare, giornoDi } from "./ricarica-notturna";
 let registrazione: ServiceWorkerRegistration | null = null;
 const INTERVALLO_CONTROLLO_MS = 6 * 60 * 60_000;
 
-export type StatoAggiornamento = "nessuno" | "pronto" | "non-supportato";
+export type StatoAggiornamento = "nessuno" | "in-download" | "pronto" | "non-supportato";
 
+/** Letto a ogni ridisegno della diagnostica (ogni secondo mentre è aperta). */
 export function statoAggiornamento(): StatoAggiornamento {
   if (!registrazione) return "non-supportato";
-  return registrazione.waiting ? "pronto" : "nessuno";
+  if (registrazione.waiting) return "pronto";
+  // Sull'indirizzo HTTPS scaricare la versione nuova richiede qualche secondo:
+  // meglio dirlo che mostrare "nessuno" nel frattempo.
+  return registrazione.installing ? "in-download" : "nessuno";
 }
 
 export async function registraServiceWorker(): Promise<void> {

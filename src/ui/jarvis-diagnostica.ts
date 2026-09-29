@@ -175,6 +175,7 @@ export class JarvisDiagnostica extends RiquadroSicuro {
           ${
             {
               nessuno: "nessuno",
+              "in-download": "in download…",
               pronto: "pronto (si applica alle 04:00)",
               "non-supportato": "service worker non attivo",
             }[agg]

@@ -265,3 +265,9 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   aggiornamento fallisce, ma non nel punto atteso: il browser trova comunque la
   versione nuova. Si tiene `'none'` perché è corretto con la cache di un mese di HA,
   senza sostenere che sia dimostrato indispensabile.
+- **Segnalazione "la diagnostica non vede l'aggiornamento" (29/09), non
+  riprodotta.** La diagnostica si ridisegna ogni secondo e rilegge
+  `registration.waiting`; la prova e2e che simula il tablet (ricarica su
+  indirizzo lento, diagnostica aperta subito) arriva a "pronto". Resta aperto il
+  sintomo simile visto nella controprova con `updateViaCache: 'all'`: se si
+  ripresenta sul tablet vero, partire da lì. Aggiunto lo stato "in download…".

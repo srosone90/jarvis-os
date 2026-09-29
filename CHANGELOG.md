@@ -1,5 +1,12 @@
 # Changelog
 
+## Non ancora rilasciato
+
+- Diagnostica: "Aggiornamento app" mostra anche "in download…" mentre la
+  versione nuova si sta scaricando (sull'HTTPS richiede qualche secondo).
+- Nuova prova e2e che simula il tablet: versione nuova sul server, ricarica
+  sull'indirizzo lento, diagnostica aperta subito → deve arrivare a "pronto".
+
 ## v0.1.1
 
 Correzione bloccante trovata sul tablet vero.

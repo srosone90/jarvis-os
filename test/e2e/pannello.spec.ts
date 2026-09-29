@@ -266,3 +266,20 @@ test("aggiornamento controllato: la versione nuova si scarica ma si applica solo
   expect(inAttesa).toBeNull();
   await expect(page.getByTestId("meteo-temp")).toHaveText("22°");
 });
+
+test("aggiornamento come sul tablet: ricarica su indirizzo lento, diagnostica aperta subito", async ({
+  page,
+  request,
+}) => {
+  await accedi(page);
+  await aspettaServiceWorker(page);
+  await comando(request, "nuova-versione");
+  await comando(request, "latenza?ms=1500");
+  await page.reload();
+  await expect(page.getByTestId("ora")).toBeVisible();
+  await apriDiagnostica(page);
+  // la versione nuova si scarica in qualche secondo: la diagnostica aperta deve accorgersene da sola
+  await expect(page.getByTestId("aggiornamento")).toHaveText("pronto (si applica alle 04:00)", {
+    timeout: 45_000,
+  });
+});
