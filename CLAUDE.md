@@ -189,7 +189,7 @@ i componenti hanno solo le loro regole "compatte".
 | Fase | Cosa | Stato |
 |---|---|---|
 | F1 | Scheletro PWA, connessione, orologio e meteo, clima, diagnostica | v0.1.2 |
-| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1; prove sui dispositivi veri da fare |
+| F2 | Stanze e comandi dei dispositivi | v0.2.0, layout v0.2.1–v0.2.2; prove sui dispositivi veri da fare |
 | F3 | Scene (Buonanotte, Esco, Rientro) | Da fare |
 | F4 | Assistente testuale (barra + chat, Assist di HA) | Da fare |
 | F5 | Voce **"tocca per parlare"**. Prove obbligatorie: uscita audio cambiata o scollegata **a metà risposta** (il pannello non si deve bloccare) | Da fare |
@@ -393,3 +393,11 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   offline la riga "Valori non aggiornati" allungava la Camera fuori schermo: il
   "non aggiornato" ora si mostra colorando il clima di arancione, e a parole
   nel banner ("valori non aggiornati"), senza righe in più. Ogni testo nuovo va provato offline.
+- **"Nessuna sovrapposizione" non basta: v0.2.1 spezzava le parole.** Con
+  `overflow-wrap: anywhere` e un pulsante che può stringersi fino a 48 px, a
+  915×412 usciva «Scaldabagn|o». La prova passava perché nulla si sovrapponeva
+  né sbordava. Ora conta anche le parole su più righe (Range per parola) e,
+  prima della correzione, bocciava 2 misure su 6. Regola: nomi con
+  `overflow-wrap: break-word`, e nel compatto il blocco del nome non scende
+  sotto `min-content`. **Gli screenshot si guardano sempre, anche con le prove
+  verdi**: è lì che è venuto fuori.

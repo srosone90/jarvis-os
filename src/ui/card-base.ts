@@ -114,7 +114,8 @@ export const stileCard = [
       font-size: 18px;
       font-weight: 500;
       min-width: 0;
-      overflow-wrap: anywhere;
+      /* a capo tra le parole; una parola si spezza solo se da sola non ci sta */
+      overflow-wrap: break-word;
     }
     .stato {
       font-size: 15px;
@@ -212,6 +213,8 @@ export const stileCard = [
       .card.in-riga > .principale,
       .card.in-riga > .testo {
         flex: 1 1 90px;
+        /* mai più stretto della parola più lunga: vanno a capo i pulsanti, non le lettere */
+        min-width: min-content;
       }
       .card.in-riga > .comandi,
       .card.in-riga > small {

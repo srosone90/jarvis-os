@@ -8,7 +8,8 @@ import { accedi, comando } from "./aiuti";
  * caso più alto) e poi anche offline:
  *  - nessun riquadro principale che si interseca con un altro;
  *  - ogni card dentro la sua stanza, e nessuna card sopra un'altra;
- *  - nessun testo tagliato, niente scorrimento orizzontale;
+ *  - nessun testo tagliato né parola spezzata a metà («Scaldabagn|o»);
+ *  - niente scorrimento orizzontale;
  *  - sul tablet: niente scorrimento verticale e tutto dentro lo schermo.
  * Gli screenshot finiscono in schermate/layout/ (ignorata da Git).
  */
@@ -33,6 +34,7 @@ interface Misura {
   principali: Rettangolo[];
   stanze: { stanza: Rettangolo; card: Rettangolo[] }[];
   tagliati: string[];
+  spezzate: string[];
   larghezzaPagina: number;
   altezzaPagina: number;
 }
@@ -79,10 +81,32 @@ function misura(page: Page): Promise<Misura> {
       }
     };
     guarda(document);
+    // una parola che occupa più di una riga è stata spezzata a metà
+    const spezzate: string[] = [];
+    const parole = (radice: Document | ShadowRoot) => {
+      const giro = document.createTreeWalker(radice, NodeFilter.SHOW_TEXT);
+      for (let n = giro.nextNode(); n; n = giro.nextNode()) {
+        const testo = n.textContent ?? "";
+        const genitore = n.parentElement;
+        if (!genitore || !visibile(genitore)) continue;
+        for (const m of testo.matchAll(/\S+/g)) {
+          const r = document.createRange();
+          r.setStart(n, m.index);
+          r.setEnd(n, m.index + m[0].length);
+          const righe = new Set(
+            [...r.getClientRects()].filter((c) => c.width > 0).map((c) => Math.round(c.top)),
+          );
+          if (righe.size > 1) spezzate.push(`«${m[0]}» in ${genitore.localName}.${genitore.className}`);
+        }
+      }
+      for (const e of radice.querySelectorAll("*")) if (e.shadowRoot) parole(e.shadowRoot);
+    };
+    parole(document);
     return {
       principali,
       stanze,
       tagliati,
+      spezzate,
       larghezzaPagina: document.documentElement.scrollWidth,
       altezzaPagina: document.documentElement.scrollHeight,
     };
@@ -116,6 +140,7 @@ function controlla(m: Misura, larghezza: number, altezza: number, unica: boolean
       problemi.push(`${r.nome} esce dallo schermo in basso (${Math.round(r.b)} > ${altezza})`);
   }
   problemi.push(...m.tagliati.map((t) => `testo tagliato: ${t}`));
+  problemi.push(...m.spezzate.map((t) => `parola spezzata: ${t}`));
   if (m.larghezzaPagina > larghezza)
     problemi.push(`scorrimento orizzontale: ${m.larghezzaPagina} > ${larghezza}`);
   if (unica && m.altezzaPagina > altezza) problemi.push(`la pagina scorre: ${m.altezzaPagina} > ${altezza}`);

@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.2
+
+Correzione di layout della v0.2.1.
+
+- Sui telefoni in orizzontale i nomi delle card andavano a capo a metà parola
+  («Scaldabagn|o»). Ora vanno a capo solo tra una parola e l'altra: se non c'è
+  posto scendono i pulsanti, non le lettere.
+- La prova di layout controlla anche le parole spezzate, a tutte e 6 le misure.
+
 ## v0.2.1
 
 Solo layout, nessuna funzione nuova: il pannello non si sovrappone più a
