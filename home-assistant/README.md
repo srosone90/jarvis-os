@@ -208,9 +208,21 @@ media_player di HA (`async_refresh`, come fa HA stesso).
 | `jarvis_musica.stato` | `script.jarvis_musica_stato` | "Cosa sta suonando": titolo, artisti, dispositivo, stanza, volume, oppure "in pausa" o "niente" |
 
 Tutti rispondono con `esito` ok o errore e un `messaggio` breve in italiano.
-`riproduci` aggiunge `tempi_ms` (ricerca, avvio, totale), che servono a capire
-dove se ne vanno i secondi sull'Echo vero. Gli stessi tempi vanno nel log a
-livello info. Chiamati senza risposta, per esempio da un'automazione, gli errori
+`riproduci` e `controllo` aggiungono `tempi_ms`, che servono a capire dove se
+ne vanno i secondi sull'Echo vero: ricerca, avvio e totale per `riproduci`;
+comando, conferma e totale per `controllo`.
+
+Come leggere i tempi:
+
+- **dalla risposta**: Strumenti per sviluppatori → Azioni →
+  `jarvis_musica.riproduci`, con "restituisci la risposta" attivo;
+- **dal log**: sono a livello info, quindi se il logger di HA è a warning
+  servono queste righe in `configuration.yaml`:
+  ```yaml
+  logger:
+    logs:
+      custom_components.jarvis_musica: info
+  ``` Chiamati senza risposta, per esempio da un'automazione, gli errori
 arrivano come eccezione con lo stesso messaggio.
 
 Errori, con un `codice` stabile:
@@ -237,7 +249,7 @@ Errori, con un `codice` stabile:
 
 | File | Si aggiorna? |
 |---|---|
-| `custom_components/jarvis_musica/` | Sì, si sovrascrive a ogni versione |
+| `custom_components/jarvis_musica/` (`__init__.py`, `scelta.py`, `services.yaml`, `manifest.json`) | Sì, si sovrascrive a ogni versione |
 | `packages/jarvis_musica.yaml` (solo gli script) | Sì, si sovrascrive a ogni versione |
 | `packages/jarvis_musica_stanze.yaml` (le stanze di questa casa) | **No.** Si crea una volta da `esempi/jarvis_musica_stanze.yaml` e poi non si tocca più |
 
@@ -282,7 +294,7 @@ configurazione segnala il doppione.
 e un file di stanze di prova. Al posto di Spotify c'è un client finto che
 restituisce oggetti costruiti con i **modelli veri di spotifyaio 2.0.2**. Si
 comporta come l'API: nessun comando conferma niente, e certi comandi vengono
-accettati senza effetto. Verifica 53 casi:
+accettati senza effetto. Verifica 55 casi:
 
 - avvio: artista, brano, genere; secondo dispositivo della stanza; candidato
   che non parte;
@@ -292,17 +304,21 @@ accettati senza effetto. Verifica 53 casi:
 - tutti i comandi, compreso quello accettato ma mai eseguito;
 - tutti gli errori;
 - i tre script con la risposta per Gemini;
+- `services.yaml` valido con lo schema di HA 2026.9.3. Senza quel file HA
+  scriveva un errore a ogni avvio, e la prova non lo vedeva perché nessuno
+  chiedeva le descrizioni;
 - log senza errori.
 
 Controprove:
 
 - con l'ordine di Spotify al posto del nome esatto cade la prova "Queen";
 - senza rilettura dopo i comandi cade la prova "accettato ma mai eseguito";
-- senza rilettura dopo l'avvio cadono 3 prove.
+- senza rilettura dopo l'avvio cadono 3 prove;
+- con un selettore sbagliato in `services.yaml` cade la sua prova.
 
 ```bash
 uv python install 3.14.7   # HA 2026.9.3 vuole Python ≥ 3.14.2
 uv venv -p 3.14.7 .venv-ha-2026-9 && VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
-.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 53/53
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 55/55
 .venv-ha-2026-9/bin/hass --script check_config -c <cartella con configuration.yaml, packages/, custom_components/>
 ```

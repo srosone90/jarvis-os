@@ -118,7 +118,7 @@ In casa **non ci sono luci smart**.
 | `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
 | `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
 | `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
-| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (53 casi) |
+| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (55 casi) |
 | `prova-ehi-jarvis.html`, `src/prova/`, `vite.prova.config.ts` | Pagina della prova di fattibilità "Ehi Jarvis": build a parte, fuori dal pannello e dal service worker |
 | `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
@@ -912,7 +912,7 @@ node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/
 # conosceva solo 3.14.0rc2: `pip install -U uv` in un venv a parte)
 uv python install 3.14.7 && uv venv -p 3.14.7 .venv-ha-2026-9
 VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
-.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 29/29
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 55/55
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
@@ -1021,6 +1021,11 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **Un componente che registra servizi vuole `services.yaml`.** Senza, HA 2026.9.3
+  scrive "Failed to load services.yaml" a ogni avvio. La prova non lo vedeva:
+  HA legge il file solo quando qualcuno chiede le descrizioni (interfaccia,
+  Assist). Ora la prova lo valida con lo schema di HA (`_SERVICES_SCHEMA`).
+  Controprova: un selettore sbagliato la fa cadere.
 - **I dati di una casa non stanno nel file che si aggiorna.** La prima
   versione di `jarvis_musica.yaml` conteneva le stanze da compilare: al primo
   aggiornamento, copiarlo avrebbe cancellato i nomi veri degli Echo. Ora le

@@ -35,6 +35,10 @@ from homeassistant import bootstrap, config as conf_util, loader
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError, OAuth2TokenRequestReauthError
+from homeassistant.helpers.service import _SERVICES_SCHEMA  # noqa: PLC2701 - lo stesso usato da HA
+from homeassistant.util.yaml import load_yaml_dict
+
+SCHEMA_CONTROLLO_CAMPI = ("azione", "dove", "livello")
 from aiohttp import RequestInfo
 from multidict import CIMultiDict, CIMultiDictProxy
 
@@ -319,6 +323,19 @@ async def prova() -> int:
             return await hass.services.async_call("jarvis_musica", "stato", {}, blocking=True, return_response=True)
 
         print("\n1. Il componente parte e il servizio c'è")
+        # HA legge services.yaml solo quando qualcuno chiede le descrizioni
+        # (interfaccia, Assist): senza file scriveva un errore a ogni avvio.
+        # Stesso schema e stesso lettore di HA 2026.9.3 (async_get_all_descriptions
+        # qui non si può usare: passa da tutte le integrazioni, e qui alcune di
+        # base non hanno le loro librerie)
+        try:
+            descrizioni = _SERVICES_SCHEMA(load_yaml_dict(str(COMPONENTE / "services.yaml")))
+        except Exception as errore:  # noqa: BLE001 - la prova lo riporta
+            descrizioni = {"errore": str(errore)}
+        verifica(set(descrizioni) == {"riproduci", "controllo", "stato"}
+                 and descrizioni["riproduci"].get("name") == "Riproduci"
+                 and set(descrizioni["controllo"]["fields"]) == set(SCHEMA_CONTROLLO_CAMPI),
+                 "services.yaml valido per HA: i tre servizi con nomi e campi", descrizioni)
         verifica(hass.services.has_service("jarvis_musica", "riproduci"), "servizio jarvis_musica.riproduci")
         verifica(hass.services.has_service("script", "jarvis_musica"), "script.jarvis_musica dal pacchetto")
         verifica(all(hass.services.has_service("jarvis_musica", n) for n in ("controllo", "stato"))
@@ -382,6 +399,8 @@ async def prova() -> int:
         prima_agg = len(aggiornamenti)
         r = await controllo(azione="pausa")
         verifica(r.get("esito") == "ok" and r.get("stato") == "in_pausa", "pausa confermata", r)
+        verifica(set(r.get("tempi_ms", {})) == {"comando", "conferma", "totale"},
+                 "anche i comandi riportano i tempi misurati", r.get("tempi_ms"))
         verifica(len(aggiornamenti) == prima_agg + 1, "dopo il comando aggiorna subito il media_player", aggiornamenti)
         r = await controllo(azione="pausa")
         verifica(r.get("messaggio") == "Era già in pausa.", "pausa due volte: lo dice", r)

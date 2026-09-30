@@ -1,0 +1,73 @@
+# Descrizioni dei servizi (le legge HA per l'interfaccia e per Assist).
+riproduci:
+  name: Riproduci
+  description: >-
+    Cerca su Spotify e fa partire la musica sul dispositivo della stanza, anche
+    se non suona niente. Controlla che suoni davvero.
+  fields:
+    cosa:
+      name: Cosa
+      description: Brano, artista, album, playlist o genere da cercare.
+      required: true
+      example: Miles Davis
+      selector:
+        text:
+    tipo:
+      name: Tipo
+      description: brano, artista, album, playlist, genere, oppure auto.
+      required: false
+      default: auto
+      selector:
+        select:
+          options:
+            - auto
+            - brano
+            - artista
+            - album
+            - playlist
+            - genere
+    dove:
+      name: Dove
+      description: Stanza di casa; vuoto = dove suona già o la stanza predefinita.
+      required: false
+      example: cucina
+      selector:
+        text:
+controllo:
+  name: Comando
+  description: >-
+    Comanda la musica in corso leggendo lo stato vero di Spotify, e controlla
+    che il comando sia stato eseguito.
+  fields:
+    azione:
+      name: Azione
+      description: pausa, riprendi, successivo, precedente, volume, alza, abbassa, sposta.
+      required: true
+      selector:
+        select:
+          options:
+            - pausa
+            - riprendi
+            - successivo
+            - precedente
+            - volume
+            - alza
+            - abbassa
+            - sposta
+    dove:
+      name: Dove
+      description: Solo per sposta, la stanza in cui spostare la musica.
+      required: false
+      selector:
+        text:
+    livello:
+      name: Livello
+      description: Solo per volume, da 0 a 100.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+stato:
+  name: Cosa suona
+  description: Cosa sta suonando adesso su Spotify, letto dallo stato vero.

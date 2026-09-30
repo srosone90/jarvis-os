@@ -305,6 +305,7 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
     azione: str = dati["azione"]
     voce = _spotify(hass, imp.account)
     client = voce.runtime_data.coordinator.client
+    inizio = time.monotonic()
     stato = await client.get_playback()
     if stato is None or stato.item is None:
         raise ErroreMusica("niente_in_riproduzione", "Su Spotify non sta suonando niente.")
@@ -352,6 +353,7 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
         await client.transfer_playback(destinazione.device_id)
         fatto = lambda s: s is not None and s.device.device_id == destinazione.device_id  # noqa: E731
 
+    ms_comando = _ms(inizio)
     dopo = await _aspetta(client, fatto, ATTESA_CONTROLLO_S)
     if dopo is None:
         raise ErroreMusica(
@@ -359,8 +361,11 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
             f"Ho mandato «{azione}» a Spotify ma non risulta eseguito su {dispositivo.name}.",
             azione=azione,
         )
+    ms_conferma = _ms(inizio) - ms_comando
     await voce.runtime_data.coordinator.async_refresh()
-    return {"esito": "ok", "azione": azione, **descrivi(dopo, imp.stanze)}
+    tempi = {"comando": ms_comando, "conferma": ms_conferma, "totale": _ms(inizio)}
+    _LOGGER.info("jarvis_musica: %s su %s, tempi %s ms", azione, dispositivo.name, tempi)
+    return {"esito": "ok", "azione": azione, **descrivi(dopo, imp.stanze), "tempi_ms": tempi}
 
 
 async def _stato(hass: HomeAssistant, imp: _Impostazioni, _dati: dict[str, Any]) -> dict[str, Any]:
