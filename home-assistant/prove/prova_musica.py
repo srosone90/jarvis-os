@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 import shutil
 import sys
@@ -109,6 +110,7 @@ KIND = album("kindofblue", "Kind of Blue", MILES)
 SO_WHAT = brano("sowhat", "So What", MILES, KIND)
 QUEEN = artista("queen", "Queen")
 FREDDIE = artista("4M1Fp", "Freddie Mercury")
+MICHAEL = artista("3fMbdgg4jU18AjLCKBhRSm", "Michael Jackson")
 OPERA = album("opera", "A Night at the Opera", QUEEN)
 BOHEMIAN = brano("bohemian", "Bohemian Rhapsody", QUEEN, OPERA)
 LOVE = brano("love", "Love of My Life", QUEEN, OPERA)
@@ -123,7 +125,13 @@ CATALOGO = {
 }
 # Come Spotify vero il 30/09 sull'Echo: cercando l'artista "Queen" il primo
 # risultato era Freddie Mercury
-ORDINE_SPOTIFY = {"queen": {"artist": [FREDDIE, QUEEN]}}
+# Chiave: "query|tipi". Il 30/09 sull'Echo, cercando SOLO l'artista "Queen"
+# Spotify ha dato per primo Michael Jackson, e Queen non era tra i primi: col
+# filtro di campo artist:"Queen" invece sì.
+ORDINE_SPOTIFY = {
+    "queen|artist": {"artist": [MICHAEL, FREDDIE]},
+    'artist:"queen"|artist': {"artist": [QUEEN]},
+}
 # Contenuti che Spotify "accetta" in silenzio senza farli partire
 NON_PARTONO = {JAZZ_EDITORIALE["uri"]}
 
@@ -155,6 +163,7 @@ class SpotifyFinto:
         self.errore: dict[str, Exception] = {}  # metodo → eccezione da sollevare
         self.nessuno_parte = False
         self.comandi: list[tuple[Any, ...]] = []
+        self.ricerche: list[str] = []
         self.ignora_comandi = False  # comando accettato ma mai eseguito
 
     def _forse_errore(self, metodo: str) -> None:
@@ -174,7 +183,9 @@ class SpotifyFinto:
         cercate = _parole(query)
         risposta: dict[str, Any] = {}
         for tipo in types:
-            if (forzati := ORDINE_SPOTIFY.get(query.lower(), {}).get(str(tipo))) is not None:
+            chiave = f"{query.lower()}|{','.join(str(t) for t in types)}"
+            self.ricerche.append(query)
+            if (forzati := ORDINE_SPOTIFY.get(chiave, {}).get(str(tipo))) is not None:
                 risposta[f"{tipo}s"] = {"items": forzati[:limit]}
                 continue
             trovati = []
@@ -186,9 +197,12 @@ class SpotifyFinto:
         return SearchResult.from_dict(risposta)
 
     async def start_playback(self, *, device_id: str | None = None, context_uri: str | None = None,
-                             uris: list[str] | None = None, **_: Any) -> None:
+                             uris: list[str] | None = None, uri_offset: str | None = None,
+                             position: int | None = 0, **_: Any) -> None:
         self._forse_errore("start_playback")
         self.avvii.append({"device_id": device_id, "context_uri": context_uri, "uris": uris})
+        if uri_offset is not None or position:
+            self.avvii[-1].update({"uri_offset": uri_offset, "position": position})
         if not context_uri and not uris:  # "riprendi", come il media_player di HA
             if self.stato and not self.nessuno_parte:
                 self.stato["is_playing"] = True
@@ -197,13 +211,13 @@ class SpotifyFinto:
         if self.nessuno_parte or uri in NON_PARTONO:
             return  # come l'API: nessun errore, ma non suona niente
         disp = next(d for d in self.dispositivi if d["id"] == device_id)
-        voce = next((b for b in CATALOGO["track"] if uris and b["uri"] == uris[0]), SO_WHAT)
+        voce = next((b for b in CATALOGO["track"] if b["uri"] in ([uri_offset] if uri_offset else uris or [])), SO_WHAT)
         contesto = None
         if context_uri:
             tipo = context_uri.split(":")[1]
             contesto = {"type": tipo, "uri": context_uri, **_url(tipo, context_uri.split(":")[2])}
         self.stato = {"device": {**disp, "is_active": True}, "shuffle_state": False, "repeat_state": "off",
-                      "context": contesto, "progress_ms": 0, "is_playing": True, "item": voce,
+                      "context": contesto, "progress_ms": position or 0, "is_playing": True, "item": voce,
                       "currently_playing_type": "track"}
 
 
@@ -278,7 +292,8 @@ def collega_spotify(hass: HomeAssistant, client: SpotifyFinto) -> tuple[ConfigEn
     aggiornamenti: list[int] = []
 
     async def async_refresh() -> None:
-        # come HA dopo un comando Spotify: aggiornamento immediato e atteso
+        # lento come sull'Echo vero (~10 s, qui 3): la risposta non deve aspettarlo
+        await asyncio.sleep(3)
         aggiornamenti.append(1)
 
     voce = ConfigEntry(
@@ -344,7 +359,9 @@ async def prova() -> int:
                  "servizi e script di controllo e stato")
 
         print("\n2. Artista in una stanza, dal silenzio")
+        t0 = time.monotonic()
         r = await riproduci(cosa="Miles Davis", tipo="artista", dove="nella camera da letto")
+        durata = time.monotonic() - t0
         verifica(r.get("esito") == "ok", "esito ok", r)
         verifica(client.avvii[-1] == {"device_id": "dev-camera", "context_uri": "spotify:artist:miles", "uris": None},
                  "start_playback sull'Echo della camera con l'artista come contesto", client.avvii)
@@ -352,8 +369,11 @@ async def prova() -> int:
                  "risposta con stanza e dispositivo", r)
         verifica(r.get("messaggio") == "In riproduzione Miles Davis su Echo Pop Camera.",
                  "messaggio breve per Gemini", r.get("messaggio"))
-        verifica(aggiornamenti == [1], "aggiorna subito il media_player Spotify (async_refresh, come HA)",
-                 aggiornamenti)
+        verifica(aggiornamenti == [] and durata < 2.5,
+                 "la risposta NON aspetta l'aggiornamento del media_player (~10 s sull'Echo)",
+                 f"{durata:.1f} s, aggiornamenti {aggiornamenti}")
+        await hass.async_block_till_done()
+        verifica(aggiornamenti == [1], "…che parte comunque subito, in background", aggiornamenti)
         tempi = r.get("tempi_ms", {})
         verifica(set(tempi) == {"ricerca", "avvio", "totale"} and tempi["totale"] >= tempi["avvio"],
                  "nella risposta i tempi misurati (ricerca, avvio, totale)", tempi)
@@ -383,8 +403,12 @@ async def prova() -> int:
         verifica(r.get("stanza") == "Camera da letto", "niente in riproduzione → stanza predefinita", r)
 
         print("\n5b. Il nome esatto vince sull'ordine di Spotify (Queen, non Freddie Mercury)")
+        client.ricerche.clear()
         r = await riproduci(cosa="Queen", tipo="artista", dove="camera da letto")
-        verifica(r.get("uri") == "spotify:artist:queen", "tipo artista: Queen", r)
+        verifica(r.get("uri") == "spotify:artist:queen", "tipo artista: Queen, non Michael Jackson", r)
+        verifica(client.ricerche == ["Queen", 'artist:"Queen"'],
+                 "Queen assente dai risultati → seconda ricerca col filtro artist:\"Queen\"", client.ricerche)
+        verifica(r.get("considerati") == ["Queen"], "nella risposta i nomi considerati", r.get("considerati"))
         r = await riproduci(cosa="queen", dove="camera da letto")
         verifica(r.get("uri") == "spotify:artist:queen", "tipo auto, minuscolo: Queen", r)
 
@@ -396,12 +420,15 @@ async def prova() -> int:
                  and r.get("messaggio") == "In riproduzione «Bohemian Rhapsody» di Queen su Echo Pop Camera "
                  "(Camera da letto), volume 40%.",
                  "stato subito dopo l'avvio: suona, con titolo, stanza e volume", r)
+        await hass.async_block_till_done()  # finiscono gli aggiornamenti lenti delle chiamate prima
         prima_agg = len(aggiornamenti)
         r = await controllo(azione="pausa")
         verifica(r.get("esito") == "ok" and r.get("stato") == "in_pausa", "pausa confermata", r)
         verifica(set(r.get("tempi_ms", {})) == {"comando", "conferma", "totale"},
                  "anche i comandi riportano i tempi misurati", r.get("tempi_ms"))
-        verifica(len(aggiornamenti) == prima_agg + 1, "dopo il comando aggiorna subito il media_player", aggiornamenti)
+        await hass.async_block_till_done()
+        verifica(len(aggiornamenti) == prima_agg + 1, "dopo il comando aggiorna il media_player (in background)",
+                 aggiornamenti)
         r = await controllo(azione="pausa")
         verifica(r.get("messaggio") == "Era già in pausa.", "pausa due volte: lo dice", r)
         r = await controllo(azione="riprendi")
@@ -425,6 +452,17 @@ async def prova() -> int:
                  "sposta in soggiorno (primo dispositivo visibile della stanza)", r)
         r = await controllo(azione="sposta", dove="garage")
         verifica(r.get("codice") == "stanza_sconosciuta", "sposta in una stanza sconosciuta", r)
+        # Spotify "a riposo" dopo ~10 min di pausa: nessuna riproduzione, ma il componente ricorda
+        await controllo(azione="pausa")
+        client.stato["progress_ms"] = 93_000
+        await stato()  # come quando Gemini chiede "cosa suona" durante la pausa
+        client.stato = None
+        r = await controllo(azione="riprendi")
+        verifica(r.get("esito") == "ok" and r.get("messaggio") == "Riprendo «Bohemian Rhapsody» su TV Samsung.",
+                 "riprendi da «a riposo»: l'ultima cosa ricordata, sullo stesso dispositivo", r)
+        verifica(client.avvii[-1] == {"device_id": "dev-tv", "context_uri": None, "uris": ["spotify:track:bohemian"],
+                                      "uri_offset": None, "position": 93_000},
+                 "…dallo stesso punto (93 s)", client.avvii[-1])
         client.ignora_comandi = True
         r = await controllo(azione="pausa")
         verifica(r.get("codice") == "comando_non_confermato",

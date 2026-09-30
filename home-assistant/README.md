@@ -194,6 +194,12 @@ niente, il media_player dichiara solo `SELECT_SOURCE`. Ne seguono due cose:
   subito dopo un avvio Gemini rispondeva "non sta suonando nulla" e non sapeva
   mettere in pausa.
 
+**Tempi (0.3).** Sull'Echo la risposta arrivava in 11-12 s anche se la musica
+partiva in 1-3 s. Quasi 10 s se ne andavano ad aspettare l'aggiornamento del
+media_player di HA, che ha un suo lucchetto e rilegge anche la playlist. Ora
+quell'aggiornamento va in background: si risponde appena Spotify conferma che
+suona (0,8-2,5 s misurati).
+
 **Cosa fa.** `custom_components/jarvis_musica` riusa il client spotifyaio **già
 autenticato** dall'integrazione ufficiale Spotify: niente credenziali nuove,
 niente scraping né cookie. Legge sempre lo stato **vero** da Spotify.
@@ -203,8 +209,8 @@ media_player di HA (`async_refresh`, come fa HA stesso).
 
 | Servizio | Script per Gemini | Cosa fa |
 |---|---|---|
-| `jarvis_musica.riproduci` (`cosa`, `dove`, `tipo`) | `script.jarvis_musica` | Cerca e avvia sul dispositivo Spotify Connect della stanza, anche da fermo. Nella scelta vince il nome identico ("Queen" → Queen, non Freddie Mercury), poi l'ordine di Spotify. Se un risultato non parte davvero prova il successivo (al massimo 3) |
-| `jarvis_musica.controllo` (`azione`, `dove`, `livello`) | `script.jarvis_musica_controllo` | pausa, riprendi, successivo, precedente, volume (0-100), alza e abbassa (10 punti), sposta (in un'altra stanza) |
+| `jarvis_musica.riproduci` (`cosa`, `dove`, `tipo`) | `script.jarvis_musica` | Cerca e avvia sul dispositivo Spotify Connect della stanza, anche da fermo. Nella scelta vince il nome identico ("Queen" → Queen, non Freddie Mercury). Se il nome esatto non è tra i 10 risultati, fa una seconda ricerca col filtro di Spotify (`artist:"Queen"`); poi vale l'ordine di Spotify. Se un risultato non parte davvero prova il successivo (al massimo 3). Nella risposta, `considerati` elenca i nomi tra cui ha scelto |
+| `jarvis_musica.controllo` (`azione`, `dove`, `livello`) | `script.jarvis_musica_controllo` | pausa, riprendi, successivo, precedente, volume (0-100), alza e abbassa (10 punti), sposta (in un'altra stanza). "Riprendi" funziona anche quando Spotify è tornato "a riposo" dopo una pausa lunga: riparte dall'ultima cosa ricordata, stesso dispositivo e stesso punto, e il ricordo resta anche dopo un riavvio di HA |
 | `jarvis_musica.stato` | `script.jarvis_musica_stato` | "Cosa sta suonando": titolo, artisti, dispositivo, stanza, volume, oppure "in pausa" o "niente" |
 
 Tutti rispondono con `esito` ok o errore e un `messaggio` breve in italiano.
@@ -294,11 +300,13 @@ configurazione segnala il doppione.
 e un file di stanze di prova. Al posto di Spotify c'è un client finto che
 restituisce oggetti costruiti con i **modelli veri di spotifyaio 2.0.2**. Si
 comporta come l'API: nessun comando conferma niente, e certi comandi vengono
-accettati senza effetto. Verifica 55 casi:
+accettati senza effetto. Verifica 60 casi:
 
 - avvio: artista, brano, genere; secondo dispositivo della stanza; candidato
   che non parte;
-- "Queen" contro Freddie Mercury;
+- "Queen" contro Freddie Mercury e Michael Jackson (seconda ricerca filtrata);
+- la risposta non aspetta l'aggiornamento lento del media_player;
+- "riprendi" da Spotify a riposo, dallo stesso punto;
 - stanza predefinita e stanza già attiva;
 - stato subito dopo l'avvio;
 - tutti i comandi, compreso quello accettato ma mai eseguito;
@@ -314,11 +322,14 @@ Controprove:
 - con l'ordine di Spotify al posto del nome esatto cade la prova "Queen";
 - senza rilettura dopo i comandi cade la prova "accettato ma mai eseguito";
 - senza rilettura dopo l'avvio cadono 3 prove;
-- con un selettore sbagliato in `services.yaml` cade la sua prova.
+- con un selettore sbagliato in `services.yaml` cade la sua prova;
+- con l'aggiornamento di nuovo atteso cade la prova dei tempi;
+- senza ricerca filtrata parte Michael Jackson;
+- senza "riprendi da riposo" risponde "non sta suonando niente".
 
 ```bash
 uv python install 3.14.7   # HA 2026.9.3 vuole Python ≥ 3.14.2
 uv venv -p 3.14.7 .venv-ha-2026-9 && VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
-.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 55/55
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 60/60
 .venv-ha-2026-9/bin/hass --script check_config -c <cartella con configuration.yaml, packages/, custom_components/>
 ```

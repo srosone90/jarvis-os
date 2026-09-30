@@ -120,7 +120,7 @@ In casa **non ci sono luci smart**.
 | `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
 | `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
 | `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
-| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (55 casi) |
+| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (60 casi) |
 | `prova-ehi-jarvis.html`, `src/prova/`, `vite.prova.config.ts` | Pagina della prova di fattibilità "Ehi Jarvis": build a parte, fuori dal pannello e dal service worker |
 | `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
@@ -830,6 +830,34 @@ Due difetti, corretti lo stesso giorno:
 
 Tempi: le tre richieste iniziali (dispositivi, stato, ricerca) ora vanno in
 parallelo, e la risposta porta `tempi_ms` per misurare invece di indovinare.
+
+**Seconda prova sull'Echo (sessione server, 30/09) e correzioni della 0.3:**
+
+1. **Tempi**: `tempi_ms` era {ricerca 429, avvio 2531, totale 12657}; ~10 s
+   passavano DOPO la conferma, ad aspettare `coordinator.async_refresh()`. Il
+   coordinator ha un suo lucchetto (`_debounced_refresh.async_lock()`) e con una
+   playlist la rilegge. Ora l'aggiornamento va in background
+   (`hass.async_create_task`). La conferma "suona davvero?" resta: costa
+   0,8-2,5 s ed è la difesa contro i rifiuti silenziosi.
+2. **"Queen" come artista → Michael Jackson.** Con la sola ricerca di artisti e
+   `limit=5` Queen non era tra i risultati. Ora `limit=10` e, se il nome
+   esatto manca, una seconda ricerca col filtro di campo `artist:"…"`
+   (`track:`/`album:` per gli altri tipi). La risposta porta `considerati`.
+3. **"Riprendi" dopo ~10 min di pausa**: Spotify torna "a riposo" (niente
+   stato) e il componente rispondeva "non suona niente". Ora ricorda
+   dispositivo, contesto, brano, punto e volume (`Store`
+   `jarvis_musica.ultimo`, vale anche dopo un riavvio). Riparte:
+   - scaletta (playlist o album): con `uri_offset` e `position`;
+   - artista: solo il contesto, Spotify non accetta un brano di partenza;
+   - brano singolo: con la posizione.
+4. Echo visibili a Spotify dopo ~40 min e un riavvio di HA: sì.
+
+**Echo in Bluetooth come cassa del tablet (prova del 30/09): così non si usa.**
+L'Echo mescola la musica via Wi-Fi e Jarvis via Bluetooth, oppure passa al
+Bluetooth, mette in pausa Spotify e non riparte. Da qui la **pausa della musica
+durante la voce** (v0.4.4). Direzione futura, non ora: Music Assistant con
+Sendspin, con il pannello come player sincronizzato. Serve un mini PC:
+decisione di Salvatore in sospeso.
 Resta da verificare sugli Echo: se "riprendi" riparte dal punto giusto. Usa la
 stessa chiamata di HA, cioè `start_playback()` con `position_ms: 0`.
 
@@ -966,6 +994,12 @@ se ne scrive una nuova che annulla la precedente.
 - Tutto in italiano: codice, commenti, commit, documentazione, e **anche i
   messaggi a Salvatore**. Mai risposte in inglese (30/09: è successo e lo ha
   irritato, a ragione).
+- **Niente pagine di prova separate (decisione di Salvatore del 30/09, per
+  sempre).** Tutto si prova DENTRO il pannello, sul link di sempre. Le misure e
+  gli strumenti (es. "Insegna a Jarvis la tua pronuncia") stanno nelle
+  impostazioni del pannello. Le istruzioni per Salvatore sono passi dentro il
+  pannello, in italiano semplice, senza link. `prova-ehi-jarvis.html` esce
+  dallo zip appena la sua parte è nel pannello (v0.5.0).
 - **`STATO.md` sempre aggiornato**, con commit e push a ogni passo importante:
   la sessione server lo legge da GitHub e non può scrivere nel repo.
 - In HA tutto ciò che crea Jarvis ha nome/ID che inizia con `jarvis`.
@@ -997,7 +1031,7 @@ node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/
 # conosceva solo 3.14.0rc2: `pip install -U uv` in un venv a parte)
 uv python install 3.14.7 && uv venv -p 3.14.7 .venv-ha-2026-9
 VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
-.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 55/55
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 60/60
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant

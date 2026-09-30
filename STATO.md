@@ -4,20 +4,27 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.3 pubblicata (verificatore della
-pronuncia nella pagina di prova)._
+_Ultimo aggiornamento: 30/09/2026 — `jarvis_musica` 0.3; v0.4.4 in corso._
 
 ## Adesso
 
-- **Finito:** `jarvis_musica` 0.2.1. Corregge l'errore "Failed to load
-  services.yaml" e aggiunge i tempi anche ai comandi. Sotto, cosa installare.
-- **Finito:** v0.4.3, il verificatore "Ehi Jarvis" nella pagina di prova.
-  Sotto, cosa installare e come misurare.
-- **In corso:** v0.5.0, "Jarvis" nel pannello come opzione, spenta di default.
-- **In parallelo, da preparare:** il notebook Colab per il modello italiano
-  (passo 2), con le licenze dei negativi scelte per l'uso commerciale.
-- **Dopo ancora:** i mockup (fase G, schermo a riposo e Hub, schermate e
-  navigazione, musica).
+- **Finito:** `jarvis_musica` **0.3**, che corregge quanto trovato sull'Echo:
+  - risposta che arrivava 10 s dopo;
+  - "Queen" che faceva partire Michael Jackson;
+  - "riprendi" dopo una pausa lunga.
+
+  Sotto, cosa installare.
+- **In corso:** v0.4.4 del pannello (prima della fase G, come chiesto):
+  - pausa della musica mentre Jarvis ascolta e parla, e ripresa allo stesso
+    volume;
+  - il pannello non deve più tornare a una versione vecchia.
+- **Poi:** v0.5.0, "Jarvis" nel pannello (opzione spenta di default). Dentro le
+  impostazioni del pannello va tutto quello che oggi sta nella pagina di prova:
+  "Insegna a Jarvis la tua pronuncia", le misure e "Copia i risultati". La
+  pagina di prova poi esce dallo zip. **Decisione di Salvatore registrata in
+  CLAUDE.md: niente più pagine separate.**
+- **In parallelo:** il notebook Colab per il modello italiano.
+- **Dopo:** i mockup (fase G, schermo a riposo e Hub, schermate, musica).
 
 ## Ultima release del pannello
 
@@ -28,99 +35,40 @@ pronuncia nella pagina di prova)._
 | sha256 dello zip | `de0a265de876c0f377bf08a73d8d04ac7736dc9af367b9dc3e769ac0431ba355` (6,8 MB, service worker 0.4.3, verificati) |
 | Precedente | v0.4.2, sha256 `b6d6a61d…`, installata il 30/09 |
 
-## Da installare lato server: v0.4.3
+## v0.4.3: installata (30/09)
 
-1. Scompatta lo zip sopra `/config/www/jarvis/`, come sempre.
-2. Facoltativo: `/config/www/jarvis/parola.json` (NON è nello zip, gli
-   aggiornamenti non lo toccano) per cambiare modello, soglie o verificatore
-   condiviso senza release. Formato nel README, sezione "`parola.json`".
-   Senza il file vanno i valori predefiniti.
+Non serve altro. Per decisione di Salvatore le misure del verificatore **non** si
+fanno dalla pagina di prova: si faranno dal pannello, nelle impostazioni, con la
+v0.5.0.
 
-**Come misurare** (dal telefono vecchio, link di sempre, poi passa alla veloce):
+## Da installare lato server: `jarvis_musica` 0.3
 
-1. Apri `…/local/jarvis/prova-ehi-jarvis.html`. Se dice ancora v0.4.2, fai
-   "Aggiorna ora" dal pannello e riapri.
-2. **Prima**: serie da 20 «Giàrvis» con il verificatore spento. Annota i
-   riconosciuti.
-3. Sezione "La tua pronuncia":
-   - 30 «Jarvis» per ogni persona di casa (nome, "Registra", la parola quando
-     lo schermo diventa verde);
-   - "Registra parlato normale" per 2 minuti (voci o TV, senza la parola);
-   - "Addestra il verificatore".
-4. **Dopo**: la stessa serie da 20 «Giàrvis» con il verificatore acceso, e
-   un'ora di falsi positivi con la TV accesa.
-5. "Copia i risultati" e passali a Code. Ogni riga dice se il verificatore era
-   acceso, la soglia base e quanti esempi.
+Solo il componente: stanze e pacchetto degli script **non cambiano**.
 
-Da sapere:
+1. In `/config/custom_components/jarvis_musica/` copia **tutti e quattro** i
+   file dal branch: `__init__.py`, `scelta.py`, `services.yaml` e
+   `manifest.json` (0.3.0). Questa volta cambia anche `scelta.py`.
+2. Verifica della configurazione, poi riavvio.
 
-- esempi e verificatore restano solo su quel telefono;
-- "Esporta" produce un file con i soli numeri del verificatore, da importare
-  su un altro telefono di casa, o da mettere in `parola.json` come
-  verificatore condiviso.
+**Come provarla**
 
-## Da installare lato server: `jarvis_musica` 0.2.1
-
-Piccolo aggiornamento sopra la 0.2 già installata. Le stanze
-(`packages/jarvis_musica_stanze.yaml`) e il pacchetto degli script **non
-cambiano**.
-
-1. In `/config/custom_components/jarvis_musica/` copia i file dal branch
-   (cartella `home-assistant/custom_components/jarvis_musica/`):
-   - `services.yaml`, **nuovo**: descrizioni in italiano dei tre servizi, e
-     niente più errore all'avvio;
-   - `__init__.py`: i comandi ora riportano anche `tempi_ms`;
-   - `manifest.json`: versione 0.2.1.
-2. Riavvia HA.
-3. **Per vedere i tempi** (tua domanda sul log), scegli tu:
-   - **dalla risposta**: Strumenti per sviluppatori → Azioni →
-     `jarvis_musica.riproduci` (o `controllo`), con "restituisci la risposta".
-     Ci trovi `tempi_ms`: ricerca, avvio e totale per `riproduci`; comando,
-     conferma e totale per `controllo`;
-   - **dal log**: aggiungi in `configuration.yaml`, poi riavvia:
-     ```yaml
-     logger:
-       logs:
-         custom_components.jarvis_musica: info
-     ```
-     La riga è `jarvis_musica: … tempi {…} ms`.
-
-**Prove fatte qui**
-
-- HA 2026.9.3: 55 verifiche su 55, compreso `services.yaml` validato con lo
-  schema di HA.
-- Controprova: un selettore sbagliato in `services.yaml` fa cadere la sua
-  verifica.
-
-## Ricevuto dalla sessione server (30/09)
-
-- 0.2 installata. Stanze in `jarvis_musica_stanze.yaml`, predefinita Cucina.
-  I tre script sono esposti ad Assist, il media_player Spotify non più.
-- Prove dal vivo tutte ok:
-
-  | Comando | Tempo |
-  |---|---|
-  | "metti i Queen in cucina" (i Queen, da fermo) | 4,9 s |
-  | "cosa sta suonando?" | 2,1 s |
-  | pausa | 4,2 s |
-  | riprendi | 3,4 s |
-  | alza | 4,8 s |
-  | successiva | 4,4 s |
+- "Metti i Queen in cucina": devono partire i Queen, non Michael Jackson né
+  Freddie Mercury. Prova anche la chiamata diretta
+  `jarvis_musica.riproduci {cosa: Queen, tipo: artista}`: nella risposta
+  `considerati` dice tra quali nomi ha scelto.
+- `tempi_ms`: il `totale` deve essere circa `ricerca` + `avvio` (prima c'erano
+  ~10 s in più).
+- Pausa, poi aspetta più di 10 minuti (Spotify va "a riposo"), poi "riprendi":
+  deve ripartire lo stesso brano sullo stesso Echo, dal punto in cui era.
 
 ## Domande aperte per la sessione server
 
-1. **Tempi**: con la 0.2.1, quanto valgono `tempi_ms` per un avvio e per una
-   pausa in cucina? Se `ricerca` e `avvio` restano sotto il secondo, i 4-5 s
-   sono soprattutto di Gemini e della pipeline, non di Spotify.
-2. **"Riprendi"**: riparte dal punto giusto o dall'inizio del brano? Lo hai già
-   messo per il prossimo giro.
-3. **Echo nel tempo**: restano visibili a Spotify dopo ore di inattività?
-4. **"Error fetching spotify data"** dopo il riavvio: se si ripete più di una
-   volta, dimmelo. È dell'integrazione di HA, ma `jarvis_musica` lo tradurrebbe
-   in "Spotify non risponde".
-5. **"Jarvis" dal pannello**: nel pannello l'ascolto della parola **non esiste
-   ancora**, c'è solo nella pagina di prova. Arriva con la v0.5.0, su cui sto
-   lavorando adesso.
-6. **Misure con il verificatore** (v0.4.3): quanti «Giàrvis» su 20 prima e
-   dopo, falsi positivi in un'ora con la TV, e la soglia base impostata dagli
-   esempi. Mi servono per decidere le impostazioni predefinite della v0.5.0.
+1. **Tempi dei comandi** (`controllo`, con la 0.3): quanto valgono `comando`,
+   `conferma` e `totale` per una pausa e un "alza" in cucina?
+2. **"Riprendi" dopo una pausa breve** (meno di 10 minuti): riparte dal punto
+   giusto o dall'inizio del brano?
+3. **Riprendi dopo una pausa lunga** (0.3): riparte lo stesso brano dallo
+   stesso punto?
+4. **Stanza di ogni pannello** (per la v0.4.4): il tablet della cucina è
+   "Cucina"? Ci sono altri pannelli o hub da assegnare a una stanza? Senza
+   stanza il pannello non tocca mai la musica.

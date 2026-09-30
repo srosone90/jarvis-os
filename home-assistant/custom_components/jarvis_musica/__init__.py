@@ -22,7 +22,8 @@ spotifyaio 2.0.2 solleva errore solo per 403, timeout e alcuni 404: gli altri
 rifiuti di Spotify tornano in silenzio. Per questo ogni comando si CONTROLLA
 rileggendo lo stato; un avvio che non parte passa al candidato successivo (al
 massimo 3), poi lo si dice chiaramente. Dopo ogni comando riuscito il
-media_player di HA si aggiorna subito (come fa HA stesso: async_refresh).
+media_player di HA si aggiorna subito, in background: aspettarlo costava ~10 s
+di risposta (misurato sull'Echo il 30/09).
 
 Configurazione (packages/jarvis_musica.yaml):
 
@@ -52,6 +53,7 @@ from homeassistant.exceptions import (
     OAuth2TokenRequestReauthError,
 )
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .scelta import (
@@ -60,8 +62,12 @@ from .scelta import (
     Candidato,
     ErroreMusica,
     candidati,
+    considerati,
     descrivi,
     e_partito,
+    ha_identico,
+    normalizza,
+    query_filtrata,
     scegli_dispositivo,
     tipi_di_ricerca,
     volume_nuovo,
@@ -96,7 +102,8 @@ ATTESA_AVVIO_S = 8.0
 # Quanto aspettare che pausa, volume, spostamento… risultino fatti
 ATTESA_CONTROLLO_S = 5.0
 CONTROLLO_OGNI_S = 0.5
-RISULTATI_PER_TIPO = 5
+# 10: con 5, cercando l'artista "Queen" Spotify non metteva Queen tra i primi (30/09)
+RISULTATI_PER_TIPO = 10
 
 CONFIG_SCHEMA = vol.Schema(
     {
@@ -129,6 +136,12 @@ SCHEMA_CONTROLLO = vol.Schema(
 
 
 class _Impostazioni:
+    # Ultima cosa suonata (dispositivo, contenuto, punto, volume): Spotify dopo
+    # ~10 min di pausa torna "a riposo" e non sa più cosa riprendere (30/09).
+    # Salvata su disco, così vale anche dopo un riavvio di HA.
+    ultimo: dict[str, Any] | None = None
+    archivio: Store[dict[str, Any]] | None = None
+
     def __init__(self, config: ConfigType) -> None:
         dati = config.get(DOMAIN, {"stanze": {}})
         self.stanze: dict[str, list[str]] = dati.get("stanze", {})
@@ -144,6 +157,8 @@ class _Impostazioni:
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Registra i servizi riproduci, controllo e stato."""
     imp = _Impostazioni(config)
+    imp.archivio = Store(hass, 1, f"{DOMAIN}.ultimo")
+    imp.ultimo = await imp.archivio.async_load()
 
     def servizio(
         lavoro: Callable[[HomeAssistant, _Impostazioni, dict[str, Any]], Awaitable[dict[str, Any]]],
@@ -231,6 +246,30 @@ def _ms(da: float) -> int:
     return round((time.monotonic() - da) * 1000)
 
 
+def _aggiorna_media_player(hass: HomeAssistant, voce: Any) -> None:
+    """Il media_player di HA si aggiorna in background: aspettarlo costava ~10 s di risposta
+    (il coordinator ha un suo lucchetto e rilegge anche la playlist; misurato il 30/09)."""
+    hass.async_create_task(voce.runtime_data.coordinator.async_refresh(), f"{DOMAIN}: aggiorna Spotify")
+
+
+def _ricorda(imp: _Impostazioni, stato: Any) -> None:
+    """Si ricorda cosa suona (o era in pausa) per poterlo riprendere anche da "a riposo"."""
+    if stato is None or stato.item is None or not stato.device.device_id:
+        return
+    imp.ultimo = {
+        "dispositivo": stato.device.name,
+        "contesto": stato.context.uri if stato.context is not None else None,
+        "tipo_contesto": str(stato.context.context_type) if stato.context is not None else None,
+        "elemento": stato.item.uri,
+        "titolo": stato.item.name,
+        "posizione_ms": stato.progress_ms or 0,
+        "volume": stato.device.volume_percent,
+    }
+    if imp.archivio is not None:
+        ultimo = dict(imp.ultimo)
+        imp.archivio.async_delay_save(lambda: ultimo, 2)
+
+
 async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, Any]) -> dict[str, Any]:
     cosa: str = dati["cosa"].strip()
     tipo: str = dati["tipo"]
@@ -251,6 +290,11 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
         if isinstance(esito, BaseException):
             raise esito
     dispositivi, stato, risultati = esiti
+    # nome esatto assente tra i risultati: seconda ricerca col filtro di campo
+    if not ha_identico(cosa, tipo, risultati) and (filtrata := query_filtrata(cosa, tipo)):
+        altri = await client.search(filtrata, tipi_di_ricerca(tipo), limit=RISULTATI_PER_TIPO)
+        if ha_identico(cosa, tipo, altri):
+            risultati = altri
     dispositivo, stanza = scegli_dispositivo(
         dati.get("dove"),
         dispositivi,
@@ -266,9 +310,10 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
     for candidato in elenco:
         provati.append(candidato.descrizione)
         avvio = time.monotonic()
-        if await _avvia(client, dispositivo.device_id, candidato):
+        if (partito := await _avvia(client, dispositivo.device_id, candidato)) is not None:
             ms_avvio = _ms(avvio)
-            await voce.runtime_data.coordinator.async_refresh()
+            _ricorda(imp, partito)
+            _aggiorna_media_player(hass, voce)
             tempi = {"ricerca": ms_ricerca, "avvio": ms_avvio, "totale": _ms(inizio)}
             _LOGGER.info("jarvis_musica: %s su %s, tempi %s ms", candidato.descrizione, dispositivo.name, tempi)
             return {
@@ -279,6 +324,7 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
                 "uri": candidato.uri_atteso,
                 "dispositivo": dispositivo.name,
                 "stanza": stanza or dispositivo.name,
+                "considerati": considerati(tipo, risultati),
                 "tempi_ms": tempi,
             }
         _LOGGER.warning(
@@ -292,13 +338,61 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
     )
 
 
-async def _avvia(client: Any, device_id: str, candidato: Candidato) -> bool:
-    """Avvia e controlla che parta davvero (vedi il commento in testa al file)."""
+async def _avvia(client: Any, device_id: str, candidato: Candidato) -> Any | None:
+    """Avvia e controlla che parta davvero (vedi il commento in testa al file): lo stato, o None."""
     if candidato.context_uri:
         await client.start_playback(device_id=device_id, context_uri=candidato.context_uri)
     else:
         await client.start_playback(device_id=device_id, uris=list(candidato.uris))
-    return await _aspetta(client, lambda s: e_partito(s, device_id, candidato), ATTESA_AVVIO_S) is not None
+    return await _aspetta(client, lambda s: e_partito(s, device_id, candidato), ATTESA_AVVIO_S)
+
+
+async def _riprendi_da_riposo(hass: HomeAssistant, imp: _Impostazioni, client: Any, voce: Any) -> dict[str, Any]:
+    """Spotify "a riposo" (nessuna riproduzione, nemmeno in pausa): si riparte dall'ultima cosa ricordata."""
+    u = imp.ultimo
+    if not u:
+        raise ErroreMusica("niente_in_riproduzione", "Su Spotify non sta suonando niente, e non ricordo cosa riprendere.")
+    inizio = time.monotonic()
+    dispositivi = await client.get_devices()
+    dispositivo = next((d for d in dispositivi if normalizza(d.name) == normalizza(u["dispositivo"])), None)
+    if dispositivo is None or not dispositivo.device_id:
+        raise ErroreMusica(
+            "dispositivo_non_disponibile",
+            f"Spotify non vede {u['dispositivo']} in questo momento (spento, scollegato o addormentato).",
+            dispositivi_disponibili=sorted(d.name for d in dispositivi),
+        )
+    contesto, elemento = u.get("contesto"), u["elemento"]
+    if contesto and u.get("tipo_contesto") in ("playlist", "album"):
+        # scaletta: si riparte dallo stesso brano, allo stesso punto
+        await client.start_playback(
+            device_id=dispositivo.device_id, context_uri=contesto, uri_offset=elemento, position=u["posizione_ms"]
+        )
+        atteso = Candidato("contesto", u["titolo"], context_uri=contesto)
+    elif contesto:
+        # artista: Spotify non accetta un brano di partenza, riparte la sua scaletta
+        await client.start_playback(device_id=dispositivo.device_id, context_uri=contesto)
+        atteso = Candidato("contesto", u["titolo"], context_uri=contesto)
+    else:
+        await client.start_playback(device_id=dispositivo.device_id, uris=[elemento], position=u["posizione_ms"])
+        atteso = Candidato("brano", u["titolo"], uris=(elemento,))
+    ms_comando = _ms(inizio)
+    dopo = await _aspetta(client, lambda s: e_partito(s, dispositivo.device_id, atteso), ATTESA_AVVIO_S)
+    if dopo is None:
+        raise ErroreMusica(
+            "comando_non_confermato",
+            f"Ho chiesto a Spotify di riprendere «{u['titolo']}» ma su {dispositivo.name} non è ripartito.",
+            azione="riprendi",
+        )
+    _ricorda(imp, dopo)
+    _aggiorna_media_player(hass, voce)
+    tempi = {"comando": ms_comando, "conferma": _ms(inizio) - ms_comando, "totale": _ms(inizio)}
+    return {
+        "esito": "ok",
+        "azione": "riprendi",
+        **descrivi(dopo, imp.stanze),
+        "messaggio": f"Riprendo «{u['titolo']}» su {dispositivo.name}.",
+        "tempi_ms": tempi,
+    }
 
 
 async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, Any]) -> dict[str, Any]:
@@ -308,7 +402,10 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
     inizio = time.monotonic()
     stato = await client.get_playback()
     if stato is None or stato.item is None:
+        if azione == "riprendi":
+            return await _riprendi_da_riposo(hass, imp, client, voce)
         raise ErroreMusica("niente_in_riproduzione", "Su Spotify non sta suonando niente.")
+    _ricorda(imp, stato)
     dispositivo = stato.device
     device_id = dispositivo.device_id
 
@@ -362,7 +459,8 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
             azione=azione,
         )
     ms_conferma = _ms(inizio) - ms_comando
-    await voce.runtime_data.coordinator.async_refresh()
+    _ricorda(imp, dopo)
+    _aggiorna_media_player(hass, voce)
     tempi = {"comando": ms_comando, "conferma": ms_conferma, "totale": _ms(inizio)}
     _LOGGER.info("jarvis_musica: %s su %s, tempi %s ms", azione, dispositivo.name, tempi)
     return {"esito": "ok", "azione": azione, **descrivi(dopo, imp.stanze), "tempi_ms": tempi}
@@ -371,5 +469,6 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
 async def _stato(hass: HomeAssistant, imp: _Impostazioni, _dati: dict[str, Any]) -> dict[str, Any]:
     voce = _spotify(hass, imp.account)
     stato = await voce.runtime_data.coordinator.client.get_playback()
+    _ricorda(imp, stato)
     return {"esito": "ok", **descrivi(stato, imp.stanze)}
 

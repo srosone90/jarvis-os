@@ -193,6 +193,40 @@ def tipi_di_ricerca(tipo: str) -> list[str]:
     }.get(tipo, ["artist", "track", "album", "playlist"])
 
 
+_CAMPO_FILTRO = {"artista": ("artist", "artists"), "brano": ("track", "tracks"), "album": ("album", "albums")}
+
+
+def query_filtrata(cosa: str, tipo: str) -> str | None:
+    """Seconda ricerca col filtro di campo di Spotify (es. `artist:"Queen"`), per i tipi che lo hanno."""
+    campo = _CAMPO_FILTRO.get(tipo)
+    if not campo:
+        return None
+    return f'{campo[0]}:"{cosa.replace(chr(34), " ").strip()}"'
+
+
+def ha_identico(cosa: str, tipo: str, risultati: Any) -> bool:
+    """Tra i risultati del tipo cercato c'è un nome identico (normalizzato)?"""
+    campo = _CAMPO_FILTRO.get(tipo)
+    if not campo:
+        return True
+    cercato = normalizza(cosa)
+    for e in getattr(risultati, campo[1]) or []:
+        nomi = {normalizza(e.name)}
+        if tipo == "brano":
+            nomi.add(normalizza(f"{e.name} {_artisti(e)}"))
+        if cercato in nomi:
+            return True
+    return False
+
+
+def considerati(tipo: str, risultati: Any, quanti: int = 5) -> list[str]:
+    """Nomi dei primi risultati, per capire (e far capire a Gemini) una scelta."""
+    campo = {"artista": "artists", "brano": "tracks", "album": "albums", "playlist": "playlists", "genere": "playlists"}.get(
+        tipo, "artists"
+    )
+    return [e.name for e in (getattr(risultati, campo) or [])[:quanti]]
+
+
 def candidati(cosa: str, tipo: str, risultati: Any, massimo: int = 3) -> list[Candidato]:
     """Candidati in ordine di preferenza, senza doppioni.
 
