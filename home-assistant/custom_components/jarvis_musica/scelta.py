@@ -336,4 +336,41 @@ def descrivi(stato: Any, stanze: dict[str, list[str]]) -> dict[str, Any]:
         "dispositivo": dispositivo,
         "stanza": stanza,
         "volume": volume,
+        # per la schermata Musica del pannello
+        "copertina": copertina(_immagini(elemento)),
+        "posizione_ms": stato.progress_ms or 0,
+        "durata_ms": getattr(elemento, "duration_ms", 0) or 0,
     }
+
+
+def _immagini(elemento: Any) -> list[Any]:
+    """Immagini del brano (dall'album) o della puntata (sua o del podcast)."""
+    for fonte in (getattr(elemento, "album", None), elemento, getattr(elemento, "show", None)):
+        immagini = getattr(fonte, "images", None) if fonte is not None else None
+        if immagini:
+            return list(immagini)
+    return []
+
+
+def copertina(immagini: list[Any]) -> str | None:
+    """URL della più piccola sopra i 300 px (nitida sul tablet, leggera); se nessuna lo è, la più grande."""
+    if not immagini:
+        return None
+    lato = lambda i: max(i.width or 0, i.height or 0)  # noqa: E731
+    grandi = [i for i in immagini if lato(i) >= 300]
+    return (min(grandi, key=lato) if grandi else max(immagini, key=lato)).url
+
+
+_TIPI_URI = {"playlist": "la playlist", "album": "l'album", "artist": "l'artista", "show": "il podcast"}
+
+
+def candidato_da_uri(cosa: str) -> Candidato | None:
+    """cosa già uri Spotify (tocco sul pannello, es. dall'elenco playlist): si avvia quello, senza cercare."""
+    parti = cosa.strip().split(":")
+    if len(parti) != 3 or parti[0] != "spotify" or not parti[2]:
+        return None
+    if parti[1] in ("track", "episode"):
+        return Candidato("brano", "il brano scelto", uris=(cosa.strip(),))
+    if parti[1] in _TIPI_URI:
+        return Candidato(parti[1], f"{_TIPI_URI[parti[1]]} scelta" if parti[1] == "playlist" else f"{_TIPI_URI[parti[1]]} scelto", context_uri=cosa.strip())
+    return None

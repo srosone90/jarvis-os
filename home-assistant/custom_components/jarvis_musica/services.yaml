@@ -71,3 +71,6 @@ controllo:
 stato:
   name: Cosa suona
   description: Cosa sta suonando adesso su Spotify, letto dallo stato vero.
+playlist:
+  name: Playlist
+  description: Le playlist dell'account Spotify (nome, uri, copertina). Per farne partire una, riproduci con cosa uguale al suo uri.

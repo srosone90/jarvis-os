@@ -62,7 +62,9 @@ from .scelta import (
     Candidato,
     ErroreMusica,
     candidati,
+    candidato_da_uri,
     considerati,
+    copertina,
     descrivi,
     e_partito,
     ha_identico,
@@ -155,7 +157,7 @@ class _Impostazioni:
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Registra i servizi riproduci, controllo e stato."""
+    """Registra i servizi riproduci, controllo, stato e playlist."""
     imp = _Impostazioni(config)
     imp.archivio = Store(hass, 1, f"{DOMAIN}.ultimo")
     imp.ultimo = await imp.archivio.async_load()
@@ -181,6 +183,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         ("riproduci", _riproduci, SCHEMA_RIPRODUCI),
         ("controllo", _controllo, SCHEMA_CONTROLLO),
         ("stato", _stato, vol.Schema({})),
+        ("playlist", _playlist, vol.Schema({})),
     ):
         hass.services.async_register(
             DOMAIN, nome, servizio(lavoro), schema=schema, supports_response=SupportsResponse.OPTIONAL
@@ -280,10 +283,11 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
     # intero è stato 6-12 s; qui se ne risparmiano due giri verso Spotify)
     # (return_exceptions: se una fallisce, gli errori delle altre non restano
     # "mai letti" nel log di HA; si rilancia il primo)
+    diretto = candidato_da_uri(cosa)
     esiti = await asyncio.gather(
         client.get_devices(),
         client.get_playback(),
-        client.search(cosa, tipi_di_ricerca(tipo), limit=RISULTATI_PER_TIPO),
+        _nessuna_ricerca() if diretto else client.search(cosa, tipi_di_ricerca(tipo), limit=RISULTATI_PER_TIPO),
         return_exceptions=True,
     )
     for esito in esiti:
@@ -291,7 +295,7 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
             raise esito
     dispositivi, stato, risultati = esiti
     # nome esatto assente tra i risultati: seconda ricerca col filtro di campo
-    if not ha_identico(cosa, tipo, risultati) and (filtrata := query_filtrata(cosa, tipo)):
+    if not diretto and not ha_identico(cosa, tipo, risultati) and (filtrata := query_filtrata(cosa, tipo)):
         altri = await client.search(filtrata, tipi_di_ricerca(tipo), limit=RISULTATI_PER_TIPO)
         if ha_identico(cosa, tipo, altri):
             risultati = altri
@@ -302,7 +306,7 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
         imp.predefinita,
         stato.device if stato and stato.is_playing else None,
     )
-    elenco = candidati(cosa, tipo, risultati)
+    elenco = [diretto] if diretto else candidati(cosa, tipo, risultati)
     if not elenco:
         raise ErroreMusica("nessun_risultato", f"Su Spotify non trovo niente per «{cosa}».", cosa=cosa)
     ms_ricerca = _ms(inizio)
@@ -324,7 +328,7 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
                 "uri": candidato.uri_atteso,
                 "dispositivo": dispositivo.name,
                 "stanza": stanza or dispositivo.name,
-                "considerati": considerati(tipo, risultati),
+                "considerati": [] if diretto else considerati(tipo, risultati),
                 "tempi_ms": tempi,
             }
         _LOGGER.warning(
@@ -336,6 +340,11 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
         dispositivo=dispositivo.name,
         provati=provati,
     )
+
+
+async def _nessuna_ricerca() -> None:
+    """Al posto della ricerca quando cosa è già un uri Spotify."""
+    return None
 
 
 async def _avvia(client: Any, device_id: str, candidato: Candidato) -> Any | None:
@@ -472,3 +481,24 @@ async def _stato(hass: HomeAssistant, imp: _Impostazioni, _dati: dict[str, Any])
     _ricorda(imp, stato)
     return {"esito": "ok", **descrivi(stato, imp.stanze)}
 
+
+
+async def _playlist(hass: HomeAssistant, imp: _Impostazioni, _dati: dict[str, Any]) -> dict[str, Any]:
+    """Le playlist dell'account (sue e seguite), per sceglierle con un tocco dal pannello.
+
+    Per farne partire una: riproduci con cosa = il suo uri (spotify:playlist:...).
+    """
+    voce = _spotify(hass, imp.account)
+    elenco = await voce.runtime_data.coordinator.client.get_playlists_for_current_user()
+    return {
+        "esito": "ok",
+        "playlist": [
+            {
+                "nome": p.name,
+                "uri": p.uri,
+                "copertina": copertina(list(p.images or [])),
+                "proprietario": getattr(p.owner, "display_name", None),
+            }
+            for p in elenco
+        ],
+    }
