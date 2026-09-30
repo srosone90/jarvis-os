@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.6 (timer solo sul pannello proprietario, per jarvis_voce 0.1.8); sha256 sotto appena la release è verificata._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.6 pubblicata e verificata (timer solo sul pannello proprietario, per jarvis_voce 0.1.8)._
 
 ## Adesso
 
@@ -56,7 +56,7 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.6 (timer solo sul pannello proprietar
 |---|---|
 | Versione | **v0.4.6**: il timer suona solo sul pannello a cui appartiene; Stop li ferma tutti |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.6 |
-| sha256 dello zip | _in arrivo: lo scrivo qui appena scaricato e verificato_ |
+| sha256 dello zip | `02363cce8bfd4ac78f5ae088ecda9f91a8285652dd996cdbe9983c38b9c808b0` (6,8 MB, service worker 0.4.6, verificati) |
 | Precedente | v0.4.5, sha256 `fc964090…2edb` |
 
 ## Da installare lato server: v0.4.6
