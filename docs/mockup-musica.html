@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Jarvis OS — mockup Musica (fase M)</title>
+<!--
+  Mockup statico: ?foglio=M1|M2|M3|mini. Immagini con Playwright (schermate/mockup/).
+  Dati: quelli che jarvis_musica.stato restituisce oggi (titolo, artisti, dispositivo,
+  stanza, volume, stato) e le stanze vere (Cucina, Camera da letto, Tutta la casa).
+  Copertina, avanzamento e playlist NON arrivano ancora: marcati "da aggiungere lato server".
+-->
+<style>
+  :root { --accent:#5b8def; --bg:#0d0f13; --surface:#171a21; --surface-2:#1f232c; --text:#eef1f6; --muted:#9aa3b2; --warn:#f0a33a; --ok:#3ecf7a; --sp:#1ed760; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#05060a; color:var(--text); font-family:system-ui,Roboto,sans-serif; }
+  .foglio { padding:24px; display:flex; flex-direction:column; gap:16px; width:max-content; }
+  .foglio > h1 { margin:0; font-size:28px; } .foglio > p { margin:0; color:var(--muted); font-size:17px; max-width:1500px; line-height:1.45; }
+  .riga { display:flex; gap:18px; align-items:flex-start; }
+  .cella { display:flex; flex-direction:column; gap:6px; } .cella b { font-size:16px; } .cella small { color:var(--muted); font-size:14px; max-width:560px; line-height:1.35; }
+  .cornice { border:6px solid #000; border-radius:14px; overflow:hidden; } .scala { transform-origin:0 0; }
+  .schermo { position:relative; overflow:hidden; background:radial-gradient(900px 500px at 70% 0%, #3a1f5a55, transparent 70%), var(--bg); }
+  .tablet { width:1024px; height:600px; } .telo { width:915px; height:412px; }
+  .icona { width:26px; height:26px; fill:currentColor; flex:none; }
+  .rail { position:absolute; left:0; top:0; bottom:0; width:84px; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 0; background:#10131a; border-right:1px solid #232834; }
+  .rail div { width:72px; padding:9px 0; border-radius:14px; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--muted); }
+  .rail .sel { background:#1c2640; color:#fff; } .rail .sel .icona { color:var(--accent); } .rail .giu { margin-top:auto; }
+  .area { position:absolute; left:84px; right:0; top:0; bottom:0; padding:22px 26px; }
+  .cop { border-radius:16px; background:linear-gradient(135deg,#7a3cff,#ff5e8a 55%,#ffb35c); display:grid; place-items:center; color:#fff9; font-size:15px; text-align:center; box-shadow:0 20px 50px #0008; position:relative; }
+  .cop::after { content:"copertina\A(lato server)"; white-space:pre; padding:8px; }
+  .tit { font-size:34px; font-weight:600; line-height:1.15; } .art { font-size:22px; color:var(--muted); margin-top:4px; }
+  .barra-av { height:6px; border-radius:3px; background:#2b303a; position:relative; } .barra-av i { position:absolute; left:0; top:0; bottom:0; width:38%; border-radius:3px; background:#fff; }
+  .comandi { display:flex; align-items:center; gap:22px; }
+  .tondo { width:60px; height:60px; border-radius:50%; background:var(--surface-2); display:grid; place-items:center; }
+  .tondo.grande { width:84px; height:84px; background:#fff; color:#0d0f13; } .tondo.grande .icona { width:40px; height:40px; }
+  .vol { display:flex; align-items:center; gap:14px; color:var(--muted); } .vol .barra-av { flex:1; } .vol .barra-av i { width:40%; background:var(--accent); }
+  .chip { display:inline-flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px; background:var(--surface-2); font-size:17px; border:1px solid #2b303a; }
+  .chip.sel { background:#1c2640; border-color:var(--accent); }
+  .m { color:var(--muted); font-size:15px; }
+  .riq { background:var(--surface); border-radius:18px; padding:16px 18px; border:1px solid #232834; }
+  .etich { display:inline-block; font-size:13px; padding:3px 10px; border-radius:8px; background:#2a1f0c; color:#ffd9a0; border:1px solid #6b4a14; }
+  .griglia { display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; }
+  .pl { display:flex; flex-direction:column; gap:8px; font-size:16px; }
+  .pl .q { aspect-ratio:1; border-radius:12px; }
+  .mini { display:flex; align-items:center; gap:14px; padding:10px 14px; border-radius:18px; background:#1a1330; border:1px solid #3a2a5a; }
+  .campo { height:54px; border-radius:27px; border:1px solid #2b303a; background:var(--surface); display:flex; align-items:center; gap:12px; padding:0 20px; color:var(--muted); font-size:18px; }
+  .riq-home { position:absolute; background:var(--surface); border-radius:16px; padding:14px 16px; }
+</style>
+</head>
+<body><div id="radice"></div>
+<script>
+const P = {
+  casa:"M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z",
+  nota:"M21,3V15.5A3.5,3.5 0 0,1 17.5,19A3.5,3.5 0 0,1 14,15.5A3.5,3.5 0 0,1 17.5,12C18.04,12 18.55,12.12 19,12.34V6.47L9,8.6V17.5A3.5,3.5 0 0,1 5.5,21A3.5,3.5 0 0,1 2,17.5A3.5,3.5 0 0,1 5.5,14C6.04,14 6.55,14.12 7,14.34V6L21,3Z",
+  meteo:"M6.5,20Q4.22,20 2.61,18.43 1,16.85 1,14.58 1,12.63 2.17,11.1 3.35,9.57 5.25,9.15 5.88,6.85 7.75,5.43 9.63,4 12,4 14.93,4 16.96,6.04 19,8.07 19,11 20.73,11.2 21.86,12.5 23,13.78 23,15.5 23,17.38 21.69,18.69 20.38,20 18.5,20Z",
+  timer:"M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M19.03,7.39L20.45,5.97C20,5.46 19.55,5 19.04,4.56L17.62,6C16.07,4.74 14.12,4 12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22C17,22 21,17.97 21,13C21,10.88 20.26,8.93 19.03,7.39M11,14H13V8H11M15,1H9V3H15V1Z",
+  altro:"M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+  sfera:"M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
+  play:"M8,5.14V19.14L19,12.14L8,5.14Z",
+  pausa:"M14,19H18V5H14M6,19H10V5H6V19Z",
+  prec:"M6,18V6H8V18H6M9.5,12L18,6V18L9.5,12Z",
+  succ:"M16,18H18V6H16M6,18L14.5,12L6,6V18Z",
+  volg:"M5,9V15H9L14,20V4L9,9M18.5,12C18.5,10.23 17.5,8.71 16,7.97V16C17.5,15.29 18.5,13.76 18.5,12Z",
+  altop:"M12,12A3,3 0 0,0 9,15A3,3 0 0,0 12,18A3,3 0 0,0 15,15A3,3 0 0,0 12,12M12,20A5,5 0 0,1 7,15A5,5 0 0,1 12,10A5,5 0 0,1 17,15A5,5 0 0,1 12,20M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8C10.89,8 10,7.1 10,6C10,4.89 10.89,4 12,4M17,2H7C5.89,2 5,2.89 5,4V20A2,2 0 0,0 7,22H17A2,2 0 0,0 19,20V4C19,2.89 18.1,2 17,2Z",
+  cerca:"M9.5,3A6.5,6.5 0 0,1 16,9.5C16,11.11 15.41,12.59 14.44,13.73L14.71,14H15.5L20.5,19L19,20.5L14,15.5V14.71L13.73,14.44C12.59,15.41 11.11,16 9.5,16A6.5,6.5 0 0,1 3,9.5A6.5,6.5 0 0,1 9.5,3M9.5,5C7,5 5,7 5,9.5C5,12 7,14 9.5,14C12,14 14,12 14,9.5C14,7 12,5 9.5,5Z",
+  mic:"M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
+};
+const ic = (p) => `<svg class="icona" viewBox="0 0 24 24"><path d="${P[p]}"/></svg>`;
+function rail(tel) {
+  return `<div class="rail" style="${tel ? "width:76px;gap:0;padding:6px 0" : ""}">${[["casa","Casa"],["nota","Musica"],["meteo","Meteo"],["timer","Timer"],["altro","Altro"]].map(([i,t],k) => `<div class="${k === 1 ? "sel" : ""}" style="${tel ? "padding:5px 0" : ""}">${ic(i)}${t}</div>`).join("")}<div class="giu" style="${tel ? "padding:5px 0" : ""}">${ic("sfera")}Hub</div></div>`;
+}
+const STANZE = ["Cucina", "Camera da letto", "Tutta la casa"];
+const chipsStanze = (sel) => STANZE.map((s) => `<span class="chip ${s === sel ? "sel" : ""}">${ic("altop")}${s}</span>`).join("");
+
+/* M1: copertina grande */
+function m1(dim) {
+  const tel = dim === "telo";
+  const c = tel ? 250 : 360;
+  return `<div class="schermo ${dim}">${rail(tel)}<div class="area" style="${tel ? "left:76px;padding:18px 22px" : ""}">
+    <div class="cop" style="position:absolute;left:${tel ? 22 : 26}px;top:${tel ? 18 : 30}px;width:${c}px;height:${c}px"></div>
+    <div style="position:absolute;left:${c + (tel ? 50 : 60)}px;right:${tel ? 22 : 26}px;top:${tel ? 20 : 34}px;display:flex;flex-direction:column;gap:${tel ? 12 : 20}px">
+      <div><div class="tit" style="${tel ? "font-size:26px" : ""}">Bohemian Rhapsody</div><div class="art" style="${tel ? "font-size:18px" : ""}">Queen</div><div class="m" style="margin-top:6px">su Echo Pop cucina · Spotify</div></div>
+      <div><div class="barra-av"><i></i></div><div class="m" style="display:flex;justify-content:space-between;margin-top:4px"><span>2:14</span><span class="etich">avanzamento: lato server</span><span>5:55</span></div></div>
+      <div class="comandi" style="${tel ? "gap:14px" : ""}"><span class="tondo">${ic("prec")}</span><span class="tondo grande" style="${tel ? "width:68px;height:68px" : ""}">${ic("pausa")}</span><span class="tondo">${ic("succ")}</span></div>
+      <div class="vol">${ic("volg")}<div class="barra-av"><i></i></div><span>40</span></div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">${tel ? chipsStanze("Cucina").replace(/font-size:17px/g,"") : chipsStanze("Cucina")}</div>
+    </div></div></div>`;
+}
+/* M2: stanze prima */
+function m2(dim) {
+  const tel = dim === "telo";
+  const st = [
+    ["Cucina", "Bohemian Rhapsody · Queen", "in riproduzione · 40", true],
+    ["Camera da letto", "niente in riproduzione", "", false],
+    ["Tutta la casa", "gruppo di tutti gli Echo", "", false],
+  ];
+  return `<div class="schermo ${dim}">${rail(tel)}<div class="area" style="${tel ? "left:76px;padding:14px 18px" : ""}">
+    <div style="display:flex;flex-direction:column;gap:${tel ? 8 : 12}px">
+    ${st.map(([n,t,s,on]) => `<div class="riq" style="display:flex;align-items:center;gap:16px;${tel ? "padding:10px 14px" : ""};${on ? "border-color:#3a2a5a;background:#1a1330" : ""}">
+      <div class="cop" style="width:${tel ? 56 : 72}px;height:${tel ? 56 : 72}px;flex:none;font-size:0;${on ? "" : "background:#262a33"}"></div>
+      <div style="flex:1"><div style="font-size:${tel ? 18 : 21}px;font-weight:600">${n}</div><div class="m">${t}${s ? ` · ${s}` : ""}</div></div>
+      ${on ? `<span class="tondo">${ic("pausa")}</span><div class="vol" style="width:${tel ? 160 : 220}px">${ic("volg")}<div class="barra-av"><i></i></div></div>` : `<span class="chip">${ic("play")}Metti qualcosa…</span>`}
+    </div>`).join("")}
+    </div>
+    <div class="campo" style="position:absolute;left:${tel ? 18 : 26}px;right:${tel ? 18 : 26}px;bottom:${tel ? 14 : 24}px">${ic("cerca")}Cerca un brano, un artista, una playlist… o di' «Jarvis, metti i Queen in cucina»</div>
+  </div></div>`;
+}
+/* M3: libreria */
+function m3(dim) {
+  const tel = dim === "telo";
+  const pl = [["Preferiti","#1ed760,#0b6b30"],["Jazz la sera","#5b8def,#20306a"],["Queen · raccolta","#ff5e8a,#6a1a3a"],["Radio (con Music Assistant)","#f0a33a,#6b4a14"]];
+  return `<div class="schermo ${dim}">${rail(tel)}<div class="area" style="${tel ? "left:76px;padding:14px 18px" : ""}">
+    <div class="campo">${ic("cerca")}Cerca…</div>
+    <div class="m" style="margin:${tel ? 10 : 18}px 0 8px">Le tue playlist <span class="etich">elenco: lato server</span></div>
+    <div class="griglia" style="${tel ? "grid-template-columns:repeat(4,110px);gap:10px" : ""}">${pl.map(([t,g]) => `<div class="pl"><div class="q" style="background:linear-gradient(135deg,${g})"></div>${t}</div>`).join("")}</div>
+    <div class="mini" style="position:absolute;left:${tel ? 18 : 26}px;right:${tel ? 18 : 26}px;bottom:${tel ? 12 : 22}px"><div class="cop" style="width:52px;height:52px;font-size:0"></div><div style="flex:1"><b>Bohemian Rhapsody</b> · Queen<div class="m">Cucina · volume 40</div></div><span class="tondo">${ic("pausa")}</span><span class="tondo">${ic("succ")}</span></div>
+  </div></div>`;
+}
+/* mini-lettore nella home */
+function homeMini(dim, v) {
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  const x = tel ? 76 : 84;
+  let s = `<div class="schermo ${dim}" style="background:radial-gradient(900px 500px at 0% 0%, #5b8def26, transparent 70%), var(--bg)">${rail(tel).replace('class="sel"','').replace('<div class="" style','<div class="sel" style')}
+    <div style="position:absolute;left:${x+16}px;top:14px"><div style="font-size:${tel ? 70 : 92}px;font-weight:200;letter-spacing:-3px;line-height:.95">13:40</div><div class="m" style="font-size:${tel ? 16 : 20}px">mercoledì 1 ottobre</div></div>`;
+  const cs = tel ? 230 : 280;
+  if (v === "info") s += `<div class="mini" style="position:absolute;left:${x+16}px;width:${cs}px;top:${tel ? 120 : 150}px;flex-wrap:wrap"><div class="cop" style="width:48px;height:48px;font-size:0"></div><div style="flex:1;min-width:0"><b>Bohemian Rhapsody</b><div class="m">Queen · Cucina</div></div><span class="tondo" style="width:48px;height:48px">${ic("pausa")}</span></div>`;
+  const dx = x + 16 + cs + 12, dw = W - dx - 16;
+  const top = 14, hh = (H - (tel ? 28 : 104) - 12) / 2;
+  s += `<div class="riq-home" style="left:${dx}px;top:${top}px;width:${(dw-12)/2}px;height:${hh}px"><b>Cucina</b>${v === "stanza" ? `<div class="mini" style="margin-top:12px;padding:8px 10px"><div class="cop" style="width:44px;height:44px;font-size:0"></div><div style="flex:1"><b style="font-size:15px">Bohemian Rhapsody</b><div class="m" style="font-size:13px">Queen · 40</div></div><span class="tondo" style="width:44px;height:44px">${ic("pausa")}</span></div>` : ""}</div>`;
+  s += `<div class="riq-home" style="left:${dx + (dw-12)/2 + 12}px;top:${top}px;width:${(dw-12)/2}px;height:${hh}px"><b>Soggiorno</b><div class="m">25,7° · TV accesa</div></div>`;
+  s += `<div class="riq-home" style="left:${dx}px;top:${top+hh+12}px;width:${dw}px;height:${hh}px"><b>Camera da letto</b><div class="m">25,1° · condizionatore ventola 24°</div></div>`;
+  if (!tel) s += `<div style="position:absolute;left:${x+16}px;right:16px;bottom:16px;display:flex;gap:12px"><div class="campo" style="flex:1;height:56px">Chiedi a Jarvis…</div><span class="tondo" style="width:76px;height:56px;border-radius:28px">${ic("mic")}</span></div>`;
+  return s + `</div>`;
+}
+
+function cella(t, n, html, sc) {
+  const tel = html.includes("telo"); const w = (tel ? 915 : 1024) * sc, h = (tel ? 412 : 600) * sc;
+  return `<div class="cella"><b>${t}</b><div class="cornice" style="width:${w+12}px;height:${h+12}px"><div class="scala" style="transform:scale(${sc})">${html}</div></div>${n ? `<small>${n}</small>` : ""}</div>`;
+}
+function foglio(titolo, descr, f, nota) {
+  return `<div class="foglio"><h1>${titolo}</h1><p>${descr}</p><div class="riga">${cella("Tablet", nota, f("tablet"), .62)}${cella("Telefono orizzontale", "", f("telo"), .66)}</div></div>`;
+}
+const q = new URLSearchParams(location.search).get("foglio") ?? "M1";
+document.getElementById("radice").innerHTML = {
+  M1: () => foglio("Musica — M1: copertina grande", "Cosa suona al centro: copertina, titolo, comandi, volume, e sotto le stanze per spostare la musica (Cucina, Camera da letto, Tutta la casa). Il più semplice da usare in piedi davanti al tablet.", m1, "toccando un'altra stanza la musica si sposta lì"),
+  M2: () => foglio("Musica — M2: stanze prima", "Una riga per stanza con cosa suona e il volume di quella stanza; in fondo la ricerca. Pensata per più Echo in casa: si vede tutto insieme.", m2, "le stanze vengono da jarvis_musica (una sola lista per casa)"),
+  M3: () => foglio("Musica — M3: libreria", "Ricerca e playlist in primo piano, cosa suona in un lettore in basso. Utile se si sceglie spesso dal pannello; oggi le playlist non arrivano ancora dal server.", m3, "radio: solo con Music Assistant, da valutare lato server"),
+  mini: () => `<div class="foglio"><h1>Mini-lettore nella home (solo quando qualcosa suona)</h1><p>Due posti possibili. Tocco sul mini-lettore → schermata Musica. Quando non suona niente sparisce e non lascia buchi.</p>
+    <div class="riga">${cella("A · sotto l'orologio, colonna sinistra", "sempre nello stesso posto, qualunque stanza suoni", homeMini("tablet","info"), .5)}${cella("B · dentro la stanza dove suona", "si vede dove suona; se suona su «Tutta la casa» va in cima", homeMini("tablet","stanza"), .5)}</div>
+    <div class="riga">${cella("A · telefono orizzontale", "", homeMini("telo","info"), .55)}${cella("B · telefono orizzontale", "", homeMini("telo","stanza"), .55)}</div></div>`,
+}[q]();
+</script></body></html>
