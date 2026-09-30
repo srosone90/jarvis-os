@@ -136,6 +136,63 @@
           background: color-mix(in srgb, var(--ok) 35%, var(--superficie));
         }
       }
+      .invito {
+        font-size: 26px;
+        font-weight: 600;
+        text-align: center;
+        padding: 16px;
+        border-radius: 12px;
+        background: var(--superficie-2);
+        margin: 8px 0;
+      }
+      .invito.adesso {
+        background: color-mix(in srgb, var(--ok) 30%, var(--superficie-2));
+      }
+      input[type="text"] {
+        font: inherit;
+        color: inherit;
+        background: var(--superficie-2);
+        border: 1px solid #2b303a;
+        border-radius: 12px;
+        min-height: 48px;
+        padding: 0 14px;
+        max-width: 100%;
+      }
+      .esempi {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin: 8px 0;
+      }
+      .esempio {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: var(--superficie-2);
+        overflow-wrap: anywhere;
+      }
+      .interruttore {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 48px;
+      }
+      .interruttore input {
+        width: 24px;
+        height: 24px;
+      }
+      .bottone-file {
+        display: inline-flex;
+        align-items: center;
+        min-height: 48px;
+        padding: 0 14px;
+        border-radius: 12px;
+        border: 1px solid #2b303a;
+        background: var(--superficie-2);
+        cursor: pointer;
+      }
       #registro {
         max-height: 220px;
         overflow-y: auto;
@@ -223,6 +280,7 @@
           <input id="soglia" type="range" min="0.05" max="0.95" step="0.05" value="0.5" />
           <b data-test="soglia">0,50</b>
         </div>
+        <small data-test="punteggio-base" hidden></small>
         <small>Sopra la soglia = attivazione (poi 2 s di pausa). openWakeWord consiglia 0,5.</small>
       </section>
 
@@ -249,6 +307,74 @@
           </table>
         </div>
         <small>Carico = media / 80 ms. Sopra il 100% il telefono non sta al passo.</small>
+      </section>
+
+      <section data-test="sezione-verificatore">
+        <h2>La tua pronuncia (verificatore)</h2>
+        <p class="nota">
+          Il modello di base è addestrato su voci inglesi: capisce «Giarvìs», non il nostro «Giàrvis». Qui
+          registrate come dite la parola in casa (circa 30 volte a testa) e un po' di parlato normale o TV: il
+          telefono impara la vostra pronuncia. Esempi e verificatore restano <b>solo su questo telefono</b>.
+        </p>
+        <div class="riga">
+          <input
+            type="text"
+            data-test="persona"
+            placeholder="Chi parla (es. Salvatore)"
+            aria-label="Chi parla"
+          />
+          <label
+            >Esempi <input type="number" data-test="quanti" min="3" max="60" value="30" style="width: 90px"
+          /></label>
+          <button data-azione="registra-parola">Registra «<span data-parola>Ehi Jarvis</span>»</button>
+        </div>
+        <p class="invito" data-test="invito" hidden></p>
+        <div class="riga">
+          <label
+            >Secondi di parlato normale o TV
+            <input
+              type="number"
+              data-test="secondi-normale"
+              min="5"
+              max="600"
+              value="120"
+              style="width: 90px"
+          /></label>
+          <button data-azione="registra-normale">Registra parlato normale</button>
+        </div>
+        <small
+          >Per il parlato normale: parlate tra voi senza dire la parola, o lasciate la TV accesa. Di questo
+          non si tiene l'audio, solo i numeri che servono al verificatore.</small
+        >
+        <div class="esempi" data-test="esempi"></div>
+        <div class="riga">
+          <label
+            >Soglia base
+            <input
+              type="number"
+              data-test="soglia-base"
+              min="0.005"
+              max="0.5"
+              step="0.005"
+              value="0.1"
+              style="width: 100px"
+          /></label>
+          <button class="principale" data-azione="addestra">Addestra il verificatore</button>
+        </div>
+        <small data-test="consiglio-soglia-base"
+          >Il verificatore decide solo quando il modello di base supera la soglia base.</small
+        >
+        <p class="nota" data-test="stato-verificatore">Nessun verificatore.</p>
+        <div class="riga">
+          <label class="interruttore"
+            ><input type="checkbox" data-test="usa-verificatore" disabled /> Usa il verificatore</label
+          >
+          <button data-azione="esporta" disabled>Esporta</button>
+          <label class="bottone-file"
+            >Importa <input type="file" accept="application/json,.json" data-test="importa" hidden
+          /></label>
+          <button data-azione="cancella-tutto">Cancella esempi e verificatore</button>
+        </div>
       </section>
 
       <section>

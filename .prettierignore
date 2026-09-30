@@ -6,3 +6,5 @@ package-lock.json
 test-results/
 playwright-report/
 *.md
+# generato da scripts/riferimento-verificatore.py
+test/unit/dati/verificatore-sklearn.json

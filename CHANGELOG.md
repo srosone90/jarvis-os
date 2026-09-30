@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.4.3
+
+"Ehi Jarvis": il telefono impara la vostra pronuncia (solo nella pagina di
+prova, il pannello non cambia).
+
+- Nuova sezione "La tua pronuncia". Registrazione guidata: circa 30 «Jarvis» a
+  testa, con l'invito "adesso" sullo schermo, più un po' di parlato normale o
+  TV. Poi "Addestra il verificatore", in pochi secondi sul telefono.
+- È il verificatore personale di openWakeWord, rifatto per il telefono. Il
+  modello di base resta, e quando sente qualcosa di simile decide il
+  verificatore. Numeri identici a quelli dell'originale (scikit-learn).
+- La soglia base si imposta da sola sui vostri esempi.
+- Tutto resta sul telefono: esempi e verificatore sono nel browser, niente
+  viene inviato. Del parlato normale non si tiene l'audio. Si può riascoltare
+  e cancellare tutto.
+- "Esporta" e "Importa" portano il verificatore su un altro telefono di casa
+  (solo numeri, niente voce).
+- Le serie e i falsi positivi dicono se il verificatore era acceso: il
+  confronto prima/dopo esce dai risultati da copiare.
+- `parola.json` (facoltativo, fuori dallo zip) cambia modello, soglie e
+  verificatore condiviso senza una nuova release.
+
 ## v0.4.2
 
 Link veloce automatico, con il link di sempre come riserva.

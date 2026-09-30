@@ -22,6 +22,11 @@ export interface RilevatoreParola {
 export interface EsitoFrame {
   /** 0..1: quanto il modello è sicuro di aver sentito la parola. */
   punteggio: number;
+  /**
+   * Ingresso del classificatore: gli ultimi 16 embedding × 96, cioè
+   * `preprocessor.get_features(16)` di openWakeWord. Serve al verificatore.
+   */
+  caratteristiche: Float32Array;
   /** Tempo di calcolo del frame (melspettrogramma + embedding + classificatore). */
   msCalcolo: number;
 }
@@ -161,20 +166,32 @@ export class RilevatoreOpenWakeWord implements RilevatoreParola {
     const ultimi = this.embedding.slice(-this.finestreClassificatore);
     const dati = new Float32Array(ultimi.length * 96);
     ultimi.forEach((e, i) => dati.set(e, i * 96));
+    const valore = await this.classifica(dati);
+    this.previsioni += 1;
+    const punteggio = this.previsioni <= PREVISIONI_A_ZERO ? 0 : valore;
+    return { punteggio, caratteristiche: dati, msCalcolo: performance.now() - t0 };
+  }
+
+  /**
+   * Punteggio del classificatore su caratteristiche già calcolate (per esempio
+   * quelle degli esempi registrati, se nel frattempo è cambiato il modello).
+   */
+  valuta(caratteristiche: Float32Array): Promise<number> {
+    const lavoro = this.catena.then(() => this.classifica(caratteristiche));
+    this.catena = lavoro.catch((e: unknown) => e);
+    return lavoro;
+  }
+
+  private async classifica(dati: Float32Array): Promise<number> {
     const uscita = await this.classificatore.run({
       [this.classificatore.inputNames[0] ?? "input"]: new this.ort.Tensor("float32", dati, [
         1,
-        ultimi.length,
+        dati.length / 96,
         96,
       ]),
     });
     const valore = uscita[this.classificatore.outputNames[0] ?? "output"]?.data[0];
-    this.previsioni += 1;
-    const punteggio =
-      this.previsioni <= PREVISIONI_A_ZERO || typeof valore !== "number" || !Number.isFinite(valore)
-        ? 0
-        : valore;
-    return { punteggio, msCalcolo: performance.now() - t0 };
+    return typeof valore === "number" && Number.isFinite(valore) ? valore : 0;
   }
 
   /** Melspettrogramma con la trasformazione di openWakeWord (x/10 + 2): righe da 32. */

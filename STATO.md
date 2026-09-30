@@ -4,16 +4,18 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — `jarvis_musica` 0.2.1 (services.yaml e
-tempi); inizio della v0.4.3._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.3 pubblicata (verificatore della
+pronuncia nella pagina di prova)._
 
 ## Adesso
 
 - **Finito:** `jarvis_musica` 0.2.1. Corregge l'errore "Failed to load
   services.yaml" e aggiunge i tempi anche ai comandi. Sotto, cosa installare.
-- **In corso:** v0.4.3, il verificatore "Ehi Jarvis" nella pagina di prova
-  (registrazione degli esempi e addestramento sul telefono).
-- **Poi:** v0.5.0, "Jarvis" nel pannello come opzione, spenta di default.
+- **Finito:** v0.4.3, il verificatore "Ehi Jarvis" nella pagina di prova.
+  Sotto, cosa installare e come misurare.
+- **In corso:** v0.5.0, "Jarvis" nel pannello come opzione, spenta di default.
+- **In parallelo, da preparare:** il notebook Colab per il modello italiano
+  (passo 2), con le licenze dei negativi scelte per l'uso commerciale.
 - **Dopo ancora:** i mockup (fase G, schermo a riposo e Hub, schermate e
   navigazione, musica).
 
@@ -21,10 +23,41 @@ tempi); inizio della v0.4.3._
 
 | | |
 |---|---|
-| Versione | **v0.4.2** (origine veloce con ripiego sul link vecchio) |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.2 |
-| sha256 dello zip | `b6d6a61d4685ae471fca36aaa491c8c661a44c28404df92114ae8c57c2e2e4ae` |
-| Stato | Installata dalla sessione server il 30/09 (sha e SW 0.4.2 verificati) |
+| Versione | **v0.4.3**: verificatore della pronuncia nella pagina di prova; il pannello non cambia |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.3 |
+| sha256 dello zip | _in arrivo: lo scrivo appena il workflow pubblica lo zip_ |
+| Precedente | v0.4.2, sha256 `b6d6a61d…`, installata il 30/09 |
+
+## Da installare lato server: v0.4.3
+
+1. Scompatta lo zip sopra `/config/www/jarvis/`, come sempre.
+2. Facoltativo: `/config/www/jarvis/parola.json` (NON è nello zip, gli
+   aggiornamenti non lo toccano) per cambiare modello, soglie o verificatore
+   condiviso senza release. Formato nel README, sezione "`parola.json`".
+   Senza il file vanno i valori predefiniti.
+
+**Come misurare** (dal telefono vecchio, link di sempre, poi passa alla veloce):
+
+1. Apri `…/local/jarvis/prova-ehi-jarvis.html`. Se dice ancora v0.4.2, fai
+   "Aggiorna ora" dal pannello e riapri.
+2. **Prima**: serie da 20 «Giàrvis» con il verificatore spento. Annota i
+   riconosciuti.
+3. Sezione "La tua pronuncia":
+   - 30 «Jarvis» per ogni persona di casa (nome, "Registra", la parola quando
+     lo schermo diventa verde);
+   - "Registra parlato normale" per 2 minuti (voci o TV, senza la parola);
+   - "Addestra il verificatore".
+4. **Dopo**: la stessa serie da 20 «Giàrvis» con il verificatore acceso, e
+   un'ora di falsi positivi con la TV accesa.
+5. "Copia i risultati" e passali a Code. Ogni riga dice se il verificatore era
+   acceso, la soglia base e quanti esempi.
+
+Da sapere:
+
+- esempi e verificatore restano solo su quel telefono;
+- "Esporta" produce un file con i soli numeri del verificatore, da importare
+  su un altro telefono di casa, o da mettere in `parola.json` come
+  verificatore condiviso.
 
 ## Da installare lato server: `jarvis_musica` 0.2.1
 
@@ -85,7 +118,9 @@ cambiano**.
 4. **"Error fetching spotify data"** dopo il riavvio: se si ripete più di una
    volta, dimmelo. È dell'integrazione di HA, ma `jarvis_musica` lo tradurrebbe
    in "Spotify non risponde".
-5. **"Jarvis" dal pannello**: non viene riconosciuto perché nel pannello
-   l'ascolto della parola **non esiste ancora**, c'è solo nella pagina di prova.
-   Arriva con la v0.5.0, dopo il verificatore della v0.4.3, che serve per la
-   pronuncia italiana "Giàrvis".
+5. **"Jarvis" dal pannello**: nel pannello l'ascolto della parola **non esiste
+   ancora**, c'è solo nella pagina di prova. Arriva con la v0.5.0, su cui sto
+   lavorando adesso.
+6. **Misure con il verificatore** (v0.4.3): quanti «Giàrvis» su 20 prima e
+   dopo, falsi positivi in un'ora con la TV, e la soglia base impostata dagli
+   esempi. Mi servono per decidere le impostazioni predefinite della v0.5.0.

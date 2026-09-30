@@ -12,7 +12,7 @@ orizzontale acceso 24/7.
 | F2 — stanze e comandi dei dispositivi | **v0.2.2** (layout per tutte le misure) |
 | F4 — assistente testuale (Gemini) | **v0.3.2** |
 | F5 — voce "tocca per parlare" | **v0.4.0** |
-| Prova "Ehi Jarvis" (pagina separata, `prova-ehi-jarvis.html`) | **v0.4.1**, in attesa delle misure sul telefono |
+| Prova "Ehi Jarvis" (pagina separata, `prova-ehi-jarvis.html`) | **v0.4.3**: con il verificatore della vostra pronuncia, in attesa delle misure sul telefono |
 | Origine veloce con ripiego sul link di riserva | **v0.4.2** |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la prova "Ehi Jarvis" |
 | Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
@@ -53,6 +53,42 @@ da sola all'origine veloce. Se sul telefono c'era un pannello più vecchio della
 v0.4.1, prima apri il pannello, tieni premuto l'orologio 3 s e tocca "Aggiorna
 ora". Altrimenti il vecchio service worker risponde col pannello al posto della
 pagina di prova.
+
+**La vostra pronuncia (verificatore, v0.4.3)**. Il modello di base riconosce
+«Giarvìs» all'inglese, non «Giàrvis». Nella sezione "La tua pronuncia" della
+pagina di prova:
+
+1. scrivi chi parla e tocca "Registra «…»". Quando lo schermo diventa verde
+   ("adesso"), di' la parola con la voce normale, 30 volte. Ripeti per ogni
+   persona di casa;
+2. "Registra parlato normale": 2 minuti in cui parlate tra voi senza dire la
+   parola, oppure con la TV accesa;
+3. "Addestra il verificatore". Dura pochi secondi, sul telefono. La soglia base
+   si imposta da sola sui vostri esempi;
+4. rifai le serie e il conteggio dei falsi positivi con "Usa il verificatore"
+   acceso e spento: nei risultati ogni riga dice se era acceso.
+
+Tutto resta sul telefono: IndexedDB del browser, nessun invio. Del parlato
+normale non si tiene l'audio. "Esporta" salva solo i numeri del verificatore,
+per importarli su un altro telefono di casa.
+
+**`parola.json` (facoltativo)**. È un file accanto alla pagina, in
+`/config/www/jarvis/parola.json`, e non sta nello zip, quindi gli aggiornamenti
+non lo toccano. Cambia modello, soglie e verificatore condiviso senza una nuova
+release:
+
+```json
+{
+  "modello": { "id": "jarvis_it_v1", "url": "./modelli-casa/jarvis_it_v1.onnx",
+               "parola": "Jarvis", "licenza": "…", "commerciale": false },
+  "soglia": 0.5,
+  "sogliaBase": 0.05,
+  "verificatore": "./modelli-casa/verificatore-casa.json"
+}
+```
+
+Tutte le chiavi sono facoltative. Se il file è scritto male la pagina lo dice
+nel registro e usa i valori predefiniti.
 
 **Aggiornare**: si scompatta il nuovo zip sopra il vecchio. Il pannello scarica la
 versione nuova da solo, entro 6 ore o alla prima ricarica, e la applica alla

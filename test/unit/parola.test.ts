@@ -69,6 +69,11 @@ describe("rilevatore openWakeWord (modelli veri)", () => {
     expect(Math.max(...esiti.map((e) => e.punteggio))).toBeLessThan(0.5);
     expect(esiti.every((e) => e.msCalcolo > 0)).toBe(true);
     expect(r.parola).toBe("Ehi Jarvis");
+    // caratteristiche per il verificatore: 16 embedding × 96, e ridanno lo stesso punteggio
+    const ultimo = esiti.at(-1);
+    if (!ultimo) throw new Error("nessun esito");
+    expect(ultimo.caratteristiche).toHaveLength(16 * 96);
+    expect(await r.valuta(ultimo.caratteristiche)).toBeCloseTo(ultimo.punteggio, 6);
   }, 30_000);
 
   it("stesso audio a pezzi diversi → stessi punteggi (il ritmo del microfono non conta)", async () => {

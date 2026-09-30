@@ -115,6 +115,8 @@ In casa **non ci sono luci smart**.
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
 | `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
+| `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
+| `scripts/riferimento-verificatore.py`, `test/unit/dati/verificatore-sklearn.json` | Riferimento scikit-learn per il test del verificatore |
 | `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
 | `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
 | `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
@@ -569,6 +571,89 @@ può fare (niente GPU, e Hugging Face è bloccato dalla rete). Da verificare pri
 licenza dei modelli melspettrogramma ed embedding, se un servizio a pagamento
 può usarli anche con un classificatore nostro.
 
+### Verificatore della pronuncia (v0.4.3, 30/09)
+
+**Perché.** Prova di Salvatore: `hey_jarvis` scatta con «Giarvìs» (accento
+sull'ultima, all'inglese) e non con «Giàrvis». È addestrato su voci sintetiche
+inglesi.
+
+**Cosa.** È il "custom verifier" di openWakeWord 0.6.0
+(`custom_verifier_model.py` e `Model.predict`, letti nel codice), rifatto in
+`src/parola/verificatore.ts` per addestrarsi SUL TELEFONO.
+
+- **Caratteristiche**: `get_features(16)`, cioè gli ultimi 16 embedding × 96 =
+  1536 valori, lo stesso ingresso del classificatore. Il rilevatore le dà per
+  ogni frame (`EsitoFrame.caratteristiche`). Non dipendono dal classificatore:
+  se cambia il modello base, gli esempi si ripunteggiano con `valuta()` senza
+  registrarli di nuovo.
+- **Modello**: `StandardScaler` (ddof 0, scala 1 dove la deviazione è ~0) più
+  `LogisticRegression(C=0.001)`. Stesso obiettivo di scikit-learn,
+  ½‖w‖² + C·Σ perdita, intercetta non penalizzata, risolto con L-BFGS con
+  tolleranza 1e-9 sul gradiente.
+- **Uso**: se il punteggio base ≥ `sogliaBase` (`custom_verifier_threshold`,
+  0,1 nell'originale), il punteggio diventa la probabilità del verificatore;
+  poi vale la soglia di sempre.
+
+**Verificato.**
+
+- Contro scikit-learn 1.9.1 su dati riproducibili: il riferimento è
+  `scripts/riferimento-verificatore.py`, il test
+  `test/unit/verificatore.test.ts`. Pesi entro 1e-5 relativo, probabilità
+  entro 1e-6.
+- Su caratteristiche VERE di openWakeWord (clip di prova, 1536 dimensioni):
+  scarto 3e-8 in doppia precisione.
+- Tempo di addestramento: 2300 esempi × 1536 in 0,5 s su un Xeon; su un
+  telefono vecchio stimati pochi secondi.
+
+**Unica deviazione voluta, la scelta dei positivi.**
+
+- L'originale li prende solo dove il modello base supera 0,5. Con «Giàrvis»
+  non ci arriva quasi mai, e non si raccoglierebbe niente.
+- Qui: i frame della finestra di 2,5 s dopo l'invito con punteggio base ≥
+  `sogliaBase`. Se non ce n'è nessuno, i 3 frame attorno al massimo
+  (`scegliPositivi`).
+- La soglia base si imposta da sola sulla consigliata, cioè 0,8 × il più basso
+  dei massimi degli esempi, tra 0,005 e 0,1. Non succede se è stata scelta a
+  mano o da `parola.json`. Motivo: con una soglia base sopra i punteggi della
+  pronuncia di casa il verificatore non verrebbe mai consultato.
+- Negativi: tutti i frame del parlato normale, come l'originale (al massimo
+  2000, a intervalli regolari).
+
+**Registrazione** (pagina di prova):
+
+- esempi della parola: un invito ogni 3 s, il primo dopo 1,5 s, finestra di
+  2,5 s. Presi dal flusso vivo del rilevatore, quindi con lo stesso contesto
+  dell'ascolto vero, senza il riscaldamento di un rilevatore azzerato;
+- niente bip durante la registrazione (finirebbe nell'audio) e niente
+  attivazioni contate;
+- tutto in IndexedDB (`src/parola/archivio.ts`):
+  - esempi della parola: audio di 3 s per riascoltarli, più le caratteristiche;
+  - parlato normale: SOLO le caratteristiche, niente audio;
+- "Esporta" salva solo i pesi del verificatore;
+- microfono fermato a metà: la registrazione si annulla e lo si dice.
+
+**`parola.json`** (`src/parola/impostazioni.ts`): sta accanto alla pagina e
+fuori dallo zip. Contiene modello (id, url, parola, licenza, commerciale),
+`soglia`, `sogliaBase` e l'indirizzo di un verificatore condiviso. Cambia tutto
+senza release (requisito multi-casa). Scritto male: avvisi nel registro e
+valori predefiniti.
+
+**Prove.**
+
+- e2e:
+  - registrazione guidata, addestramento, uso, persistenza, esportazione e
+    importazione, cancellazione;
+  - **nessuna richiesta di rete** oltre ai file della pagina;
+  - microfono fermato a metà;
+  - `parola.json` valido e rotto;
+  - "decide davvero": un verificatore che dice sempre sì fa scattare, spento
+    no. Controprova: col verificatore scollegato nella pagina la prova cade.
+- Layout guardato a 360 e 1024 px: la tabella degli esempi sbordava a 360, ora
+  sono righe che vanno a capo.
+
+**Passo 2, ancora da fare**: il modello italiano dedicato (notebook Colab,
+licenze dei negativi da scegliere compatibili con l'uso commerciale).
+
 ### Profili di voce: tono per tipo di voce (deciso il 29/09, dopo "Ehi Jarvis")
 
 - Tono della risposta in base al tipo di voce: **uomo adulto / donna adulta /
@@ -1021,6 +1106,16 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **Prima di allargare una tolleranza, misura chi dei due sbaglia.** Il
+  verificatore differiva da scikit-learn di 1,6e-5 (test a 1e-5). Misurando il
+  gradiente nei due punti, era il mio a fermarsi prima (7e-8 contro 9e-9): si
+  è stretta la tolleranza di L-BFGS, non il test. Sui dati veri, invece, lo
+  scarto di 2e-4 era di scikit-learn, che con ingressi float32 lavora in
+  precisione singola: in doppia lo scarto è 3e-8.
+- **Negli script Playwright fuori dal runner `getByTestId` cerca `data-testid`**:
+  questo progetto usa `data-test` (`selectors.setTestIdAttribute`). E mai
+  `pkill -f <testo>` da una shell il cui comando contiene quel testo, perché
+  uccide la shell stessa (uscita 144): il server lo avvia e lo spegne lo script.
 - **Un componente che registra servizi vuole `services.yaml`.** Senza, HA 2026.9.3
   scrive "Failed to load services.yaml" a ogni avvio. La prova non lo vedeva:
   HA legge il file solo quando qualcuno chiede le descrizioni (interfaccia,

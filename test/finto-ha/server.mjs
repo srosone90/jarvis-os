@@ -30,6 +30,8 @@
  *                                richieste arrivate come 127.0.0.1 (l'origine di riserva è
  *                                localhost). giu = connessione chiusa (app Tailscale spenta),
  *                                lenta = 3 s di attesa su ogni richiesta HTTP
+ *   /__prova/file                {nome, contenuto, tipo?}: un file in /local/jarvis/ che
+ *                                nello zip non c'è (es. parola.json di una casa)
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -173,6 +175,7 @@ function reset() {
     tokenValidi: true,
     nuovaVersione: false,
     veloce: "su",
+    fileVirtuali: new Map(), // nome → {contenuto, tipo}
     registri: registriIniziali(),
     rifiuta: new Set(), // "dominio.servizio" che HA rifiuta
     muti: new Set(), // entity_id che non cambiano stato dopo un comando
@@ -594,7 +597,10 @@ const server = createServer(async (req, res) => {
       for (const c of clienti) c.ws.terminate();
     } else if (comando === "accendi") stato.acceso = true;
     else if (comando === "latenza") stato.latenza = Number(url.searchParams.get("ms") ?? 0);
-    else if (comando === "veloce") {
+    else if (comando === "file") {
+      const { nome, contenuto, tipo } = JSON.parse(await leggiCorpo(req));
+      stato.fileVirtuali.set(nome, { contenuto, tipo: tipo ?? "application/json" });
+    } else if (comando === "veloce") {
       stato.veloce = url.searchParams.get("stato") ?? "su";
       if (stato.veloce === "giu") for (const c of clienti) if (c.veloce) c.ws.terminate();
     } else if (comando === "rifiuta") stato.rifiuta.add(url.searchParams.get("servizio"));
@@ -715,6 +721,12 @@ const server = createServer(async (req, res) => {
   // File dell'app, come /config/www/jarvis/ → /local/jarvis/
   if (p.startsWith("/local/jarvis/")) {
     const rel = normalize(p.slice("/local/jarvis/".length)).replace(/^(\.\.[/\\])+/, "");
+    const virtuale = stato.fileVirtuali.get(rel);
+    if (virtuale) {
+      stato.info.richieste[rel] = (stato.info.richieste[rel] ?? 0) + 1;
+      res.writeHead(200, { "content-type": virtuale.tipo, "cache-control": "public, max-age=2678400" });
+      return res.end(virtuale.contenuto);
+    }
     const file = join(DIST, rel);
     stato.info.richieste[rel] = (stato.info.richieste[rel] ?? 0) + 1;
     // Come HA (aiohttp senza indice): una cartella NON serve index.html
