@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.8 (fase G: riposo, Hub, impostazioni, guida). Release: vedi sotto._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.8 (fase G: riposo, Hub, impostazioni, guida). Release verificata._
 
 ## Adesso
 
@@ -41,7 +41,7 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.8 (fase G: riposo, Hub, impostazioni,
 |---|---|
 | Versione | **v0.4.8**: fase G (riposo, Hub, impostazioni, guida) |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.8 |
-| sha256 dello zip | _in arrivo: lo scrivo appena la release è pronta e verificata_ |
+| sha256 dello zip | `fad878eb44aad6b7fa1ddb6fe2677f2dae3f8fecec4a030f2a2814cb4afb500a` (6,8 MB, service worker 0.4.8, verificati) |
 | Precedente | v0.4.7, sha256 `9c7684ea…bbc4` |
 
 ## Da installare lato server: v0.4.8
