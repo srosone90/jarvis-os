@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Jarvis OS — mockup navigazione e nuove schermate</title>
+<!--
+  Mockup statico: ?foglio=nav|schermate-1|schermate-2. Immagini con Playwright
+  (schermate/mockup/). Dati di esempio dalla casa vera: stanze, dispositivi,
+  meteo, scaldabagno, timer, batterie del pacchetto, la caduta di Tailscale del 30/09.
+-->
+<style>
+  :root { --accent:#5b8def; --bg:#0d0f13; --surface:#171a21; --surface-2:#1f232c; --text:#eef1f6; --muted:#9aa3b2; --warn:#f0a33a; --ok:#3ecf7a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#05060a; color:var(--text); font-family:system-ui,Roboto,sans-serif; }
+  .foglio { padding:24px; display:flex; flex-direction:column; gap:16px; width:max-content; }
+  .foglio > h1 { margin:0; font-size:28px; } .foglio > p { margin:0; color:var(--muted); font-size:17px; max-width:1760px; line-height:1.45; }
+  .foglio h2 { margin:6px 0 0; font-size:22px; }
+  .riga { display:flex; gap:18px; align-items:flex-start; }
+  .cella { display:flex; flex-direction:column; gap:6px; } .cella b { font-size:16px; } .cella small { color:var(--muted); font-size:14px; max-width:440px; line-height:1.35; }
+  .cornice { border:6px solid #000; border-radius:14px; overflow:hidden; } .scala { transform-origin:0 0; }
+  .schermo { position:relative; overflow:hidden; background:radial-gradient(900px 500px at 0% 0%, #5b8def26, transparent 70%), var(--bg); }
+  .tablet { width:1024px; height:600px; } .telo { width:915px; height:412px; }
+  .icona { width:26px; height:26px; fill:currentColor; flex:none; }
+  .riq { position:absolute; background:var(--surface); border-radius:16px; padding:14px 16px; overflow:hidden; }
+  .riq h3 { margin:0 0 8px; font-size:18px; } .riq .m { color:var(--muted); font-size:14px; }
+  .ora { font-size:92px; font-weight:200; letter-spacing:-3px; line-height:.95; }
+  /* navigazione */
+  .dock { position:absolute; left:0; right:0; bottom:0; height:72px; display:flex; background:#10131acc; border-top:1px solid #232834; }
+  .dock div { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; font-size:13px; color:var(--muted); }
+  .dock .sel { color:#fff; } .dock .sel .icona { color:var(--accent); }
+  .rail { position:absolute; left:0; top:0; bottom:0; width:84px; display:flex; flex-direction:column; align-items:center; gap:4px; padding:14px 0; background:#10131a; border-right:1px solid #232834; }
+  .rail div { width:72px; padding:9px 0; border-radius:14px; display:flex; flex-direction:column; align-items:center; gap:2px; font-size:12px; color:var(--muted); }
+  .rail .sel { background:#1c2640; color:#fff; } .rail .sel .icona { color:var(--accent); }
+  .rail .giu { margin-top:auto; }
+  .punti { position:absolute; left:50%; transform:translateX(-50%); bottom:10px; display:flex; gap:8px; }
+  .punti i { width:9px; height:9px; border-radius:50%; background:#3a404c; } .punti i.sel { background:#fff; width:22px; border-radius:5px; }
+  .testa { position:absolute; left:0; right:0; top:0; height:64px; display:flex; align-items:center; gap:14px; padding:0 20px; border-bottom:1px solid #1c2029; }
+  .testa h2 { margin:0; font-size:24px; flex:1; } .testa .m { color:var(--muted); font-size:15px; }
+  .tondo { width:44px; height:44px; border-radius:50%; background:var(--surface-2); display:grid; place-items:center; }
+  .menu { position:absolute; inset:0; background:#05060ae6; display:grid; grid-template-columns:repeat(4, 180px); gap:16px; place-content:center; }
+  .menu div { background:var(--surface); border:1px solid #232834; border-radius:18px; padding:18px; display:flex; flex-direction:column; gap:10px; font-size:18px; }
+  .menu .icona { width:34px; height:34px; color:var(--accent); }
+  .barra { position:absolute; display:flex; gap:12px; }
+  .barra .chiedi { flex:1; height:56px; border-radius:28px; border:1px solid #2b303a; background:var(--surface); display:flex; align-items:center; padding:0 22px; color:var(--muted); font-size:17px; }
+  /* contenuti */
+  .lista { display:flex; flex-direction:column; }
+  .el { display:flex; align-items:center; gap:14px; padding:12px 4px; border-bottom:1px solid #1c2029; font-size:18px; }
+  .el .icona { color:var(--accent); } .el div { flex:1; } .el small { display:block; color:var(--muted); font-size:14px; margin-top:2px; }
+  .pill { padding:6px 14px; border-radius:999px; background:var(--surface-2); font-size:15px; }
+  .pill.on { background:#1d3a2a; color:#9ff0c2; }
+  .grafico { position:relative; height:120px; }
+  .ore { display:grid; grid-template-columns:repeat(12, 1fr); gap:6px; text-align:center; font-size:15px; }
+  .ore b { font-size:18px; font-weight:500; } .ore small { color:#8fb4ff; }
+  .nota-scarto { position:absolute; right:14px; top:14px; padding:6px 12px; border-radius:10px; font-size:14px; background:#2a1f0c; border:1px solid #6b4a14; color:#ffd9a0; }
+</style>
+</head>
+<body><div id="radice"></div>
+<script>
+const P = {
+  casa:"M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z",
+  nota:"M21,3V15.5A3.5,3.5 0 0,1 17.5,19A3.5,3.5 0 0,1 14,15.5A3.5,3.5 0 0,1 17.5,12C18.04,12 18.55,12.12 19,12.34V6.47L9,8.6V17.5A3.5,3.5 0 0,1 5.5,21A3.5,3.5 0 0,1 2,17.5A3.5,3.5 0 0,1 5.5,14C6.04,14 6.55,14.12 7,14.34V6L21,3Z",
+  meteo:"M6.5,20Q4.22,20 2.61,18.43 1,16.85 1,14.58 1,12.63 2.17,11.1 3.35,9.57 5.25,9.15 5.88,6.85 7.75,5.43 9.63,4 12,4 14.93,4 16.96,6.04 19,8.07 19,11 20.73,11.2 21.86,12.5 23,13.78 23,15.5 23,17.38 21.69,18.69 20.38,20 18.5,20Z",
+  timer:"M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M19.03,7.39L20.45,5.97C20,5.46 19.55,5 19.04,4.56L17.62,6C16.07,4.74 14.12,4 12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22C17,22 21,17.97 21,13C21,10.88 20.26,8.93 19.03,7.39M11,14H13V8H11M15,1H9V3H15V1Z",
+  altro:"M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+  termo:"M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z",
+  scena:"M12,2L14.39,8.26L21,9.27L16.2,13.97L17.48,20.5L12,17.27L6.52,20.5L7.8,13.97L3,9.27L9.61,8.26L12,2Z",
+  spesa:"M17,18A2,2 0 0,1 19,20A2,2 0 0,1 17,22C15.89,22 15,21.1 15,20C15,18.89 15.89,18 17,18M1,2H4.27L5.21,4H20A1,1 0 0,1 21,5C21,5.17 20.95,5.34 20.88,5.5L17.3,11.97C16.96,12.58 16.3,13 15.55,13H8.1L7.2,14.63L7.17,14.75A0.25,0.25 0 0,0 7.42,15H19V17H7C5.89,17 5,16.1 5,15C5,14.65 5.09,14.32 5.24,14.04L6.6,11.59L3,4H1V2M7,18A2,2 0 0,1 9,20A2,2 0 0,1 7,22C5.89,22 5,21.1 5,20C5,18.89 5.89,18 7,18Z",
+  avvisi:"M21,19V20H3V19L5,17V11C5,7.9 7.03,5.17 10,4.29C10,4.19 10,4.1 10,4A2,2 0 0,1 12,2A2,2 0 0,1 14,4C14,4.1 14,4.19 14,4.29C16.97,5.17 19,7.9 19,11V17L21,19M14,21A2,2 0 0,1 12,23A2,2 0 0,1 10,21",
+  imp:"M12,15.5A3.5,3.5 0 0,1 8.5,12A3.5,3.5 0 0,1 12,8.5A3.5,3.5 0 0,1 15.5,12A3.5,3.5 0 0,1 12,15.5M19.43,12.97C19.47,12.65 19.5,12.33 19.5,12C19.5,11.67 19.47,11.34 19.43,11L21.54,9.37C21.73,9.22 21.78,8.95 21.66,8.73L19.66,5.27C19.54,5.05 19.27,4.96 19.05,5.05L16.56,6.05C16.04,5.66 15.5,5.32 14.87,5.07L14.5,2.42C14.46,2.18 14.25,2 14,2H10C9.75,2 9.54,2.18 9.5,2.42L9.13,5.07C8.5,5.32 7.96,5.66 7.44,6.05L4.95,5.05C4.73,4.96 4.46,5.05 4.34,5.27L2.34,8.73C2.21,8.95 2.27,9.22 2.46,9.37L4.57,11C4.53,11.34 4.5,11.67 4.5,12C4.5,12.33 4.53,12.65 4.57,12.97L2.46,14.63C2.27,14.78 2.21,15.05 2.34,15.27L4.34,18.73C4.46,18.95 4.73,19.03 4.95,18.95L7.44,17.94C7.96,18.34 8.5,18.68 9.13,18.93L9.5,21.58C9.54,21.82 9.75,22 10,22H14C14.25,22 14.46,21.82 14.5,21.58L14.87,18.93C15.5,18.67 16.04,18.34 16.56,17.94L19.05,18.95C19.27,19.03 19.54,18.95 19.66,18.73L21.66,15.27C21.78,15.05 21.73,14.78 21.54,14.63L19.43,12.97Z",
+  sfera:"M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
+  tv:"M21,17H3V5H21M21,3H3A2,2 0 0,0 1,5V17A2,2 0 0,0 3,19H8V21H16V19H21A2,2 0 0,0 23,17V5A2,2 0 0,0 21,3Z",
+  mic:"M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
+  indietro:"M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z",
+  check:"M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z",
+  vuoto:"M19,3H5C3.89,3 3,3.89 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V5C21,3.89 20.1,3 19,3M19,5V19H5V5H19Z",
+};
+const ic = (p) => `<svg class="icona" viewBox="0 0 24 24"><path d="${P[p]}"/></svg>`;
+const PRINC = [["casa","Casa"],["nota","Musica"],["meteo","Meteo"],["timer","Timer"],["altro","Altro"]];
+
+/* contenuto della home, con spazio lasciato alla navigazione */
+function home(x, y, w, h, tel) {
+  const g = 12, cs = tel ? 230 : 300;
+  const r = (l,t,ww,hh,c) => `<div class="riq" style="left:${l}px;top:${t}px;width:${ww}px;height:${hh}px">${c}</div>`;
+  let s = `<div style="position:absolute;left:${x+6}px;top:${y}px"><div class="ora" style="${tel ? "font-size:72px" : ""}">13:40</div><div class="m" style="color:var(--muted);font-size:${tel ? 16 : 20}px">mercoledì 1 ottobre</div></div>`;
+  const top2 = y + (tel ? 104 : 132);
+  s += r(x, top2, cs, tel ? 70 : 96, `<h3>${ic("meteo")} 25° sereno</h3><div class="m">max 26° · min 18°</div>`);
+  s += r(x, top2 + (tel ? 80 : 108), cs, tel ? 56 : 70, `<h3 style="font-size:16px">${ic("timer")} pasta 8:42</h3>`);
+  const dx = x + cs + g, dw = w - cs - g;
+  const hh = (h - g) / 2;
+  s += r(dx, y, (dw - g) / 2, hh, `<h3>Soggiorno</h3><div class="m">25,7° · 44%</div><div class="el" style="border:none">${ic("tv")}<div>TV Salotto<small>accesa</small></div></div>`);
+  s += r(dx + (dw - g) / 2 + g, y, (dw - g) / 2, hh, `<h3>Veranda</h3><div class="m">Scaldabagno spento · inverno</div>`);
+  s += r(dx, y + hh + g, dw, hh, `<h3>Camera da letto</h3><div class="m">25,1° · 43% · condizionatore ventola 24°</div>`);
+  return s;
+}
+function nav1(dim) { // dock in basso
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  const dockH = tel ? 58 : 72;
+  return `<div class="schermo ${dim}">${home(16, 16, W - 32, H - dockH - 32 - (tel ? 0 : 0), tel)}
+    <div class="dock" style="height:${dockH}px">${PRINC.map(([i,t],k) => `<div class="${k ? "" : "sel"}">${ic(i)}${t}</div>`).join("")}<div>${ic("mic")}Jarvis</div></div></div>`;
+}
+function nav2(dim) { // colonna laterale
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  const rw = tel ? 76 : 84;
+  return `<div class="schermo ${dim}"><div class="rail" style="width:${rw}px;${tel ? "gap:0;padding:6px 0" : ""}">${PRINC.map(([i,t],k) => `<div class="${k ? "" : "sel"}" style="${tel ? "padding:5px 0" : ""}">${ic(i)}${t}</div>`).join("")}<div class="giu" style="${tel ? "padding:5px 0" : ""}">${ic("sfera")}Hub</div></div>
+    ${home(rw + 16, 16, W - rw - 32, H - (tel ? 32 : 104), tel)}
+    ${tel ? "" : `<div class="barra" style="left:${rw + 16}px;right:16px;bottom:16px"><div class="chiedi">Chiedi a Jarvis…</div><div class="tondo" style="width:76px;height:56px;border-radius:28px">${ic("mic")}</div></div>`}</div>`;
+}
+function nav3(dim, menu) { // niente barra: widget, scorrimento, menu Altro
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  let s = `<div class="schermo ${dim}">${home(16, 16, W - 32, H - (tel ? 50 : 104), tel)}
+    ${tel ? "" : `<div class="barra" style="left:16px;right:16px;bottom:30px"><div class="chiedi">Chiedi a Jarvis…</div><div class="tondo" style="width:76px;height:56px;border-radius:28px">${ic("mic")}</div><div class="tondo" style="width:56px;height:56px">${ic("altro")}</div></div>`}
+    <div class="punti"><i class="sel"></i><i></i><i></i><i></i></div>`;
+  if (menu) s += `<div class="menu" style="${tel ? "grid-template-columns:repeat(5,150px);gap:10px" : ""}">${[["casa","Casa"],["nota","Musica"],["meteo","Meteo"],["timer","Timer e sveglie"],["termo","Clima"],["scena","Scene"],["spesa","Spesa"],["avvisi","Avvisi"],["imp","Impostazioni"],["sfera","Hub"]].map(([i,t]) => `<div style="${tel ? "padding:12px;font-size:16px" : ""}">${ic(i)}${t}</div>`).join("")}</div>`;
+  return s + `</div>`;
+}
+
+/* ---- le schermate, contenuto al posto della home, con la testa di livello 1 ---- */
+function schermata(titolo, sotto, corpo, scarto) {
+  return `<div class="schermo tablet"><div class="testa"><span class="tondo">${ic("indietro")}</span><h2>${titolo}</h2><span class="m">${sotto}</span></div>
+    <div style="position:absolute;left:20px;right:20px;top:80px;bottom:16px">${corpo}</div>${scarto ? `<div class="nota-scarto">${scarto}</div>` : ""}</div>`;
+}
+function linea(punti, colore, w, h, min, max) {
+  const pts = punti.map((v,i) => `${(i/(punti.length-1))*w},${h - (v-min)/(max-min)*h}`).join(" ");
+  return `<svg width="${w}" height="${h}" style="overflow:visible"><polyline points="${pts}" fill="none" stroke="${colore}" stroke-width="3"/></svg>`;
+}
+const T24 = [24.1,23.9,23.6,23.4,23.3,23.2,23.4,23.9,24.4,24.9,25.3,25.6,25.8,25.9,25.9,25.8,25.7,25.6,25.5,25.4,25.2,25.0,24.7,24.4];
+const S = {
+  stanza: () => schermata("Camera da letto", "25,1° · 43% · percepita 25,6°", `
+    <div class="riq" style="left:0;top:0;width:560px;height:210px"><h3>Temperatura, ultime 24 ore</h3>${linea(T24,"#5b8def",520,120,23,26.5)}<div class="m" style="display:flex;justify-content:space-between;width:520px"><span>ieri 14:00</span><span>adesso</span></div></div>
+    <div class="riq" style="left:576px;top:0;width:408px;height:210px"><h3>Musica in camera</h3><div class="m">niente in riproduzione</div><div style="margin-top:14px" class="pill">Metti qualcosa…</div></div>
+    <div class="riq" style="left:0;top:226px;width:984px;height:268px"><h3>Dispositivi</h3><div class="lista">
+      <div class="el">${ic("termo")}<div>Condizionatore<small>ventola · 24°</small></div><span class="pill on">acceso</span></div>
+      <div class="el">${ic("tv")}<div>TV camera da letto<small>infrarossi · stato non verificabile</small></div><span class="pill">Tasto accensione</span></div>
+      <div class="el">${ic("avvisi")}<div>Sensore temperatura<small>batteria 12%</small></div><span class="pill" style="background:#2a1f0c;color:#ffd9a0">batteria bassa</span></div></div></div>`),
+  meteo: () => schermata("Meteo", "weather.forecast_casa · alba 7:08 · tramonto 18:53 (esempio)", `
+    <div class="riq" style="left:0;top:0;width:984px;height:190px"><h3>Prossime 12 ore</h3><div class="ore">${[25,25,24,23,22,21,20,19,19,18,18,18].map((t,i) => `<div><div class="m">${14+i > 23 ? 14+i-24 : 14+i}</div>${ic(i < 5 ? "meteo" : "meteo")}<b>${t}°</b><br><small>${[0,0,5,10,20,40,30,10,0,0,0,0][i]}%</small></div>`).join("")}</div></div>
+    <div class="riq" style="left:0;top:206px;width:984px;height:288px"><h3>Prossimi 5 giorni</h3><div class="lista">${[["gio","sereno","26°","17°","0%"],["ven","pioggia leggera","24°","16°","60%"],["sab","nuvoloso","23°","15°","20%"],["dom","sereno","22°","14°","0%"],["lun","sereno","23°","15°","0%"]].map(([g,c,a,b,p]) => `<div class="el" style="padding:8px 4px">${ic("meteo")}<div>${g} · ${c}</div><span class="m">pioggia ${p}</span><span style="width:110px;text-align:right">${a} / ${b}</span></div>`).join("")}</div></div>`),
+  clima: () => schermata("Clima", "tutte le stanze e lo scaldabagno", `
+    <div class="riq" style="left:0;top:0;width:640px;height:494px"><h3>Temperature, ultime 24 ore</h3>
+      <div style="position:relative;height:200px">${linea(T24,"#5b8def",600,180,22.5,27)}<div style="position:absolute;left:0;top:0">${linea(T24.map(v=>v+0.6),"#3ecf7a",600,180,22.5,27)}</div></div>
+      <div class="lista" style="margin-top:20px"><div class="el">${ic("termo")}<div>Soggiorno</div><b>25,7°</b></div><div class="el">${ic("termo")}<div>Camera da letto</div><b>25,1°</b></div><div class="el">${ic("termo")}<div>Veranda</div><span class="m">nessun sensore</span></div></div></div>
+    <div class="riq" style="left:656px;top:0;width:328px;height:494px"><h3>Scaldabagno</h3><div class="m">modalità inverno (2 gg nuvolosi)</div><div style="font-size:30px;margin:16px 0">Spento</div><div class="m">si accende alle 04:30<br>si spegne alle 00:00</div><div class="m" style="margin-top:24px">Consumi: nessun sensore di energia in casa. La parte compare da sola se un giorno ce n'è uno.</div></div>`, "consumi: solo se c'è un sensore"),
+  scene: () => schermata("Scene", "si attivano con un tocco o a voce", `
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">${[["Buonanotte","spegne la TV del salotto, pannello in modalità notte"],["Esco","spegne TV salotto e condizionatore, ti dice cosa resta"],["Rientro","clima in camera in base alla temperatura percepita"]].map(([t,d]) => `<div class="riq" style="position:relative;height:140px"><h3>${ic("scena")} ${t}</h3><div class="m">${d}</div></div>`).join("")}</div>
+    <div class="riq" style="position:relative;margin-top:14px;height:180px"><h3>Routine</h3><div class="m">«Sveglia alle 7 con meteo», «quando esco spegni tutto»: si scrivono in Home Assistant come automazioni, solo l'amministratore.</div><div class="pill" style="display:inline-block;margin-top:14px">Nuova routine (solo admin)</div></div>`, "routine: proposta di rimandarle"),
+  timer: () => schermata("Timer e sveglie", "creati anche a voce", `
+    <div class="riq" style="left:0;top:0;width:484px;height:494px"><h3>Timer</h3><div class="lista"><div class="el">${ic("timer")}<div>pasta<small>10 minuti</small></div><b style="font-size:28px;font-weight:300">8:42</b></div><div class="el">${ic("timer")}<div>uova<small>6 minuti</small></div><b style="font-size:28px;font-weight:300">3:10</b></div></div><div class="pill" style="display:inline-block;margin-top:14px">+ Nuovo timer</div></div>
+    <div class="riq" style="left:500px;top:0;width:484px;height:494px"><h3>Sveglie e promemoria</h3><div class="m">Servono lato server (jarvis_voce): oggi esistono solo i timer. La parte si accende quando il server le avrà.</div></div>`, "sveglie: dopo, lato server"),
+  spesa: () => schermata("Lista della spesa", "todo.shopping_list · anche a voce: «aggiungi il latte»", `
+    <div class="riq" style="left:0;top:0;width:984px;height:494px"><div class="lista">${[["latte",0],["pane",0],["pasta",0],["detersivo piatti",0],["caffè",1],["uova",1]].map(([t,f]) => `<div class="el" style="${f ? "color:var(--muted);text-decoration:line-through" : ""}">${ic(f ? "check" : "vuoto")}<div>${t}</div></div>`).join("")}</div><div class="pill" style="display:inline-block;margin-top:14px">+ Aggiungi</div></div>`),
+  avvisi: () => schermata("Avvisi ed eventi", "cosa è successo in casa", `
+    <div style="display:flex;gap:10px;margin-bottom:12px"><span class="pill on">Tutti</span><span class="pill">Dispositivi</span><span class="pill">Batterie</span><span class="pill">Connessione</span></div>
+    <div class="riq" style="position:relative;height:440px"><div class="lista">${[["tv","TV Salotto accesa","oggi 13:02 · da Salvatore"],["avvisi","Batteria bassa: sensore camera","oggi 09:15 · 12%"],["termo","Condizionatore camera: ventola 24°","oggi 08:40 · da Jarvis"],["avvisi","Home Assistant non raggiungibile (app Tailscale spenta)","ieri 02:19 → 02:24"],["termo","Scaldabagno spento","ieri 00:00 · programma"]].map(([i,t,s]) => `<div class="el">${ic(i)}<div>${t}<small>${s}</small></div></div>`).join("")}</div></div>`),
+};
+
+function cella(t, n, html, sc) {
+  const tel = html.includes("telo"); const w = (tel ? 915 : 1024) * sc, h = (tel ? 412 : 600) * sc;
+  return `<div class="cella"><b>${t}</b><div class="cornice" style="width:${w+12}px;height:${h+12}px"><div class="scala" style="transform:scale(${sc})">${html}</div></div>${n ? `<small>${n}</small>` : ""}</div>`;
+}
+function foglioNav() {
+  const s = .5, st = .56;
+  const blocco = (t, d, a, b, n1) => `<h2>${t}</h2><p style="margin:0;color:var(--muted);font-size:16px">${d}</p><div class="riga">${cella("Tablet", n1, a, s)}${cella("Telefono orizzontale", "", b, st)}</div>`;
+  return `<div class="foglio"><h1>Navigazione — tre varianti</h1>
+    <p>In tutte: tocco su un riquadro → la sua schermata (meteo → Meteo, stanza → Stanza); «Jarvis, apri la musica»; Indietro di Android sempre funzionante; indirizzo diretto per ogni schermata (…/index.html#musica); massimo 2 livelli; dopo ~90 s senza tocchi si torna al riposo (sfera).</p>
+    ${blocco("N1 — Dock in basso", "Cinque schermate principali sempre in vista in basso, più Jarvis. Come le app dei telefoni: si capisce subito. Toglie 72 px di altezza a tutte le schermate: sul tablet la barra «Chiedi a Jarvis» diventa il tasto Jarvis del dock.", nav1("tablet"), nav1("telo"), "Casa, Musica, Meteo, Timer, Altro, Jarvis")}
+    ${blocco("N2 — Colonna laterale", "Le principali in una colonna stretta a sinistra, in fondo il tasto Hub. Sul tablet in orizzontale lo spazio in larghezza c'è; resta la barra «Chiedi a Jarvis» di oggi.", nav2("tablet"), nav2("telo"), "in fondo alla colonna il passaggio all'Hub")}
+    ${blocco("N3 — Nessuna barra", "Home pulita come oggi: si scorre di lato tra Casa, Musica, Meteo, Timer (i puntini in basso), e il tasto «griglia» apre tutte le schermate. Più spazio, ma le altre schermate si scoprono meno.", nav3("tablet"), nav3("telo", true), "a destra: il menu «griglia» aperto (sul telefono)")}</div>`;
+}
+function foglioSchermate(elenco, titolo) {
+  const s = .44;
+  const note = {
+    stanza:"1 · Stanza: si apre toccando una stanza. Clima 24 h, musica della stanza, tutti i dispositivi.",
+    meteo:"3 · Meteo: 12 ore, 5 giorni, pioggia, alba e tramonto. Tocco sul meteo della home.",
+    clima:"4 · Clima ed energia: storico di tutte le stanze e scaldabagno. Proposta: i consumi solo se un sensore c'è.",
+    scene:"5 · Scene e routine: le scene sì. Proposta: rimandare la creazione di routine dal pannello (scrive automazioni in HA, rischiosa).",
+    timer:"6 · Timer, sveglie e promemoria: i timer ci sono già. Sveglie e promemoria servono prima lato server.",
+    spesa:"7 · Lista della spesa: todo.shopping_list di HA, anche a voce. Costa poco.",
+    avvisi:"8 · Avvisi ed eventi: dal registro di HA, con filtri.",
+  };
+  return `<div class="foglio"><h1>${titolo}</h1><p>La navigazione (dock, colonna o nessuna barra) si aggiunge sopra: qui solo il contenuto. La 2 (Musica) è nel gruppo 5; la 9 (Impostazioni) è già scelta (S1 + guida); la 10 (Diagnostica) diventa una sezione delle impostazioni.</p>
+    <div class="riga">${elenco.map((k) => cella(note[k].split(":")[0], note[k].split(": ").slice(1).join(": "), S[k](), s)).join("")}</div></div>`;
+}
+const q = new URLSearchParams(location.search).get("foglio") ?? "nav";
+document.getElementById("radice").innerHTML = {
+  nav: foglioNav,
+  "schermate-1": () => foglioSchermate(["stanza","meteo","clima","scene"], "Nuove schermate (1 di 2)"),
+  "schermate-2": () => foglioSchermate(["timer","spesa","avvisi"], "Nuove schermate (2 di 2)"),
+}[q]();
+</script></body></html>
