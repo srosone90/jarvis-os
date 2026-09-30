@@ -875,10 +875,14 @@ chiesto, a meno che non si dica un'altra stanza. Contratto con il server
 (`src/timer/pannello.ts`, `src/timer/timer.ts`):
 
 - **device_id** del pannello = `jarvis_` + slug della Stanza scelta in
-  diagnostica. Lo slug è quello di `homeassistant.util.slugify`: minuscolo,
-  niente accenti, ogni carattere che non è lettera o cifra diventa "_", niente
-  "_" doppi né ai bordi. I valori di prova sono presi da HA 2026.9.3, per
-  esempio "Camera dell'ospite" → `camera_dell_ospite`.
+  diagnostica. Lo slug deve essere **identico a quello del server** (script
+  `jarvis_timer_stanza`), non a `homeassistant.util.slugify`, che differisce
+  su simboli rari. Regola del server (v0.4.7): NFKD, via i segni combinanti,
+  minuscolo, ogni carattere che non è lettera o cifra Unicode (come
+  `str.isalnum`) diventa "_", niente "_" doppi né ai bordi. Esempi:
+  "Camera dell'ospite – Già" → `camera_dell_ospite_gia`, "Stanza ½" →
+  `stanza_1_2`. I valori della prova unitaria sono calcolati con la regola
+  in Python; confronto fatto su 17 nomi, 0 differenze.
 - Si manda con OGNI `assist_pipeline/run`, voce e chat: lo schema di HA
   2026.9.3 ha `vol.Optional("device_id")`. Senza stanza non si manda, e il
   server usa `jarvis_pannello`: il pannello considera suoi i timer di
@@ -899,6 +903,12 @@ chiesto, a meno che non si dica un'altra stanza. Contratto con il server
   restano gli eventi.
 - In diagnostica, sotto Stanza: "Timer e voce di questo pannello:
   jarvis_cucina", oppure l'avviso "Scegli la stanza per i timer".
+
+**Pausa (v0.4.7, con jarvis_voce 0.2.3).** Pausa e ripresa arrivano come
+`updated` con `in_pausa` e `secondi_rimasti` aggiornati; anche
+`timer_attivi` ha `in_pausa`. Un timer in pausa è fermo a `fermoMs`, non
+scade (la pulizia dei timer a zero lo salta) e mostra "in pausa"; alla
+ripresa la scadenza riparte da `secondi_rimasti`.
 
 ### Pulsante del microfono mai bloccato (v0.4.5, 30/09)
 
@@ -1218,6 +1228,17 @@ se ne scrive una nuova che annulla la precedente.
   sinistra, solo quando qualcosa suona. Lato server si chiedono **copertina e
   avanzamento del brano** in `jarvis_musica.stato` e **l'elenco delle
   playlist**; la radio con Music Assistant per ora no.
+- **2026-09-30** — **«Jarvis» sempre in ascolto (v0.5.0): la fine della frase
+  la decide il server.** Proposta della sessione server, accettata: la voce è
+  tarata lato server (`jarvis_voce`: fine frase dopo 1,0 s di silenzio,
+  soglia 0,5, massimo 10 s, filtro del sottofondo, TV del salotto in muto
+  durante l'ascolto, frasi inventate da Gemini sul silenzio scartate), e
+  tutto questo vale solo se il VAD è quello del server. Quindi la memoria
+  circolare locale serve **solo** a riconoscere «Jarvis»; poi si apre la
+  pipeline normale **senza `no_vad`** e le si manda ~1 s di audio prima della
+  parola più l'audio dal vivo. "Jarvis, spegni la TV" arriva intero. Se un
+  giorno `no_vad` servisse davvero: prima si scrive in STATO.md perché, e
+  come il pannello decide la fine della frase.
 
 ## 7. Convenzioni
 

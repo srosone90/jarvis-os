@@ -243,3 +243,27 @@ test("server senza timer_attivi (jarvis_voce vecchio): gli eventi funzionano, l'
   await apriDiagnostica(page);
   await expect(page.getByTestId("log")).toContainText("jarvis_voce.timer_attivi non riuscito");
 });
+
+test("timer in pausa (jarvis_voce 0.2.3): il conto si ferma e lo dice; alla ripresa riparte da lì", async ({
+  page,
+  request,
+}) => {
+  await accedi(page);
+  await expect.poll(async () => (await info(request)).iscrittiTimer).toBe(1);
+  await comando(request, "timer", { tipo: "started", ...PASTA, secondi_rimasti: 300, in_pausa: false });
+  const t = page.getByTestId("timer");
+  await comando(request, "timer", { tipo: "updated", ...PASTA, secondi_rimasti: 250, in_pausa: true });
+  await expect(t.getByTestId("timer-in-pausa")).toHaveText("in pausa");
+  await expect(t.getByTestId("timer-rimasto")).toHaveText("4:10");
+  await page.waitForTimeout(2500);
+  await expect(t.getByTestId("timer-rimasto")).toHaveText("4:10");
+  // anche dopo una ricarica (rilettura da timer_attivi) resta fermo
+  await page.reload();
+  await expect(page.getByTestId("timer").getByTestId("timer-in-pausa")).toBeVisible();
+  await expect(page.getByTestId("timer").getByTestId("timer-rimasto")).toHaveText("4:10");
+  await comando(request, "timer", { tipo: "updated", ...PASTA, secondi_rimasti: 250, in_pausa: false });
+  await expect(page.getByTestId("timer").getByTestId("timer-in-pausa")).toHaveCount(0);
+  await expect(page.getByTestId("timer").getByTestId("timer-rimasto")).toHaveText(/^4:0\d$/, {
+    timeout: 5000,
+  });
+});

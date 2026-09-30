@@ -252,16 +252,18 @@ function eventoTimerServer(ev) {
       nome: ev.nome ?? null,
       secondi_totali: ev.secondi_totali ?? null,
       scadenza: Date.now() + (ev.secondi_rimasti ?? ev.secondi_totali ?? 0) * 1000,
+      fermo: ev.secondi_rimasti ?? ev.secondi_totali ?? 0,
       pannello: ev.pannello ?? null,
+      in_pausa: ev.in_pausa ?? false,
     });
   else stato.timerServer.delete(id);
   trasmettiEvento("jarvis_timer", ev);
 }
 
 function elencoTimerServer() {
-  return [...stato.timerServer.values()].map(({ scadenza, ...t }) => ({
+  return [...stato.timerServer.values()].map(({ scadenza, fermo, ...t }) => ({
     ...t,
-    secondi_rimasti: Math.max(0, Math.round((scadenza - Date.now()) / 1000)),
+    secondi_rimasti: t.in_pausa ? fermo : Math.max(0, Math.round((scadenza - Date.now()) / 1000)),
   }));
 }
 

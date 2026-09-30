@@ -30,6 +30,8 @@ export interface DatiTimer {
   secondiRimasti: number | null;
   /** device_id proprietario; null = server che non lo dice (vale per tutti). */
   pannello: string | null;
+  /** jarvis_voce 0.2.3: timer fermo (pausa e ripresa arrivano come "updated"). null = non detto. */
+  inPausa: boolean | null;
 }
 
 export interface EventoTimer extends DatiTimer {
@@ -40,8 +42,16 @@ export interface TimerAttivo {
   id: string;
   nome: string | null;
   secondiTotali: number | null;
-  /** ms (orologio del pannello) in cui arriva a zero. */
+  /** ms (orologio del pannello) in cui arriva a zero, se non è in pausa. */
   scadenza: number;
+  /** In pausa: il conto alla rovescia è fermo a `fermoMs`. */
+  inPausa: boolean;
+  fermoMs: number;
+}
+
+/** Quanto manca adesso: fermo se in pausa, altrimenti scorre verso la scadenza. */
+export function rimastoMs(t: TimerAttivo, adesso: number): number {
+  return t.inPausa ? t.fermoMs : t.scadenza - adesso;
 }
 
 export interface TimerFinito {
@@ -74,6 +84,7 @@ export function leggiTimer(dati: unknown): DatiTimer | null {
     secondiTotali: numero(d["secondi_totali"]),
     secondiRimasti: numero(d["secondi_rimasti"]),
     pannello: testoPieno(d["pannello"]),
+    inPausa: typeof d["in_pausa"] === "boolean" ? d["in_pausa"] : null,
   };
 }
 
@@ -112,16 +123,28 @@ export function applicaEventoTimer(
   const altri = attivi.filter((t) => t.id !== ev.id);
   if (ev.tipo === "cancelled" || ev.tipo === "finished" || ev.tipo === "fermato") return altri;
   const vecchio = attivi.find((t) => t.id === ev.id);
-  const rimasti = ev.secondiRimasti ?? ev.secondiTotali;
-  // "updated" senza secondi (es. solo il nome cambiato): si tiene la scadenza di prima
-  const scadenza = rimasti !== null ? adesso + rimasti * 1000 : (vecchio?.scadenza ?? adesso);
+  const inPausa = ev.inPausa ?? vecchio?.inPausa ?? false;
+  // "updated" senza secondi (es. solo il nome cambiato): si tiene quanto mancava prima
+  const rimasto =
+    ev.secondiRimasti !== null
+      ? ev.secondiRimasti * 1000
+      : vecchio
+        ? rimastoMs(vecchio, adesso)
+        : (ev.secondiTotali ?? 0) * 1000;
   const nuovo: TimerAttivo = {
     id: ev.id,
     nome: ev.nome ?? vecchio?.nome ?? null,
     secondiTotali: ev.secondiTotali ?? vecchio?.secondiTotali ?? null,
-    scadenza,
+    scadenza: adesso + rimasto,
+    inPausa,
+    fermoMs: rimasto,
   };
-  return [...altri, nuovo].sort((a, b) => a.scadenza - b.scadenza);
+  return ordina([...altri, nuovo], adesso);
+}
+
+/** In ordine di quanto manca (i timer in pausa contano per quanto manca adesso). */
+function ordina(elenco: TimerAttivo[], adesso: number): TimerAttivo[] {
+  return elenco.sort((a, b) => rimastoMs(a, adesso) - rimastoMs(b, adesso));
 }
 
 /** "9:59", "1:05:00": il conto alla rovescia di un timer. Mai negativo. */
@@ -226,15 +249,22 @@ export class Timer {
     }
     const mio = this.mio();
     const ora = this.adesso();
-    this.elenco = elenco
-      .filter((t) => eMio(t, mio))
-      .map((t) => ({
-        id: t.id,
-        nome: t.nome,
-        secondiTotali: t.secondiTotali,
-        scadenza: ora + (t.secondiRimasti ?? t.secondiTotali ?? 0) * 1000,
-      }))
-      .sort((a, b) => a.scadenza - b.scadenza);
+    this.elenco = ordina(
+      elenco
+        .filter((t) => eMio(t, mio))
+        .map((t) => {
+          const rimasto = (t.secondiRimasti ?? t.secondiTotali ?? 0) * 1000;
+          return {
+            id: t.id,
+            nome: t.nome,
+            secondiTotali: t.secondiTotali,
+            scadenza: ora + rimasto,
+            inPausa: t.inPausa ?? false,
+            fermoMs: rimasto,
+          };
+        }),
+      ora,
+    );
     log.info(`Timer riletti (${motivo}): ${this.elenco.length} di ${mio} su ${elenco.length} in casa`);
     this.pulisciPoi();
     this.notifica();
@@ -247,7 +277,9 @@ export class Timer {
       return;
     }
     const nome = ev.nome ? `"${ev.nome}"` : ev.id;
-    const quanto = ev.secondiRimasti !== null ? ` (${formattaRimasto(ev.secondiRimasti * 1000)})` : "";
+    const quanto =
+      (ev.secondiRimasti !== null ? ` (${formattaRimasto(ev.secondiRimasti * 1000)})` : "") +
+      (ev.inPausa ? ", in pausa" : "");
     if (ev.tipo === "fermato") {
       this.suFermato(ev.id);
       return;
@@ -333,7 +365,8 @@ export class Timer {
     }
     this.timerPulizia ??= setInterval(() => {
       const ora = this.adesso();
-      const scaduti = this.elenco.filter((t) => ora - t.scadenza > OLTRE_LO_ZERO_MS);
+      // un timer in pausa non scade: resta fermo finché il server non lo fa ripartire
+      const scaduti = this.elenco.filter((t) => !t.inPausa && ora - t.scadenza > OLTRE_LO_ZERO_MS);
       if (scaduti.length === 0) return;
       for (const t of scaduti)
         log.avviso(

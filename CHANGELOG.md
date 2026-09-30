@@ -1,5 +1,19 @@
 # Changelog
 
+## v0.4.7
+
+Timer in pausa, e nome della stanza calcolato esattamente come il server.
+
+- Un timer messo in pausa a voce si ferma anche sul pannello, con la scritta
+  "in pausa", e riparte da lì quando lo riprendi. Prima continuava a scorrere e
+  poi spariva. Serve `jarvis_voce` 0.2.3 lato server.
+- Il nome con cui il pannello si presenta ai timer (`jarvis_<stanza>`) ora si
+  calcola con la stessa regola del server anche per nomi di stanza con simboli
+  particolari (per esempio "Stanza ½"). Per le stanze di casa non cambia niente.
+- Lato Home Assistant: `jarvis_musica` 0.4.0 (già installato dal server) dà
+  anche copertina, punto del brano, durata e l'elenco delle playlist, per la
+  futura schermata Musica.
+
 ## v0.4.6
 
 Il timer suona solo sul pannello da cui l'hai chiesto.

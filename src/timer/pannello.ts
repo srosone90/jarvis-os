@@ -15,17 +15,22 @@ export const PREFISSO = "jarvis_";
 export const DISPOSITIVO_SENZA_STANZA = "jarvis_pannello";
 
 /**
- * Come `homeassistant.util.slugify` (HA 2026.9.3): minuscolo, niente accenti,
- * ogni carattere che non è lettera o cifra diventa "_", niente "_" doppi né ai
- * bordi, "unknown" se non resta niente. "Camera dell'ospite" → camera_dell_ospite.
+ * Come lo script `jarvis_timer_stanza` del server (jarvis_voce, regola data
+ * dalla sessione server il 30/09): NFKD, via i segni combinanti, minuscolo,
+ * ogni carattere che non è lettera o cifra (Unicode, come str.isalnum di
+ * Python) diventa "_", niente "_" doppi né ai bordi. Deve dare lo STESSO
+ * risultato del server, anche dove differisce da homeassistant.util.slugify
+ * (es. "Stanza ½" → stanza_1_2, "Straße" → straße). "unknown" se non resta niente.
  */
 export function slugStanza(nome: string): string {
   const slug = nome
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]/gu, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_|_$/g, "");
   return slug || "unknown";
 }
 

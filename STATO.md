@@ -4,87 +4,66 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.6 pubblicata e verificata (timer solo sul pannello proprietario, per jarvis_voce 0.1.8)._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.7 (timer in pausa, slug come il tuo) e jarvis_musica 0.4.0 nel repo, identico al server; sha256 sotto appena la release è verificata._
 
 ## Adesso
 
-- **In corso: mockup**, un gruppo alla volta. Niente codice finché Salvatore
-  non ha scelto.
-  - **Gruppo 1 (mostrato il 30/09)**: schermo a riposo/AOD in 3 varianti (A
-    orologio al centro, B due colonne, C sfera), con mattina, giorno, sera,
-    notte, evento, timer attivi e timer finito; Hub in 3 varianti (H1 sfera al
-    centro, H2 sfera e conversazione, H3 sfera come luce di fondo); schema di
-    come si collegano. Sorgente: `docs/mockup-riposo-hub.html`.
-  - **Scelte di Salvatore sul gruppo 1**: riposo = C (sfera), Hub = H1
-    (sfera al centro), riposo dopo 2 minuti senza tocchi, "Timer finito" come
-    riquadro al centro sopra il riposo.
-  - **Gruppo 2, impostazioni**: scelta S1 (elenco a sezioni) + procedura
-    guidata al primo avvio; si aprono tenendo premuto l'orologio; nessun PIN.
-  - **Gruppo 3, navigazione**: scelta N2 (colonna laterale); schermate
-    tenute: Stanza, Meteo, Clima, Timer, Scene (senza routine), Spesa,
-    Avvisi. Ordine dopo la G: navigazione + Stanza + Meteo, poi Musica.
-  - **Gruppo 4, musica**: scelta M1 (copertina grande con comandi, volume e
-    stanze) e mini-lettore sotto l'orologio in home. **Mockup finiti**: i
-    sorgenti sono `docs/mockup-*.html`.
-- **Prossima release (dopo i mockup, piccola)**: slug della stanza come il
-  tuo (NFKD); oggi differiamo solo su simboli rari, per esempio "Stanza ½" →
-  pannello `stanza`, server `stanza_1_2`. E il campo `in_pausa` di
-  `timer_attivi`: un timer in pausa non deve scorrere sul pannello.
-- **Finito:** v0.4.6, la richiesta urgente sui timer, con tutti e 6 i punti:
-  1. device_id `jarvis_<stanza>`, con l'avviso "Scegli la stanza per i
-     timer";
-  2. device_id mandato sempre, voce e chat;
-  3. suona e mostra solo i timer suoi;
-  4. Stop → `timer_ferma`, e `fermato` ferma tutti;
-  5. `timer_attivi` alla connessione e alla riconnessione (anche al cambio di
-     stanza);
-  6. stessa stanza = suonano entrambi.
-
-  Sotto, cosa installare e come provarla. Una cosa da sapere: la chat usa
-  `assist_pipeline/run` (start_stage intent) e non `conversation/process`.
-  Il `device_id` va lì, e lo schema di HA 2026.9.3 lo accetta.
-- **Finito:** v0.4.5 del pannello, con le richieste del 30/09 in ordine:
-  1. timer che suonano (`jarvis_timer`);
-  2. audio sveglio per il Bluetooth, acceso di serie;
-  3. pulsante del microfono mai bloccato;
-  4. tastiera della chat.
-
-  Sotto, cosa installare e come provarla.
-- **Prossimo:** i mockup: fase G, schermo a riposo/AOD con timer attivi e
-  "timer finito", Hub. Il riposo non ferma nessun processo.
-- **Poi:** v0.5.0. «Jarvis» sempre in ascolto con memoria circolare di circa
-  1 s (decisione di Salvatore: la parola vale anche dentro la frase,
-  "buongiorno Jarvis"). Dentro anche "stop"/"basta" a voce per la suoneria e
-  "Insegna a Jarvis la tua pronuncia" nelle impostazioni del pannello. **Non
-  userò `no_vad` né cambierò `audio_settings` senza avvisarti prima qui**
-  (richiesta 6: `jarvis_voce` sovrascrive il VAD).
-- **Finito prima:** `jarvis_musica` **0.3**, che corregge quanto trovato sull'Echo:
-  - risposta che arrivava 10 s dopo;
-  - "Queen" che faceva partire Michael Jackson;
-  - "riprendi" dopo una pausa lunga.
-
-  Sotto, cosa installare.
-- **Finito:** v0.4.4 del pannello:
-  - pausa della musica mentre Jarvis ascolta e parla, e ripresa allo stesso
-    volume;
-  - il pannello non torna più a una versione vecchia.
-
-  Sotto, cosa installare.
+- **Finito: v0.4.7** del pannello, piccola:
+  - timer in pausa fermi, con "in pausa" (usa `in_pausa` di jarvis_voce
+    0.2.3, sia negli eventi `updated` sia in `timer_attivi`);
+  - slug della stanza con la **tua** regola: NFKD, via i combinanti,
+    `\p{L}\p{N}` come `str.isalnum`, "_" compressi. Confronto con la regola
+    in Python su 17 nomi: 0 differenze. "Camera dell'ospite – Già" →
+    `camera_dell_ospite_gia`, "Stanza ½" → `stanza_1_2`.
+- **Finito: `jarvis_musica` 0.4.0 nel repo.** Il tuo diff è applicato tale e
+  quale (`git apply -p1`, nessuna riga riscritta), quindi repo e server sono
+  identici. Ho aggiornato solo la prova `prove/prova_musica.py`, che si
+  aspettava tre servizi, e ho aggiunto le verifiche della 0.4: copertina (la
+  più piccola sopra i 300 px, null senza immagini), punto e durata, elenco
+  delle playlist, uri avviato senza ricerca. Risultato: **65/65** su HA
+  2026.9.3. Controprova: col componente 0.3 le prove nuove cadono.
+- **Mockup finiti** (`docs/mockup-*.html`), scelte di Salvatore:
+  - riposo C (sfera), Hub H1, riposo dopo 2 minuti, "Timer finito" come
+    riquadro al centro;
+  - impostazioni S1 + procedura guidata al primo avvio;
+  - navigazione N2 (colonna laterale); schermate: Stanza, Meteo, Clima,
+    Timer, Scene (senza routine), Spesa, Avvisi;
+  - musica M1 (copertina grande) e mini-lettore sotto l'orologio.
+- **Prossimo: v0.5.0**, «Jarvis» sempre in ascolto, **con la tua proposta**:
+  la memoria circolare locale serve solo a riconoscere «Jarvis»; poi apro la
+  pipeline normale **senza `no_vad`**, mando ~1 s di audio prima della parola
+  più l'audio dal vivo, e la fine della frase la decide `jarvis_voce`. Il muto
+  della TV lo fai tu; sul pannello resta la pausa di Spotify della v0.4.4.
+  Dentro la v0.5.0 anche "stop"/"basta" per la suoneria e "Insegna a Jarvis
+  la tua pronuncia" nelle impostazioni. Se mai servisse `no_vad`, lo scrivo
+  qui prima, con il motivo.
+- **Dopo la v0.5.0**: fase G (impostazioni S1 + guida), poi navigazione +
+  Stanza + Meteo, poi Musica (fase M, con copertina e playlist della 0.4.0).
 - **In parallelo:** il notebook Colab per il modello italiano.
 
 ## Ultima release del pannello
 
 | | |
 |---|---|
-| Versione | **v0.4.6**: il timer suona solo sul pannello a cui appartiene; Stop li ferma tutti |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.6 |
-| sha256 dello zip | `02363cce8bfd4ac78f5ae088ecda9f91a8285652dd996cdbe9983c38b9c808b0` (6,8 MB, service worker 0.4.6, verificati) |
-| Precedente | v0.4.5, sha256 `fc964090…2edb` |
+| Versione | **v0.4.7**: timer in pausa fermi; slug della stanza come il server |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.7 |
+| sha256 dello zip | _in arrivo: lo scrivo qui appena scaricato e verificato_ |
+| Precedente | v0.4.6, sha256 `02363cce…08b0`, installata il 30/09 |
 
-## Da installare lato server: v0.4.6
+## Da installare lato server: v0.4.7
+
+Solo lo zip sopra `/config/www/jarvis/`. `jarvis_musica` 0.4.0 e
+`jarvis_voce` 0.2.3 li hai già.
+
+**Come provarla, dentro il pannello**: "metti un timer di 5 minuti per la
+pasta", poi "metti in pausa il timer della pasta". Sotto l'orologio il conto
+si ferma e compare "in pausa"; dopo "riprendi il timer" riparte da lì. Nel log
+della diagnostica: `Timer "pasta": updated (…), in pausa`.
+
+## v0.4.6: installata (30/09)
 
 1. Scompatta lo zip sopra `/config/www/jarvis/`, come sempre. Serve
-   `jarvis_voce` 0.1.8, che hai già.
+   `jarvis_voce` 0.1.8 o successivo (oggi 0.2.3).
 2. **Su ogni pannello, una volta**: tieni premuto l'orologio 3 s, scegli la
    "Stanza" (per esempio Cucina) e tocca "Chiudi". Sotto la scelta compare
    "Timer e voce di questo pannello: jarvis_cucina". Senza stanza compare
@@ -199,10 +178,13 @@ Solo il componente: stanze e pacchetto degli script **non cambiano**.
 
 ## Richieste per la sessione server (musica, scelte da Salvatore il 30/09)
 
-1. **`jarvis_musica.stato`**: aggiungere la copertina (URL dell'immagine
+**1 e 2 fatte** (jarvis_musica 0.4.0, installata e nel repo). La 3 resta "per
+ora no".
+
+1. ~~**`jarvis_musica.stato`**~~: aggiungere la copertina (URL dell'immagine
    dell'album più piccola sopra i 300 px), `posizione_ms` e `durata_ms`.
    Spotify li ha già in `get_playback`.
-2. **Elenco delle playlist**: un servizio con `return_response` che restituisca
+2. ~~**Elenco delle playlist**~~: un servizio con `return_response` che restituisca
    le playlist e i preferiti dell'account (nome, uri, immagine), da usare
    nella schermata Musica per sceglierle con un tocco.
 3. La radio con Music Assistant per ora no.
@@ -226,6 +208,8 @@ Solo il componente: stanze e pacchetto degli script **non cambiano**.
 8. ~~`id` di `finished`~~, 9. ~~chiave `timer`~~, 10. ~~slug~~: risposte
    ricevute il 30/09. Sullo slug mi allineo io alla tua regola (NFKD); non
    serve cambiare niente lato server.
-11. **Pausa dei timer**: arriva anche un evento quando un timer va in pausa
+11. ~~**Pausa dei timer**~~ — risolta: arriva come `updated` con `in_pausa`
+    (jarvis_voce 0.2.3), usata dalla v0.4.7.
+    Testo originale:: arriva anche un evento quando un timer va in pausa
     o riparte (per esempio `updated` con `in_pausa`)? Senza evento, il
     pannello lo saprebbe solo alla rilettura.

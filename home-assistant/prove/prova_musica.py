@@ -29,7 +29,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from spotifyaio import Device, PlaybackState, SpotifyConnectionError, SpotifyForbiddenError
-from spotifyaio.models import SearchResult
+from spotifyaio.models import BasePlaylist, SearchResult
 from yarl import URL
 
 from homeassistant import bootstrap, config as conf_util, loader
@@ -111,11 +111,17 @@ SO_WHAT = brano("sowhat", "So What", MILES, KIND)
 QUEEN = artista("queen", "Queen")
 FREDDIE = artista("4M1Fp", "Freddie Mercury")
 MICHAEL = artista("3fMbdgg4jU18AjLCKBhRSm", "Michael Jackson")
-OPERA = album("opera", "A Night at the Opera", QUEEN)
+OPERA = {**album("opera", "A Night at the Opera", QUEEN),
+         # come Spotify: tre misure, dalla più grande
+         "images": [{"url": "https://i.scdn.co/image/opera640", "width": 640, "height": 640},
+                    {"url": "https://i.scdn.co/image/opera300", "width": 300, "height": 300},
+                    {"url": "https://i.scdn.co/image/opera64", "width": 64, "height": 64}]}
 BOHEMIAN = brano("bohemian", "Bohemian Rhapsody", QUEEN, OPERA)
 LOVE = brano("love", "Love of My Life", QUEEN, OPERA)
 JAZZ_EDITORIALE = playlist("37i9dQZF1DXjazz", "Jazz Classics", di_spotify=True)
-JAZZ_SERA = playlist("jazzsera", "Jazz per la sera", di_spotify=False)
+JAZZ_SERA = {**playlist("jazzsera", "Jazz per la sera", di_spotify=False),
+             # le playlist spesso hanno una sola immagine, senza misure
+             "images": [{"url": "https://mosaic.scdn.co/jazzsera", "width": None, "height": None}]}
 
 CATALOGO = {
     "artist": [MILES, QUEEN, FREDDIE],
@@ -220,6 +226,10 @@ class SpotifyFinto:
                       "context": contesto, "progress_ms": position or 0, "is_playing": True, "item": voce,
                       "currently_playing_type": "track"}
 
+
+    async def get_playlists_for_current_user(self) -> list[BasePlaylist]:
+        self._forse_errore("get_playlists_for_current_user")
+        return [BasePlaylist.from_dict(p) for p in CATALOGO["playlist"]]
 
     # --- comandi sulla riproduzione in corso (come l'API: nessuna conferma) ---
     def _comando(self, nome: str, *argomenti: Any) -> bool:
@@ -337,6 +347,11 @@ async def prova() -> int:
         async def stato() -> dict[str, Any]:
             return await hass.services.async_call("jarvis_musica", "stato", {}, blocking=True, return_response=True)
 
+        async def elenco_playlist() -> dict[str, Any]:
+            return await hass.services.async_call(
+                "jarvis_musica", "playlist", {}, blocking=True, return_response=True
+            )
+
         print("\n1. Il componente parte e il servizio c'è")
         # HA legge services.yaml solo quando qualcuno chiede le descrizioni
         # (interfaccia, Assist): senza file scriveva un errore a ogni avvio.
@@ -347,10 +362,10 @@ async def prova() -> int:
             descrizioni = _SERVICES_SCHEMA(load_yaml_dict(str(COMPONENTE / "services.yaml")))
         except Exception as errore:  # noqa: BLE001 - la prova lo riporta
             descrizioni = {"errore": str(errore)}
-        verifica(set(descrizioni) == {"riproduci", "controllo", "stato"}
+        verifica(set(descrizioni) == {"riproduci", "controllo", "stato", "playlist"}
                  and descrizioni["riproduci"].get("name") == "Riproduci"
                  and set(descrizioni["controllo"]["fields"]) == set(SCHEMA_CONTROLLO_CAMPI),
-                 "services.yaml valido per HA: i tre servizi con nomi e campi", descrizioni)
+                 "services.yaml valido per HA: i quattro servizi con nomi e campi", descrizioni)
         verifica(hass.services.has_service("jarvis_musica", "riproduci"), "servizio jarvis_musica.riproduci")
         verifica(hass.services.has_service("script", "jarvis_musica"), "script.jarvis_musica dal pacchetto")
         verifica(all(hass.services.has_service("jarvis_musica", n) for n in ("controllo", "stato"))
@@ -474,6 +489,33 @@ async def prova() -> int:
                  "stato senza musica", r)
         r = await controllo(azione="pausa")
         verifica(r.get("codice") == "niente_in_riproduzione", "pausa senza musica: errore chiaro", r)
+
+        print("\n5d. Per il pannello (0.4.0): copertina, punto del brano, playlist, avvio da uri")
+        client.stato = None
+        await riproduci(cosa="Bohemian Rhapsody", tipo="brano", dove="camera da letto")
+        client.stato["progress_ms"] = 93_000
+        r = await stato()
+        verifica(r.get("copertina") == "https://i.scdn.co/image/opera300",
+                 "copertina: la più piccola sopra i 300 px (dall'album del brano)", r.get("copertina"))
+        verifica(r.get("posizione_ms") == 93_000 and r.get("durata_ms") == 300_000,
+                 "punto del brano e durata", (r.get("posizione_ms"), r.get("durata_ms")))
+        client.stato = None
+        await riproduci(cosa="So What", tipo="brano", dove="camera da letto")
+        r = await stato()
+        verifica("copertina" in r and r["copertina"] is None, "album senza immagini: copertina null", r)
+        r = await elenco_playlist()
+        verifica(r.get("esito") == "ok" and r.get("playlist") == [
+            {"nome": "Jazz Classics", "uri": JAZZ_EDITORIALE["uri"], "copertina": None, "proprietario": "spotify"},
+            {"nome": "Jazz per la sera", "uri": "spotify:playlist:jazzsera",
+             "copertina": "https://mosaic.scdn.co/jazzsera", "proprietario": "salvatore"},
+        ], "playlist dell'account con nome, uri, copertina e proprietario", r)
+        client.stato = None
+        client.ricerche.clear()
+        r = await riproduci(cosa="spotify:playlist:jazzsera", dove="camera da letto")
+        verifica(r.get("esito") == "ok" and client.ricerche == [] and r.get("considerati") == []
+                 and client.avvii[-1]["context_uri"] == "spotify:playlist:jazzsera",
+                 "uri Spotify (tocco su una playlist): parte quella, senza nessuna ricerca", (r, client.ricerche))
+        client.stato = None  # le prove dopo partono dal silenzio
 
         print("\n6. Errori chiari, con un codice stabile")
         r = await riproduci(cosa="jazz", dove="camera")

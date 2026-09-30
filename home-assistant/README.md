@@ -209,9 +209,10 @@ media_player di HA (`async_refresh`, come fa HA stesso).
 
 | Servizio | Script per Gemini | Cosa fa |
 |---|---|---|
-| `jarvis_musica.riproduci` (`cosa`, `dove`, `tipo`) | `script.jarvis_musica` | Cerca e avvia sul dispositivo Spotify Connect della stanza, anche da fermo. Nella scelta vince il nome identico ("Queen" → Queen, non Freddie Mercury). Se il nome esatto non è tra i 10 risultati, fa una seconda ricerca col filtro di Spotify (`artist:"Queen"`); poi vale l'ordine di Spotify. Se un risultato non parte davvero prova il successivo (al massimo 3). Nella risposta, `considerati` elenca i nomi tra cui ha scelto |
+| `jarvis_musica.riproduci` (`cosa`, `dove`, `tipo`) | `script.jarvis_musica` | Con un uri Spotify in `cosa` (`spotify:playlist:…`, `album`, `artist`, `show`, `track`, `episode`; è quello che manda il pannello toccando una playlist) avvia quello, senza ricerca. Altrimenti cerca e avvia sul dispositivo Spotify Connect della stanza, anche da fermo. Nella scelta vince il nome identico ("Queen" → Queen, non Freddie Mercury). Se il nome esatto non è tra i 10 risultati, fa una seconda ricerca col filtro di Spotify (`artist:"Queen"`); poi vale l'ordine di Spotify. Se un risultato non parte davvero prova il successivo (al massimo 3). Nella risposta, `considerati` elenca i nomi tra cui ha scelto |
 | `jarvis_musica.controllo` (`azione`, `dove`, `livello`) | `script.jarvis_musica_controllo` | pausa, riprendi, successivo, precedente, volume (0-100), alza e abbassa (10 punti), sposta (in un'altra stanza). "Riprendi" funziona anche quando Spotify è tornato "a riposo" dopo una pausa lunga: riparte dall'ultima cosa ricordata, stesso dispositivo e stesso punto, e il ricordo resta anche dopo un riavvio di HA |
-| `jarvis_musica.stato` | `script.jarvis_musica_stato` | "Cosa sta suonando": titolo, artisti, dispositivo, stanza, volume, oppure "in pausa" o "niente" |
+| `jarvis_musica.stato` | `script.jarvis_musica_stato` | "Cosa sta suonando": titolo, artisti, dispositivo, stanza, volume, oppure "in pausa" o "niente". Dalla 0.4 anche `copertina` (URL, la più piccola sopra i 300 px, null se manca), `posizione_ms` e `durata_ms`, per la schermata Musica del pannello |
+| `jarvis_musica.playlist` | — | Le playlist dell'account (sue e seguite, al massimo 48): `nome`, `uri`, `copertina`, `proprietario`. Per il pannello |
 
 Tutti rispondono con `esito` ok o errore e un `messaggio` breve in italiano.
 `riproduci` e `controllo` aggiungono `tempi_ms`, che servono a capire dove se
@@ -300,7 +301,7 @@ configurazione segnala il doppione.
 e un file di stanze di prova. Al posto di Spotify c'è un client finto che
 restituisce oggetti costruiti con i **modelli veri di spotifyaio 2.0.2**. Si
 comporta come l'API: nessun comando conferma niente, e certi comandi vengono
-accettati senza effetto. Verifica 60 casi:
+accettati senza effetto. Verifica 65 casi:
 
 - avvio: artista, brano, genere; secondo dispositivo della stanza; candidato
   che non parte;
@@ -312,6 +313,9 @@ accettati senza effetto. Verifica 60 casi:
 - tutti i comandi, compreso quello accettato ma mai eseguito;
 - tutti gli errori;
 - i tre script con la risposta per Gemini;
+- 0.4: copertina (la più piccola sopra i 300 px, null senza immagini), punto
+  del brano e durata; elenco delle playlist; uri Spotify avviato senza
+  nessuna ricerca;
 - `services.yaml` valido con lo schema di HA 2026.9.3. Senza quel file HA
   scriveva un errore a ogni avvio, e la prova non lo vedeva perché nessuno
   chiedeva le descrizioni;
@@ -325,7 +329,9 @@ Controprove:
 - con un selettore sbagliato in `services.yaml` cade la sua prova;
 - con l'aggiornamento di nuovo atteso cade la prova dei tempi;
 - senza ricerca filtrata parte Michael Jackson;
-- senza "riprendi da riposo" risponde "non sta suonando niente".
+- senza "riprendi da riposo" risponde "non sta suonando niente";
+- col componente 0.3 cadono le prove della 0.4 (copertina, punto del brano,
+  servizi).
 
 ```bash
 uv python install 3.14.7   # HA 2026.9.3 vuole Python ≥ 3.14.2

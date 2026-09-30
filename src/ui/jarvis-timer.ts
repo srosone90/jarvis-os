@@ -1,7 +1,7 @@
-import { mdiAlarm, mdiTimerOutline } from "@mdi/js";
+import { mdiAlarm, mdiPause, mdiTimerOutline } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
 import { connessione } from "../connessione/connessione";
-import { formattaRimasto, titoloFinito } from "../timer/timer";
+import { formattaRimasto, rimastoMs, titoloFinito } from "../timer/timer";
 import { icona, RiquadroSicuro, stileBase } from "./base";
 
 /**
@@ -49,6 +49,16 @@ export class JarvisTimer extends RiquadroSicuro {
       .rimasto {
         font-variant-numeric: tabular-nums;
         font-weight: 600;
+      }
+      .pausa .rimasto {
+        color: var(--attenuato);
+      }
+      .pausa .icona {
+        color: var(--attenuato);
+      }
+      .in-pausa {
+        font-size: 14px;
+        color: var(--attenuato);
       }
       .zero .rimasto {
         color: var(--avviso);
@@ -106,15 +116,17 @@ export class JarvisTimer extends RiquadroSicuro {
     const altri = tutti.length - inVista.length;
     return html`<div class="elenco" role="list" aria-label="Timer attivi" data-test="timer-attivi">
       ${inVista.map((t) => {
-        const rimasto = t.scadenza - ora;
+        const rimasto = rimastoMs(t, ora);
         return html`<div
-          class="timer ${rimasto <= 0 ? "zero" : ""}"
+          class="timer ${rimasto <= 0 && !t.inPausa ? "zero" : ""} ${t.inPausa ? "pausa" : ""}"
           role="listitem"
           data-test="timer"
           data-id=${t.id}
         >
-          ${icona(mdiTimerOutline)} ${t.nome ? html`<span class="nome">${t.nome}</span>` : ""}
+          ${icona(t.inPausa ? mdiPause : mdiTimerOutline)}
+          ${t.nome ? html`<span class="nome">${t.nome}</span>` : ""}
           <span class="rimasto" data-test="timer-rimasto">${formattaRimasto(rimasto)}</span>
+          ${t.inPausa ? html`<span class="in-pausa" data-test="timer-in-pausa">in pausa</span>` : ""}
         </div>`;
       })}
       ${

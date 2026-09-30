@@ -3,6 +3,7 @@ import { DISPOSITIVO_SENZA_STANZA, dispositivoDi, slugStanza } from "../../src/t
 import {
   applicaEventoTimer,
   leggiElencoAttivi,
+  rimastoMs,
   formattaRimasto,
   leggiEvento,
   OLTRE_LO_ZERO_MS,
@@ -23,6 +24,7 @@ describe("timer: lettura degli eventi jarvis_timer", () => {
       secondiTotali: 600,
       secondiRimasti: 600,
       pannello: null,
+      inPausa: null,
     });
   });
 
@@ -46,19 +48,47 @@ describe("timer: lettura degli eventi jarvis_timer", () => {
   it("started aggiunge, updated sposta la scadenza e tiene il nome, cancelled e finished tolgono", () => {
     let e = applicaEventoTimer(
       [],
-      { tipo: "started", id: "a", nome: "pasta", secondiTotali: 600, secondiRimasti: 600, pannello: null },
+      {
+        tipo: "started",
+        id: "a",
+        nome: "pasta",
+        secondiTotali: 600,
+        secondiRimasti: 600,
+        pannello: null,
+        inPausa: null,
+      },
       1000,
     );
-    expect(e).toEqual([{ id: "a", nome: "pasta", secondiTotali: 600, scadenza: 601_000 }]);
+    expect(e).toEqual([
+      { id: "a", nome: "pasta", secondiTotali: 600, scadenza: 601_000, inPausa: false, fermoMs: 600_000 },
+    ]);
     e = applicaEventoTimer(
       e,
-      { tipo: "updated", id: "a", nome: null, secondiTotali: null, secondiRimasti: 60, pannello: null },
+      {
+        tipo: "updated",
+        id: "a",
+        nome: null,
+        secondiTotali: null,
+        secondiRimasti: 60,
+        pannello: null,
+        inPausa: null,
+      },
       2000,
     );
-    expect(e).toEqual([{ id: "a", nome: "pasta", secondiTotali: 600, scadenza: 62_000 }]);
+    expect(e).toEqual([
+      { id: "a", nome: "pasta", secondiTotali: 600, scadenza: 62_000, inPausa: false, fermoMs: 60_000 },
+    ]);
     e = applicaEventoTimer(
       e,
-      { tipo: "started", id: "b", nome: null, secondiTotali: 30, secondiRimasti: 30, pannello: null },
+      {
+        tipo: "started",
+        id: "b",
+        nome: null,
+        secondiTotali: 30,
+        secondiRimasti: 30,
+        pannello: null,
+        inPausa: null,
+      },
       2000,
     );
     // in ordine di scadenza
@@ -66,14 +96,30 @@ describe("timer: lettura degli eventi jarvis_timer", () => {
     expect(
       applicaEventoTimer(
         e,
-        { tipo: "cancelled", id: "a", nome: null, secondiTotali: null, secondiRimasti: null, pannello: null },
+        {
+          tipo: "cancelled",
+          id: "a",
+          nome: null,
+          secondiTotali: null,
+          secondiRimasti: null,
+          pannello: null,
+          inPausa: null,
+        },
         0,
       ).map((t) => t.id),
     ).toEqual(["b"]);
     expect(
       applicaEventoTimer(
         e,
-        { tipo: "finished", id: "b", nome: null, secondiTotali: null, secondiRimasti: 0, pannello: null },
+        {
+          tipo: "finished",
+          id: "b",
+          nome: null,
+          secondiTotali: null,
+          secondiRimasti: 0,
+          pannello: null,
+          inPausa: null,
+        },
         0,
       ).map((t) => t.id),
     ).toEqual(["a"]);
@@ -148,6 +194,30 @@ describe("timer: suoneria", () => {
     expect(suoneria.avvia).not.toHaveBeenCalled();
   });
 
+  const primo = (t: Timer) => {
+    const [x] = t.attivi;
+    if (!x) throw new Error("nessun timer attivo");
+    return x;
+  };
+
+  it("pausa (jarvis_voce 0.2.3): il conto si ferma, non sparisce a zero, riparte da dove era", () => {
+    const { timer, avanza } = prova();
+    timer.suEvento({ tipo: "started", id: "a", nome: "pasta", secondi_totali: 600, secondi_rimasti: 600 });
+    avanza(100_000);
+    expect(rimastoMs(primo(timer), 100_000)).toBe(500_000);
+    timer.suEvento({ tipo: "updated", id: "a", secondi_rimasti: 500, in_pausa: true });
+    avanza(OLTRE_LO_ZERO_MS * 20);
+    // fermo a 8:20 e ancora lì molto dopo la vecchia scadenza
+    expect(timer.attivi).toHaveLength(1);
+    expect(timer.attivi[0]?.inPausa).toBe(true);
+    expect(rimastoMs(primo(timer), 100_000 + OLTRE_LO_ZERO_MS * 20)).toBe(500_000);
+    const ripresa = 100_000 + OLTRE_LO_ZERO_MS * 20;
+    timer.suEvento({ tipo: "updated", id: "a", secondi_rimasti: 500, in_pausa: false });
+    avanza(10_000);
+    expect(rimastoMs(primo(timer), ripresa + 10_000)).toBe(490_000);
+    expect(timer.attivi[0]?.nome).toBe("pasta");
+  });
+
   it("evento non valido: annotato e ignorato, niente suona", () => {
     const { timer, suoneria } = prova();
     timer.suEvento({ tipo: "boh" });
@@ -157,18 +227,23 @@ describe("timer: suoneria", () => {
 });
 
 describe("timer: ognuno sul suo pannello (v0.4.6)", () => {
-  it("device_id: 'jarvis_' + slug come homeassistant.util.slugify (valori presi da HA 2026.9.3)", () => {
-    const da_ha: [string, string][] = [
+  it("device_id: 'jarvis_' + slug con la regola del server (valori dalla sua regola in Python, 30/09)", () => {
+    // unicodedata NFKD, via i combinanti, str.isalnum, "_" compressi: calcolati in Python
+    const dal_server: [string, string][] = [
       ["Cucina", "cucina"],
       ["Camera da letto", "camera_da_letto"],
       ["Camera dell'ospite", "camera_dell_ospite"],
+      ["Camera dell'ospite – Già", "camera_dell_ospite_gia"],
+      ["Stanza ½", "stanza_1_2"],
       ["Soggiorno  grande", "soggiorno_grande"],
       ["Città", "citta"],
-      ["Bagno 2", "bagno_2"],
-      ["Tutta la casa", "tutta_la_casa"],
       ["Àtrio-nord", "atrio_nord"],
+      ["Bagno n°2", "bagno_n_2"],
+      ["Straße", "straße"],
+      ["  Salotto  ", "salotto"],
+      ["_x_", "x"],
     ];
-    for (const [nome, slug] of da_ha) expect(slugStanza(nome)).toBe(slug);
+    for (const [nome, slug] of dal_server) expect(slugStanza(nome)).toBe(slug);
     expect(dispositivoDi("Camera da letto")).toBe("jarvis_camera_da_letto");
     expect(dispositivoDi(null)).toBeNull();
     expect(DISPOSITIVO_SENZA_STANZA).toBe("jarvis_pannello");
@@ -254,7 +329,9 @@ describe("timer: ognuno sul suo pannello (v0.4.6)", () => {
       ],
     });
     await timer.rileggi("prova");
-    expect(timer.attivi).toEqual([{ id: "c", nome: "pasta", secondiTotali: 600, scadenza: 300_000 }]);
+    expect(timer.attivi).toEqual([
+      { id: "c", nome: "pasta", secondiTotali: 600, scadenza: 300_000, inPausa: false, fermoMs: 300_000 },
+    ]);
   });
 
   it("risposta di timer_attivi: chiavi accettate e forma sconosciuta", () => {
