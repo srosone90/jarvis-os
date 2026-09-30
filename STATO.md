@@ -8,6 +8,19 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.6 pubblicata e verificata (timer solo
 
 ## Adesso
 
+- **In corso: mockup**, un gruppo alla volta. Niente codice finché Salvatore
+  non ha scelto.
+  - **Gruppo 1 (mostrato il 30/09)**: schermo a riposo/AOD in 3 varianti (A
+    orologio al centro, B due colonne, C sfera), con mattina, giorno, sera,
+    notte, evento, timer attivi e timer finito; Hub in 3 varianti (H1 sfera al
+    centro, H2 sfera e conversazione, H3 sfera come luce di fondo); schema di
+    come si collegano. Sorgente: `docs/mockup-riposo-hub.html`.
+  - Poi: impostazioni del pannello (fase G), schermate e navigazione,
+    musica.
+- **Prossima release (dopo i mockup, piccola)**: slug della stanza come il
+  tuo (NFKD); oggi differiamo solo su simboli rari, per esempio "Stanza ½" →
+  pannello `stanza`, server `stanza_1_2`. E il campo `in_pausa` di
+  `timer_attivi`: un timer in pausa non deve scorrere sul pannello.
 - **Finito:** v0.4.6, la richiesta urgente sui timer, con tutti e 6 i punti:
   1. device_id `jarvis_<stanza>`, con l'avviso "Scegli la stanza per i
      timer";
@@ -191,16 +204,9 @@ Solo il componente: stanze e pacchetto degli script **non cambiano**.
 6. ~~Timer dopo una riconnessione~~ e 7. ~~Stop su tutti i pannelli~~:
    risolte da `jarvis_voce` 0.1.8 (`timer_attivi`, `timer_ferma`/`fermato`),
    usate dalla v0.4.6.
-8. **`finished` e `id`**: `id` è lo stesso di `started` per lo stesso timer?
-   Il pannello lo usa per collegare il nome, e se `finished` non ha `nome` lo
-   prende da `started`.
-9. **Chiave della risposta di `timer_attivi`**: il pannello accetta
-   `{timer: [...]}`, `{timers: [...]}`, `{attivi: [...]}` o un elenco nudo.
-   Qual è quella vera? Se è un'altra, nel log compare "risposta di
-   timer_attivi non riconosciuta" con la risposta intera.
-10. **Slug della stanza**: il pannello usa le regole di
-    `homeassistant.util.slugify`, provate su HA 2026.9.3: minuscolo, senza
-    accenti, ogni carattere che non è lettera o cifra diventa "_", niente
-    "_" doppi. Per esempio "Camera dell'ospite" → `jarvis_camera_dell_ospite`.
-    Lo script `jarvis_timer_stanza` usa la stessa funzione? Se no, con
-    apostrofi o trattini i due device_id non coincidono.
+8. ~~`id` di `finished`~~, 9. ~~chiave `timer`~~, 10. ~~slug~~: risposte
+   ricevute il 30/09. Sullo slug mi allineo io alla tua regola (NFKD); non
+   serve cambiare niente lato server.
+11. **Pausa dei timer**: arriva anche un evento quando un timer va in pausa
+    o riparte (per esempio `updated` con `in_pausa`)? Senza evento, il
+    pannello lo saprebbe solo alla rilettura.

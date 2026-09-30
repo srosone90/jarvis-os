@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jarvis OS — mockup schermo a riposo (AOD) e Hub</title>
+<!--
+  Mockup statico: niente codice del pannello. Si apre con ?foglio=aod-A|aod-B|aod-C|hub|flusso
+  e Playwright ne fa le immagini (schermate/mockup/, ignorata da Git). Dati di esempio
+  presi dalla casa vera (stanze, meteo, timer, musica, batterie del pacchetto HA).
+-->
+<style>
+  :root { --accent:#5b8def; --bg:#0d0f13; --surface:#171a21; --surface-2:#1f232c; --text:#eef1f6; --muted:#9aa3b2; --warn:#f0a33a; --ok:#3ecf7a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#05060a; color:var(--text); font-family:system-ui,Roboto,sans-serif; }
+  .foglio { padding:24px; display:flex; flex-direction:column; gap:18px; width:max-content; }
+  .foglio > h1 { margin:0; font-size:28px; }
+  .foglio > p { margin:0; color:var(--muted); font-size:17px; max-width:1760px; line-height:1.45; }
+  .riga { display:flex; gap:18px; align-items:flex-start; }
+  .cella { display:flex; flex-direction:column; gap:6px; }
+  .cella b { font-size:16px; }
+  .cella small { color:var(--muted); font-size:14px; max-width:430px; line-height:1.35; }
+  .cornice { border:6px solid #000; border-radius:14px; overflow:hidden; background:#000; }
+  .scala { transform-origin:0 0; }
+  /* schermi veri, poi rimpiccioliti */
+  .schermo { position:relative; overflow:hidden; background:#000; color:var(--text); }
+  .tablet { width:1024px; height:600px; }
+  .telo { width:915px; height:412px; }
+  .icona { width:24px; height:24px; fill:currentColor; flex:none; }
+  .tab { font-variant-numeric:tabular-nums; }
+
+  /* ---- colori per momento del giorno (AOD) ---- */
+  .mattina { --tinta:#f3c77a; --luce:1; background:radial-gradient(1000px 520px at 85% 0%, #3a2c14 0%, #0b0a08 60%); }
+  .giorno  { --tinta:#8fb4ff; --luce:1; background:radial-gradient(1000px 520px at 85% 0%, #14203a 0%, #07090d 60%); }
+  .sera    { --tinta:#ff9e6b; --luce:.8; background:radial-gradient(1000px 520px at 15% 100%, #2a1510 0%, #060404 60%); }
+  .notte   { --tinta:#b8452f; --luce:.45; background:#000; }
+  .notte .ora, .notte .riga-info, .notte .chip { color:#b8452f; }
+  .notte .attenuato { color:#6e2a1d; }
+
+  /* ---- AOD variante A: orologio al centro ---- */
+  .aA { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center; }
+  .aA .ora { font-size:200px; font-weight:200; letter-spacing:-6px; line-height:.9; opacity:var(--luce); }
+  .aA .data { font-size:26px; color:var(--muted); }
+  .riga-info { display:flex; gap:22px; align-items:center; font-size:24px; color:#c9d0dc; opacity:var(--luce); }
+  .riga-info span { display:inline-flex; gap:8px; align-items:center; }
+  .riga-info .icona { color:var(--tinta); }
+  .chips { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .chip { display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:999px; border:1px solid #2b303a; background:#0f1116cc; font-size:22px; }
+  .chip .icona { color:var(--tinta); }
+  .chip b { font-weight:600; }
+  .evento { position:absolute; left:50%; transform:translateX(-50%); bottom:26px; display:flex; gap:12px; align-items:center; padding:12px 20px; border-radius:16px; background:#2a1f0c; border:1px solid #6b4a14; color:#ffd9a0; font-size:20px; white-space:nowrap; }
+  .evento .icona { color:var(--warn); }
+  .attenuato { color:#5c6370; }
+
+  /* ---- AOD variante B: due colonne ---- */
+  .aB { display:grid; grid-template-columns: 1fr 380px; gap:32px; padding:40px 44px; }
+  .aB .ora { font-size:170px; font-weight:200; letter-spacing:-5px; line-height:.9; opacity:var(--luce); }
+  .aB .data { font-size:26px; color:var(--muted); margin-top:8px; }
+  .aB .sx { display:flex; flex-direction:column; justify-content:center; gap:22px; }
+  .aB .dx { display:flex; flex-direction:column; justify-content:center; gap:12px; }
+  .scheda { display:flex; align-items:center; gap:14px; padding:14px 18px; border-radius:16px; background:#ffffff08; border:1px solid #ffffff10; font-size:20px; opacity:var(--luce); }
+  .scheda .icona { width:28px; height:28px; color:var(--tinta); }
+  .scheda small { display:block; color:var(--muted); font-size:15px; margin-top:2px; }
+  .scheda .val { margin-left:auto; font-size:28px; font-weight:300; }
+  .anello-t { position:relative; width:44px; height:44px; flex:none; }
+  .anello-t svg { width:44px; height:44px; transform:rotate(-90deg); }
+  .notte .scheda { background:transparent; border-color:#3a130b; color:#c4533a; }
+  .notte .scheda small { color:#8a3624; }
+
+  /* ---- sfera (AOD variante C e Hub) ---- */
+  .sfera { position:absolute; border-radius:50%;
+    background: radial-gradient(circle at 38% 34%, #ffffffcc 0%, #9cc0ff 12%, #5b8def 34%, #2a4fb0 58%, #0d1a4088 76%, transparent 78%);
+    box-shadow: 0 0 80px 20px #5b8def55, 0 0 200px 60px #2a4fb033; }
+  .sfera.fioca { filter:saturate(.7) brightness(.55); box-shadow:0 0 60px 10px #5b8def33; }
+  .sfera.notturna { filter:hue-rotate(160deg) saturate(.8) brightness(.35); box-shadow:0 0 40px 6px #b8452f33; }
+  .sfera.ascolto { box-shadow: 0 0 0 10px #5b8def33, 0 0 0 26px #5b8def1f, 0 0 120px 30px #5b8def88; }
+  .sfera.pensa { background: conic-gradient(from 40deg, #5b8def, #9a7bff, #5b8def, #3ecfcf, #5b8def); filter:blur(.5px); box-shadow:0 0 120px 30px #7b6bff77; }
+  .sfera.risponde { box-shadow: 0 0 0 16px #5b8def26, 0 0 0 40px #5b8def14, 0 0 160px 40px #5b8def88; }
+  .sfera.avviso { background: radial-gradient(circle at 38% 34%, #fff3 0%, #f0a33a 30%, #8a560f 64%, transparent 78%); box-shadow:0 0 120px 30px #f0a33a66; }
+  .arco { position:absolute; border-radius:50%; }
+  .aC .ora { position:absolute; font-size:150px; font-weight:200; letter-spacing:-4px; line-height:.9; opacity:var(--luce); }
+  .aC .data { position:absolute; font-size:24px; color:var(--muted); }
+  .aC .riga-info { position:absolute; }
+
+  /* ---- timer finito sopra l'AOD ---- */
+  .finito { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); display:flex; flex-direction:column; align-items:center; gap:14px;
+    padding:28px 44px; border-radius:28px; background:#1b1407; border:2px solid #f0a33a; box-shadow:0 0 0 12px #f0a33a22, 0 0 80px #f0a33a55; text-align:center; }
+  .finito h2 { margin:0; font-size:40px; } .finito p { margin:0; color:#ffd9a0; font-size:18px; }
+  .finito .stop { margin-top:6px; min-width:280px; padding:22px 0; border-radius:48px; background:#f0a33a; color:#1a1204; font-size:34px; font-weight:700; }
+  .finito .icona { width:56px; height:56px; color:#f0a33a; }
+  .striscia { position:absolute; left:0; right:0; top:0; display:flex; align-items:center; gap:16px; padding:16px 26px; background:#2a1f0c; border-bottom:2px solid #f0a33a; font-size:26px; }
+  .striscia .icona { width:34px; height:34px; color:#f0a33a; }
+  .striscia .stop { margin-left:auto; padding:14px 40px; border-radius:40px; background:#f0a33a; color:#1a1204; font-weight:700; font-size:26px; }
+
+  /* ---- Hub ---- */
+  .hub { background:radial-gradient(900px 520px at 50% 60%, #0f1a36 0%, #05070b 65%); }
+  .angolo { position:absolute; display:flex; gap:14px; align-items:center; font-size:18px; color:var(--muted); }
+  .pallino { width:10px; height:10px; border-radius:50%; background:var(--ok); }
+  .tasto { position:absolute; width:56px; height:56px; border-radius:50%; background:#ffffff0d; border:1px solid #ffffff1a; display:grid; place-items:center; color:#c9d0dc; }
+  .sott { position:absolute; text-align:center; line-height:1.35; }
+  .sott .io { color:#9aa3b2; font-size:22px; font-style:italic; }
+  .sott .jv { font-size:30px; margin-top:10px; }
+  .h2c { position:absolute; display:flex; flex-direction:column; gap:14px; justify-content:center; }
+  .bolla { padding:14px 20px; border-radius:20px; font-size:22px; line-height:1.4; max-width:100%; }
+  .bolla.io { align-self:flex-end; background:#27365a; color:#dfe6f5; }
+  .bolla.jv { align-self:flex-start; background:#1f232c; }
+  .etich { align-self:flex-start; font-size:17px; color:var(--ok); border:1px solid #3ecf7a73; border-radius:999px; padding:5px 14px; }
+  .stato-hub { position:absolute; font-size:20px; color:#c9d0dc; text-align:center; }
+
+  /* ---- flusso ---- */
+  .freccia { display:flex; flex-direction:column; justify-content:center; align-items:center; gap:6px; color:var(--muted); font-size:15px; width:150px; text-align:center; align-self:center; }
+  .freccia span:first-child { font-size:40px; color:#c9d0dc; }
+</style>
+</head>
+<body>
+<div id="radice"></div>
+<script>
+/* icone (path di @mdi/js, le stesse del pannello) */
+const P = {
+  sole: "M12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,2L14.39,5.42C13.65,5.15 12.84,5 12,5C11.16,5 10.35,5.15 9.61,5.42L12,2M3.34,7L7.5,6.65C6.9,7.16 6.36,7.78 5.94,8.5C5.5,9.24 5.25,10 5.11,10.79L3.34,7M3.36,17L5.12,13.23C5.26,14 5.53,14.78 5.95,15.5C6.37,16.24 6.91,16.86 7.5,17.37L3.36,17M20.65,7L18.88,10.79C18.74,10 18.47,9.23 18.05,8.5C17.63,7.78 17.1,7.15 16.5,6.64L20.65,7M20.64,17L16.5,17.36C17.09,16.85 17.62,16.22 18.04,15.5C18.46,14.77 18.73,14 18.87,13.21L20.64,17M12,22L9.59,18.56C10.33,18.83 11.14,19 12,19C12.82,19 13.63,18.83 14.37,18.56L12,22Z",
+  luna: "M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M21.25,11L19.61,12.25L20.2,14.23L18.5,13.06L16.8,14.23L17.39,12.25L15.75,11L17.81,10.95L18.5,9L19.19,10.95L21.25,11M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95Z",
+  termo: "M15 13V5A3 3 0 0 0 9 5V13A5 5 0 1 0 15 13M12 4A1 1 0 0 1 13 5V8H11V5A1 1 0 0 1 12 4Z",
+  timer: "M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M19.03,7.39L20.45,5.97C20,5.46 19.55,5 19.04,4.56L17.62,6C16.07,4.74 14.12,4 12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22C17,22 21,17.97 21,13C21,10.88 20.26,8.93 19.03,7.39M11,14H13V8H11M15,1H9V3H15V1Z",
+  sveglia: "M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22A9,9 0 0,0 21,13A9,9 0 0,0 12,4M12.5,8H11V14L15.75,16.85L16.5,15.62L12.5,13.25V8M7.88,3.39L6.6,1.86L2,5.71L3.29,7.24L7.88,3.39M22,5.72L17.4,1.86L16.11,3.39L20.71,7.25L22,5.72Z",
+  nota: "M21,3V15.5A3.5,3.5 0 0,1 17.5,19A3.5,3.5 0 0,1 14,15.5A3.5,3.5 0 0,1 17.5,12C18.04,12 18.55,12.12 19,12.34V6.47L9,8.6V17.5A3.5,3.5 0 0,1 5.5,21A3.5,3.5 0 0,1 2,17.5A3.5,3.5 0 0,1 5.5,14C6.04,14 6.55,14.12 7,14.34V6L21,3Z",
+  batteria: "M16,20H8V6H16M16.67,4H15V2H9V4H7.33A1.33,1.33 0 0,0 6,5.33V20.67C6,21.4 6.6,22 7.33,22H16.67A1.33,1.33 0 0,0 18,20.67V5.33C18,4.6 17.4,4 16.67,4M15,16H9V19H15V16Z",
+  griglia: "M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+  mic: "M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
+  nuvola: "M6.5,20Q4.22,20 2.61,18.43 1,16.85 1,14.58 1,12.63 2.17,11.1 3.35,9.57 5.25,9.15 5.88,6.85 7.75,5.43 9.63,4 12,4 14.93,4 16.96,6.04 19,8.07 19,11 20.73,11.2 21.86,12.5 23,13.78 23,15.5 23,17.38 21.69,18.69 20.38,20 18.5,20Z",
+};
+const ic = (p) => `<svg class="icona" viewBox="0 0 24 24"><path d="${P[p]}"/></svg>`;
+
+/* dati di esempio per momento */
+const M = {
+  mattina: { ora:"07:12", data:"mercoledì 1 ottobre", meteo:["sole","18°","oggi max 26°"], info:[["termo","Camera 23,4°"],["termo","Soggiorno 24,1°"]] },
+  giorno:  { ora:"13:40", data:"mercoledì 1 ottobre", meteo:["sole","25°","sereno"], info:[["termo","Soggiorno 25,7°"],["nota","Queen · cucina"]] },
+  sera:    { ora:"20:05", data:"mercoledì 1 ottobre", meteo:["luna","21°","domani 24°"], info:[["termo","Soggiorno 25,2°"],["termo","Camera 24,6°"]] },
+  notte:   { ora:"02:31", data:"giovedì 2 ottobre", meteo:["luna","17°",""], info:[] },
+};
+const TIMER = [["pasta","8:42"],["uova","3:10"]];
+
+function schermo(cls, html) { return `<div class="schermo ${cls}">${html}</div>`; }
+
+function chipsTimer(pochi) {
+  return `<div class="chips">${TIMER.slice(0, pochi ?? 2).map(([n,t]) => `<span class="chip">${ic("timer")}${n} <b class="tab">${t}</b></span>`).join("")}</div>`;
+}
+function rigaInfo(m) {
+  const [i,t,s] = m.meteo;
+  return `<div class="riga-info"><span>${ic(i)}${t}${s ? ` <span class="attenuato">${s}</span>` : ""}</span>${m.info.map(([ii,tt]) => `<span>${ic(ii)}${tt}</span>`).join("")}</div>`;
+}
+const EVENTO = `<div class="evento">${ic("batteria")}Batteria bassa: sensore camera da letto (12%)</div>`;
+function finito(notte) {
+  return `<div style="position:absolute;inset:0;background:#000a"></div><div class="finito" style="${notte ? "background:#140806ee;border-color:#b8452f;box-shadow:0 0 0 12px #b8452f22" : ""}">${ic("sveglia")}<h2>Timer pasta finito</h2><p>Di' "stop" o tocca</p><div class="stop" style="${notte ? "background:#b8452f;color:#140806" : ""}">Stop</div></div>`;
+}
+
+/* ---- AOD A: orologio al centro ---- */
+function aodA(dim, stato) {
+  const m = M[stato === "evento" || stato === "timer" || stato === "finito" ? "giorno" : stato];
+  const tel = dim === "telo";
+  const ora = `<div class="ora tab" style="${tel ? "font-size:150px" : ""}">${m.ora}</div>`;
+  const data = `<div class="data" style="${tel ? "font-size:22px" : ""}">${m.data}</div>`;
+  let corpo = ora + (stato === "notte" ? "" : data);
+  if (stato !== "notte") corpo += rigaInfo(m);
+  if (stato === "timer" || stato === "finito" || stato === "notte") corpo += chipsTimer(stato === "notte" ? 1 : 2);
+  let sopra = stato === "evento" ? EVENTO : "";
+  if (stato === "finito") sopra = finito(false);
+  return schermo(`${dim} ${stato === "notte" ? "notte" : stato === "evento" || stato === "timer" || stato === "finito" ? "giorno" : stato} aA`, corpo + sopra);
+}
+
+/* ---- AOD B: due colonne ---- */
+function anello(frazione, colore) {
+  const c = 2 * Math.PI * 18;
+  return `<span class="anello-t"><svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="18" fill="none" stroke="#ffffff14" stroke-width="5"/><circle cx="22" cy="22" r="18" fill="none" stroke="${colore}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${c*frazione} ${c}"/></svg></span>`;
+}
+function aodB(dim, stato) {
+  const chiave = ["evento","timer","finito"].includes(stato) ? "giorno" : stato;
+  const m = M[chiave];
+  const tel = dim === "telo";
+  const [i,t,s] = m.meteo;
+  let dx = "";
+  if (stato === "timer" || stato === "finito" || stato === "notte")
+    dx += TIMER.slice(0, stato === "notte" ? 1 : 2).map(([n,tt], k) => `<div class="scheda">${anello(k ? .3 : .85, stato === "notte" ? "#b8452f" : "#f3c77a")}<div>${n}<small>timer</small></div><span class="val tab">${tt}</span></div>`).join("");
+  if (stato !== "notte") {
+    dx += `<div class="scheda">${ic(i)}<div>${s || "adesso"}<small>meteo</small></div><span class="val">${t}</span></div>`;
+    dx += m.info.slice(0, stato === "timer" || stato === "finito" ? 1 : 2).map(([ii,tt]) => { const [a,b] = tt.split(/ (?=[\d·])/); return `<div class="scheda">${ic(ii)}<div>${a}<small>${ii === "nota" ? "in riproduzione" : "stanza"}</small></div><span class="val">${(b||"").replace("· ","")}</span></div>`; }).join("");
+  }
+  if (stato === "evento") dx = `<div class="scheda" style="border-color:#6b4a14;background:#2a1f0c;color:#ffd9a0">${ic("batteria")}<div>Batteria bassa<small>sensore camera da letto</small></div><span class="val">12%</span></div>` + dx;
+  const stile = tel ? "grid-template-columns:1fr 360px;padding:22px 28px;gap:20px" : "";
+  const oraSt = tel ? "font-size:130px" : "";
+  let html = `<div class="sx"><div class="ora tab" style="${oraSt}">${m.ora}</div>${stato === "notte" ? "" : `<div class="data">${m.data}</div>`}</div><div class="dx" style="${tel ? "gap:8px" : ""}">${dx}</div>`;
+  if (stato === "finito") html += finito(false);
+  return schermo(`${dim} ${chiave} aB" style="${stile}`, html);
+}
+
+/* ---- AOD C: sfera ---- */
+function aodC(dim, stato) {
+  const chiave = ["evento","timer","finito"].includes(stato) ? "giorno" : stato;
+  const m = M[chiave];
+  const tel = dim === "telo";
+  const d = tel ? 250 : 330;
+  const cx = tel ? 200 : 260, cy = tel ? 206 : 300;
+  let html = `<div class="sfera ${stato === "notte" ? "notturna" : "fioca"}" style="width:${d}px;height:${d}px;left:${cx-d/2}px;top:${cy-d/2}px"></div>`;
+  if (stato === "timer" || stato === "finito" || stato === "notte") {
+    const r = d/2 + 22;
+    const col = stato === "notte" ? "#b8452f" : "#f3c77a";
+    html += `<svg style="position:absolute;left:${cx-r-6}px;top:${cy-r-6}px;width:${2*r+12}px;height:${2*r+12}px;transform:rotate(-90deg)"><circle cx="${r+6}" cy="${r+6}" r="${r}" fill="none" stroke="#ffffff10" stroke-width="6"/><circle cx="${r+6}" cy="${r+6}" r="${r}" fill="none" stroke="${col}" stroke-width="6" stroke-linecap="round" stroke-dasharray="${2*Math.PI*r*.85} ${2*Math.PI*r}"/>${stato === "notte" ? "" : `<circle cx="${r+6}" cy="${r+6}" r="${r-14}" fill="none" stroke="#ffffff10" stroke-width="4"/><circle cx="${r+6}" cy="${r+6}" r="${r-14}" fill="none" stroke="#8fb4ff" stroke-width="4" stroke-linecap="round" stroke-dasharray="${2*Math.PI*(r-14)*.3} ${2*Math.PI*r}"/>`}</svg>`;
+  }
+  const x = tel ? 400 : 540;
+  html += `<div class="ora tab" style="left:${x}px;top:${tel ? 70 : 120}px;${tel ? "font-size:120px" : ""}">${m.ora}</div>`;
+  if (stato !== "notte") html += `<div class="data" style="left:${x+6}px;top:${tel ? 200 : 280}px">${m.data}</div>`;
+  // sul telefono con i timer si tiene solo il meteo: lo spazio non basta
+  const mInfo = tel && (stato === "timer" || stato === "finito") ? { ...m, info: [] } : m;
+  if (stato !== "notte") html += `<div class="riga-info" style="left:${x+6}px;top:${tel ? 240 : 330}px;flex-direction:column;align-items:flex-start;gap:10px">${rigaInfo(mInfo).replace('<div class="riga-info">','').replace(/<\/div>$/,'')}</div>`;
+  if (stato === "timer" || stato === "finito" || stato === "notte")
+    html += `<div style="position:absolute;left:${x+6}px;top:${stato === "notte" ? (tel ? 210 : 280) : tel ? 290 : 470}px">${chipsTimer(stato === "notte" ? 1 : 2)}</div>`;
+  if (stato === "evento") html += EVENTO.replace('class="evento"', `class="evento" style="left:auto;right:24px;transform:none"`);
+  if (stato === "finito") html += finito(false);
+  return schermo(`${dim} ${chiave} aC`, html);
+}
+
+/* ---- Hub ---- */
+const DOMANDA = "Metti un timer di dieci minuti per la pasta";
+const RISPOSTA = "Fatto: timer pasta, dieci minuti.";
+function angoloHub(tel) {
+  return `<div class="angolo" style="left:24px;top:18px"><span class="tab" style="font-size:${tel ? 22 : 26}px;color:#dfe6f5">13:40</span><span>${ic("termo")}Cucina 25,4°</span><span class="pallino"></span></div>`
+    + `<div class="tasto" style="right:20px;bottom:20px">${ic("griglia")}</div>`;
+}
+function hubA(dim, stato) {
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  const d = tel ? 170 : 240, cy = tel ? 170 : 250;
+  let html = angoloHub(tel) + `<div class="sfera ${stato}" style="width:${d}px;height:${d}px;left:${W/2-d/2}px;top:${cy-d/2}px"></div>`;
+  if (stato === "ascolto") html += `<div class="sott" style="left:0;right:0;top:${cy+d/2+36}px"><div class="io">«${DOMANDA}…»</div></div>`;
+  if (stato === "risponde") html += `<div class="sott" style="left:60px;right:60px;top:${cy+d/2+24}px"><div class="io">«${DOMANDA}»</div><div class="jv">${RISPOSTA}</div></div>`;
+  if (stato === "fioca") html += `<div class="stato-hub" style="left:0;right:0;top:${cy+d/2+40}px">Tocca la sfera o di' «Jarvis»</div><div style="position:absolute;right:20px;top:14px">${chipsTimer(1)}</div>`;
+  return schermo(`${dim} hub`, html);
+}
+function hubB(dim, stato) {
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  const d = tel ? 190 : 260, cx = tel ? 190 : 260, cy = H/2 + 10;
+  let html = angoloHub(tel) + `<div class="sfera ${stato}" style="width:${d}px;height:${d}px;left:${cx-d/2}px;top:${cy-d/2}px"></div>`;
+  const stat = { ascolto:"Ti ascolto…", pensa:"Sto pensando…", risponde:"Sto rispondendo", fioca:"Tocca la sfera o di' «Jarvis»" }[stato];
+  html += `<div class="stato-hub" style="left:${cx-140}px;width:280px;top:${cy+d/2+18}px">${stat}</div>`;
+  const x = tel ? 390 : 520;
+  let conv = "";
+  if (stato === "ascolto") conv = `<div class="bolla io" style="opacity:.7;font-style:italic">${DOMANDA}…</div>`;
+  if (stato === "risponde") conv = `<div class="bolla io">${DOMANDA}</div><span class="etich">Timer pasta · 10:00</span><div class="bolla jv">${RISPOSTA}</div>`;
+  if (stato === "fioca") conv = `<div class="scheda">${anello(.85,"#f3c77a")}<div>pasta<small>timer</small></div><span class="val tab">8:42</span></div>`;
+  html += `<div class="h2c" style="left:${x}px;right:${tel ? 30 : 40}px;top:${tel ? 70 : 90}px;bottom:${tel ? 70 : 90}px">${conv}</div>`;
+  return schermo(`${dim} hub`, html);
+}
+function hubC(dim, stato) {
+  const tel = dim === "telo", W = tel ? 915 : 1024, H = tel ? 412 : 600;
+  const d = tel ? 520 : 700;
+  let html = `<div class="sfera ${stato}" style="width:${d}px;height:${d}px;left:${W/2-d/2}px;top:${H/2-d/2+ (tel ? 40 : 60)}px;opacity:.55;filter:blur(18px)"></div>` + angoloHub(tel);
+  const grande = tel ? 34 : 44;
+  if (stato === "ascolto") html += `<div class="sott" style="left:60px;right:60px;top:${H/2-40}px;font-size:${grande}px;font-weight:300;color:#dfe6f5">${DOMANDA}…</div>`;
+  if (stato === "risponde") html += `<div class="sott" style="left:60px;right:60px;top:${H/2-70}px"><div class="io">«${DOMANDA}»</div><div class="jv" style="font-size:${grande}px;font-weight:300">${RISPOSTA}</div></div>`;
+  if (stato === "fioca") html += `<div class="sott" style="left:0;right:0;top:${H/2-60}px"><div class="tab" style="font-size:${tel ? 96 : 130}px;font-weight:200;letter-spacing:-3px">13:40</div><div style="margin-top:10px">${chipsTimer(1)}</div></div>`;
+  return schermo(`${dim} hub`, html);
+}
+
+/* ---- fogli ---- */
+function cella(titolo, nota, html, scala) {
+  const tel = html.includes("telo");
+  const w = (tel ? 915 : 1024) * scala, h = (tel ? 412 : 600) * scala;
+  return `<div class="cella"><b>${titolo}</b><div class="cornice" style="width:${w+12}px;height:${h+12}px"><div class="scala" style="transform:scale(${scala})">${html}</div></div>${nota ? `<small>${nota}</small>` : ""}</div>`;
+}
+const STATI_AOD = [
+  ["mattina","Mattina","meteo del giorno in evidenza"],
+  ["giorno","Giorno","musica che suona, stanze"],
+  ["sera","Sera","luce calda, più bassa"],
+  ["notte","Notte","solo ora e timer, rosso scuro, luminosità al minimo"],
+  ["evento","Evento","un avviso di HA, il resto resta a riposo"],
+  ["timer","Timer attivi","conto alla rovescia sempre in vista"],
+  ["finito","Timer finito","suona e si accende solo il riquadro, non tutto il pannello"],
+];
+function foglioAod(lettera, titolo, descr, f) {
+  const s = 0.42;
+  const tab = STATI_AOD.map(([k,t,n]) => cella(`Tablet · ${t}`, n, f("tablet", k), s));
+  const tel = [["notte","Notte"],["timer","Timer attivi"],["finito","Timer finito"]].map(([k,t]) => cella(`Telefono orizzontale · ${t}`, "", f("telo", k), 0.47));
+  return `<div class="foglio"><h1>Schermo a riposo — variante ${lettera}: ${titolo}</h1><p>${descr}</p>
+    <div class="riga">${tab.slice(0,4).join("")}</div><div class="riga">${tab.slice(4).join("")}</div><div class="riga">${tel.join("")}</div></div>`;
+}
+function foglioHub() {
+  const s = 0.42, st = 0.47;
+  const righe = [
+    ["H1 — Sfera al centro", "Sfera al centro, sottotitoli sotto che poi sfumano. In un angolo ora, stanza e pallino; tasto «griglia» per il pannello completo.", hubA],
+    ["H2 — Sfera e conversazione", "Sfera a sinistra, a destra la conversazione con l'etichetta di cosa è stato fatto (come nella chat). Si legge da lontano.", hubB],
+    ["H3 — Sfera come luce di fondo", "La sfera diventa un alone su tutto lo schermo, al centro solo il testo grande. La più «scenica», la meno leggibile di giorno.", hubC],
+  ];
+  return `<div class="foglio"><h1>Hub — tre varianti</h1><p>Stati mostrati: ascolto, risposta, e a riposo con un timer. Stesso motore della voce di oggi: cambia solo la vista, la voce e i timer non si interrompono.</p>
+    ${righe.map(([t,n,f]) => `<h2 style="margin:8px 0 0;font-size:22px">${t}</h2><p style="margin:0;color:var(--muted);font-size:16px">${n}</p><div class="riga">${cella("Tablet · ascolto","",f("tablet","ascolto"),s)}${cella("Tablet · risposta","",f("tablet","risponde"),s)}${cella("Tablet · a riposo con timer","",f("tablet","fioca"),s)}${cella("Telefono orizzontale · risposta","",f("telo","risponde"),st)}</div>`).join("")}</div>`;
+}
+function foglioFlusso() {
+  const s = 0.36;
+  const fr = (a,b) => `<div class="freccia"><span>→</span><span>${a}</span>${b ? `<span>${b}</span>` : ""}</div>`;
+  return `<div class="foglio"><h1>Come si collegano riposo, Hub e pannello completo</h1>
+    <p>Esempio con AOD variante C e Hub H1. Il riposo cambia solo la vista: WebSocket, timer, voce, musica e «Jarvis» restano accesi (vincolo). La notte non spegne niente, abbassa solo la luce.</p>
+    <div class="riga">${cella("1 · Riposo (AOD)","",aodC("tablet","timer"),s)}${fr("tocco sulla sfera","o «Jarvis»")}${cella("2 · Hub in ascolto","",hubA("tablet","ascolto"),s)}${fr("risposta finita","")}${cella("3 · Hub con la risposta","",hubA("tablet","risponde"),s)}${fr("dopo 30 s","senza tocchi")}${cella("4 · Di nuovo a riposo","",aodC("tablet","timer"),s)}</div>
+    <div class="riga">${cella("Dal riposo, tocco fuori dalla sfera","",aodC("tablet","giorno"),s)}${fr("apre il pannello","completo")}<div class="cella"><b>Pannello completo</b><div class="cornice" style="width:${1024*s+12}px;height:${600*s+12}px;display:grid;place-items:center;color:var(--muted);background:#0d0f13">(la schermata di oggi)</div><small>dopo ~90 s senza tocchi torna al riposo, come già deciso per l'Hub</small></div>${fr("timer finito","in qualunque vista")}${cella("Il riquadro «Timer finito» sopra quello che c'è","",aodC("tablet","finito"),s)}</div></div>`;
+}
+
+const q = new URLSearchParams(location.search).get("foglio") ?? "aod-A";
+const FOGLI = {
+  "aod-A": () => foglioAod("A", "orologio al centro", "L'orologio grande al centro, sotto una riga sola: meteo, stanze o musica. I timer come pastiglie. Un evento è una striscia in basso. È il più semplice e il più leggibile da lontano.", aodA),
+  "aod-B": () => foglioAod("B", "due colonne", "Orologio a sinistra, a destra poche schede: timer con l'anello che si svuota, meteo, stanze, musica. Più informazioni, più testo piccolo.", aodB),
+  "aod-C": () => foglioAod("C", "sfera", "La stessa sfera dell'Hub, fioca, respira piano; i timer sono anelli attorno alla sfera. Toccando la sfera parte Jarvis: riposo e Hub sono lo stesso oggetto.", aodC),
+  "hub": foglioHub,
+  "flusso": foglioFlusso,
+};
+document.getElementById("radice").innerHTML = FOGLI[q]();
+</script>
+</body>
+</html>
