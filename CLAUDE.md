@@ -1212,6 +1212,12 @@ se ne scrive una nuova che annulla la precedente.
     riposo dopo ~90 s;
   - ordine dopo la G: **navigazione + Stanza + Meteo**, poi Musica (fase M),
     poi le altre.
+- **2026-09-30** — **Mockup gruppo 4, musica** (`docs/mockup-musica.html`):
+  schermata **M1, copertina grande** (comandi grandi, volume, stanze sotto
+  per spostare la musica); **mini-lettore A**, sotto l'orologio nella colonna
+  sinistra, solo quando qualcosa suona. Lato server si chiedono **copertina e
+  avanzamento del brano** in `jarvis_musica.stato` e **l'elenco delle
+  playlist**; la radio con Music Assistant per ora no.
 
 ## 7. Convenzioni
 

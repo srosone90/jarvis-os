@@ -23,7 +23,9 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.6 pubblicata e verificata (timer solo
   - **Gruppo 3, navigazione**: scelta N2 (colonna laterale); schermate
     tenute: Stanza, Meteo, Clima, Timer, Scene (senza routine), Spesa,
     Avvisi. Ordine dopo la G: navigazione + Stanza + Meteo, poi Musica.
-  - **Gruppo 4, musica**: in preparazione.
+  - **Gruppo 4, musica**: scelta M1 (copertina grande con comandi, volume e
+    stanze) e mini-lettore sotto l'orologio in home. **Mockup finiti**: i
+    sorgenti sono `docs/mockup-*.html`.
 - **Prossima release (dopo i mockup, piccola)**: slug della stanza come il
   tuo (NFKD); oggi differiamo solo su simboli rari, per esempio "Stanza ½" →
   pannello `stanza`, server `stanza_1_2`. E il campo `in_pausa` di
@@ -194,6 +196,16 @@ Solo il componente: stanze e pacchetto degli script **non cambiano**.
   ~10 s in più).
 - Pausa, poi aspetta più di 10 minuti (Spotify va "a riposo"), poi "riprendi":
   deve ripartire lo stesso brano sullo stesso Echo, dal punto in cui era.
+
+## Richieste per la sessione server (musica, scelte da Salvatore il 30/09)
+
+1. **`jarvis_musica.stato`**: aggiungere la copertina (URL dell'immagine
+   dell'album più piccola sopra i 300 px), `posizione_ms` e `durata_ms`.
+   Spotify li ha già in `get_playback`.
+2. **Elenco delle playlist**: un servizio con `return_response` che restituisca
+   le playlist e i preferiti dell'account (nome, uri, immagine), da usare
+   nella schermata Musica per sceglierle con un tocco.
+3. La radio con Music Assistant per ora no.
 
 ## Domande aperte per la sessione server
 
