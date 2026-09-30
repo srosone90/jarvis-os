@@ -25,7 +25,7 @@ pronuncia nella pagina di prova)._
 |---|---|
 | Versione | **v0.4.3**: verificatore della pronuncia nella pagina di prova; il pannello non cambia |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.3 |
-| sha256 dello zip | _in arrivo: lo scrivo appena il workflow pubblica lo zip_ |
+| sha256 dello zip | `de0a265de876c0f377bf08a73d8d04ac7736dc9af367b9dc3e769ac0431ba355` (6,8 MB, service worker 0.4.3, verificati) |
 | Precedente | v0.4.2, sha256 `b6d6a61d…`, installata il 30/09 |
 
 ## Da installare lato server: v0.4.3
