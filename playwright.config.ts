@@ -18,6 +18,8 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
+    // la procedura guidata del primo avvio (fase G) ha le sue prove: le altre partono con la guida già fatta
+    storageState: "test/e2e/stato-iniziale.json",
     baseURL: `http://localhost:${PORTA}/local/jarvis/`,
     viewport: { width: 1024, height: 600 },
     testIdAttribute: "data-test",

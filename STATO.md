@@ -4,53 +4,86 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.7 (timer in pausa, slug come il tuo) e jarvis_musica 0.4.0 nel repo, identico al server. Release verificata._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.8 (fase G: riposo, Hub, impostazioni, guida). Release: vedi sotto._
 
 ## Adesso
 
-- **Finito: v0.4.7** del pannello, piccola:
-  - timer in pausa fermi, con "in pausa" (usa `in_pausa` di jarvis_voce
-    0.2.3, sia negli eventi `updated` sia in `timer_attivi`);
-  - slug della stanza con la **tua** regola: NFKD, via i combinanti,
-    `\p{L}\p{N}` come `str.isalnum`, "_" compressi. Confronto con la regola
-    in Python su 17 nomi: 0 differenze. "Camera dell'ospite – Già" →
-    `camera_dell_ospite_gia`, "Stanza ½" → `stanza_1_2`.
-- **Finito: `jarvis_musica` 0.4.0 nel repo.** Il tuo diff è applicato tale e
-  quale (`git apply -p1`, nessuna riga riscritta), quindi repo e server sono
-  identici. Ho aggiornato solo la prova `prove/prova_musica.py`, che si
-  aspettava tre servizi, e ho aggiunto le verifiche della 0.4: copertina (la
-  più piccola sopra i 300 px, null senza immagini), punto e durata, elenco
-  delle playlist, uri avviato senza ricerca. Risultato: **65/65** su HA
-  2026.9.3. Controprova: col componente 0.3 le prove nuove cadono.
-- **Mockup finiti** (`docs/mockup-*.html`), scelte di Salvatore:
-  - riposo C (sfera), Hub H1, riposo dopo 2 minuti, "Timer finito" come
-    riquadro al centro;
-  - impostazioni S1 + procedura guidata al primo avvio;
-  - navigazione N2 (colonna laterale); schermate: Stanza, Meteo, Clima,
-    Timer, Scene (senza routine), Spesa, Avvisi;
-  - musica M1 (copertina grande) e mini-lettore sotto l'orologio.
-- **Prossimo: v0.5.0**, «Jarvis» sempre in ascolto, **con la tua proposta**:
-  la memoria circolare locale serve solo a riconoscere «Jarvis»; poi apro la
-  pipeline normale **senza `no_vad`**, mando ~1 s di audio prima della parola
-  più l'audio dal vivo, e la fine della frase la decide `jarvis_voce`. Il muto
-  della TV lo fai tu; sul pannello resta la pausa di Spotify della v0.4.4.
-  Dentro la v0.5.0 anche "stop"/"basta" per la suoneria e "Insegna a Jarvis
-  la tua pronuncia" nelle impostazioni. Se mai servisse `no_vad`, lo scrivo
-  qui prima, con il motivo.
-- **Dopo la v0.5.0**: fase G (impostazioni S1 + guida), poi navigazione +
-  Stanza + Meteo, poi Musica (fase M, con copertina e playlist della 0.4.0).
+- **Finito: v0.4.8, fase G** (ordine di Salvatore: prima la G, poi la
+  v0.5.0). Solo lato pannello, **niente da cambiare lato server**: usa
+  `jarvis_timer` con `in_pausa`, `timer_attivi` e `jarvis_musica.stato`.
+  - schermo a riposo C (sfera che respira, ora accanto, timer come anelli),
+    dopo 2 minuti senza tocchi;
+  - "Timer finito" come riquadro al centro sopra il riposo, di notte in rosso
+    scuro;
+  - toccando la sfera: Hub H1, Jarvis ascolta subito, domanda e risposta come
+    sottotitoli; dopo 30 s senza attività torna a riposo;
+  - impostazioni S1 (orologio premuto 3 s, niente PIN): Stanza, Schermo a
+    riposo, Audio, Diagnostica;
+  - procedura guidata al primo avvio, solo sui pannelli nuovi: i pannelli con
+    la stanza già scelta non la vedono.
+  - Non in questo giro: navigazione laterale, schermate Stanza, Meteo, Musica.
+- **Prossimo, subito: v0.5.0**, «Jarvis» sempre in ascolto come concordato:
+  la memoria circolare di ~1 s serve solo a riconoscere la parola; poi la
+  pipeline normale **senza `no_vad`**, con ~1 s di audio prima della parola
+  più l'audio dal vivo, e la fine della frase la decide `jarvis_voce`. Dentro
+  anche "stop"/"basta" per la suoneria e "Insegna a Jarvis la tua pronuncia"
+  nelle impostazioni (sezione Voce). Se mai servisse `no_vad`, lo scrivo qui
+  prima, con il motivo.
+- **Dopo la v0.5.0**: navigazione + Stanza + Meteo, poi Musica (fase M, con
+  copertina e playlist della 0.4.0).
+- **Da fare in casa (Salvatore)**: la prova della TV, "spegni la TV del
+  salotto" con la TV accesa.
 - **In parallelo:** il notebook Colab per il modello italiano.
 
 ## Ultima release del pannello
 
 | | |
 |---|---|
-| Versione | **v0.4.7**: timer in pausa fermi; slug della stanza come il server |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.7 |
-| sha256 dello zip | `9c7684eaea06503abdc154ed60df82c1364534d7ce494b47769041c9d356bbc4` (6,8 MB, service worker 0.4.7, verificati) |
-| Precedente | v0.4.6, sha256 `02363cce…08b0`, installata il 30/09 |
+| Versione | **v0.4.8**: fase G (riposo, Hub, impostazioni, guida) |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.8 |
+| sha256 dello zip | _in arrivo: lo scrivo appena la release è pronta e verificata_ |
+| Precedente | v0.4.7, sha256 `9c7684ea…bbc4` |
 
-## Da installare lato server: v0.4.7
+## Da installare lato server: v0.4.8
+
+Solo lo zip sopra `/config/www/jarvis/`, come sempre. Contiene anche la
+v0.4.7 (timer in pausa), se non l'avevi ancora messa. Lato HA non cambia
+niente.
+
+**Come provarla, dentro il pannello** (tablet della cucina):
+
+1. **Pannello già installato**: all'apertura **non** deve comparire la
+   procedura guidata (la stanza era già scelta).
+2. **Riposo**: non toccare niente per 2 minuti. Compare la sfera che respira
+   con accanto ora, data, meteo e temperature delle stanze; se suona musica,
+   anche il brano. Tocca un punto fuori dalla sfera: torni al pannello.
+3. **Timer sul riposo**: "metti un timer di 2 minuti per la pasta", poi
+   aspetta il riposo. Attorno alla sfera c'è un anello che si accorcia, e
+   sotto la pastiglia "pasta" col conto alla rovescia. "Metti in pausa il
+   timer della pasta": sulla pastiglia compare il simbolo della pausa
+   e il tempo si ferma, in grigio. Riprendilo e
+   lascialo finire: compare al centro "Timer pasta finito" con Stop grande,
+   il riposo resta sotto. Tocca Stop: torni al riposo.
+4. **Hub**: a riposo tocca la sfera. Jarvis ascolta subito: chiedi "che
+   temperatura c'è in camera?". Sotto la sfera compaiono la domanda e la
+   risposta come sottotitoli. Dopo 30 s senza toccare niente torna al
+   riposo. Il tasto con i quadratini in alto a destra porta al pannello
+   completo.
+5. **Impostazioni**: tieni premuto l'orologio 3 s. Sezioni: Stanza e nome, Schermo a
+   riposo, Audio, Diagnostica. In "Schermo a riposo" prova "Metti a riposo"
+   (va a riposo subito) e cambia l'attesa (1, 2, 5, 10 minuti o mai) e gli
+   orari della notte. "Indietro" di Android chiude le impostazioni senza
+   uscire dall'app.
+6. **Notte** (di serie dalle 23 alle 7): a riposo restano solo ora e timer,
+   la sfera è ferma e fioca, e "Timer finito" è in rosso scuro.
+7. **Procedura guidata**: in Impostazioni → "Stanza e nome", sotto
+   "Procedura guidata" tocca "Rifalla". Tre passi: stanza, schermo a riposo, riepilogo; "Inizia" la
+   chiude. Su un telefono nuovo compare da sola al primo avvio.
+
+Nel log della diagnostica: "Vista: completo → riposo (…)", "Vista: riposo →
+hub (…)", "Procedura guidata finita".
+
+## v0.4.7 (compresa nella v0.4.8)
 
 Solo lo zip sopra `/config/www/jarvis/`. `jarvis_musica` 0.4.0 e
 `jarvis_voce` 0.2.3 li hai già.

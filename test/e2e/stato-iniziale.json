@@ -1,0 +1,7 @@
+{
+  "cookies": [],
+  "origins": [
+    { "origin": "http://localhost:18123", "localStorage": [{ "name": "jarvis-guida", "value": "fatta" }] },
+    { "origin": "http://127.0.0.1:18123", "localStorage": [{ "name": "jarvis-guida", "value": "fatta" }] }
+  ]
+}

@@ -4,26 +4,19 @@ import { connessione } from "../connessione/connessione";
 import { log, type VoceLog } from "../diagnostica/log";
 import { statoAggiornamento, applicaAggiornamento, versioneSulServer } from "../pwa/aggiornamenti";
 import { statoOrigine } from "../pwa/origine";
-import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
-import { dispositivoDi } from "../timer/pannello";
-import { audioSveglio, type StatoAudioSveglio } from "../voce/audio-sveglio";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 
 /**
- * Schermata diagnostica nascosta (orologio tenuto premuto 3 s): versione,
- * indirizzo in uso, stato della connessione, latenza, log degli errori.
+ * Diagnostica: versione, indirizzo in uso, stato della connessione, latenza,
+ * log degli errori. Dalla fase G (v0.4.8) è l'ultima sezione delle
+ * impostazioni (jarvis-impostazioni), che si aprono tenendo premuto l'orologio.
  */
 export class JarvisDiagnostica extends RiquadroSicuro {
   static override styles = [
     stileBase,
     css`
       :host {
-        position: fixed;
-        inset: 0;
         overflow: auto;
-        /* pieno: sul telefono il pannello sotto si leggeva tra le righe */
-        background: var(--sfondo);
-        z-index: 30;
         display: flex;
         flex-direction: column;
         padding: 20px 24px;
@@ -35,11 +28,6 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         align-items: center;
         justify-content: space-between;
         gap: 12px;
-      }
-      h1 {
-        font-size: 22px;
-        margin: 0;
-        font-weight: 600;
       }
       .azioni {
         display: flex;
@@ -99,42 +87,15 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         :host {
           padding: 16px;
         }
+        /* etichetta sopra il valore: gli indirizzi hanno tutta la riga e non si spezzano */
         dl {
-          grid-template-columns: max-content minmax(0, 1fr);
+          grid-template-columns: minmax(0, 1fr);
+          gap: 0;
         }
-      }
-      .nota {
-        display: block;
-        margin-top: 4px;
-        font-size: 13px;
-        color: var(--attenuato);
-      }
-      .nota.avviso {
-        color: var(--avviso-testo);
-      }
-      .interruttore {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        min-height: 48px;
-        cursor: pointer;
-      }
-      .interruttore input {
-        flex: none;
-        width: 24px;
-        height: 24px;
-        accent-color: var(--accento);
-      }
-      select {
-        min-height: 48px;
-        max-width: 100%;
-        border-radius: 12px;
-        border: 1px solid #343a46;
-        background: var(--superficie);
-        color: var(--testo);
-        font: inherit;
-        font-size: 15px;
-        padding: 0 12px;
+        dt {
+          margin-top: 8px;
+          font-size: 13px;
+        }
       }
     `,
   ];
@@ -149,86 +110,18 @@ export class JarvisDiagnostica extends RiquadroSicuro {
     // "da quanto" e la latenza cambiano col tempo: si ridisegna ogni secondo solo mentre è aperta
     this.timer = setInterval(() => this.requestUpdate(), 1000);
     void connessione.misuraLatenza();
-    this.addEventListener("keydown", this.suTasto);
   }
 
   override disconnectedCallback(): void {
     super.disconnectedCallback();
     this.smettiLog?.();
     clearInterval(this.timer);
-    this.removeEventListener("keydown", this.suTasto);
-  }
-
-  private readonly suTasto = (e: KeyboardEvent): void => {
-    if (e.key === "Escape") this.chiudi();
-  };
-
-  private chiudi(): void {
-    this.dispatchEvent(new CustomEvent("chiudi-diagnostica", { bubbles: true, composed: true }));
   }
 
   private esci(): void {
     dimenticaLogin();
     log.info("Login dimenticato dalla diagnostica");
     location.reload();
-  }
-
-  /**
-   * Serve alla pausa della musica durante la voce e ai timer (v0.4.6): senza
-   * stanza la musica non si tocca, e i timer chiesti da qui vanno a
-   * "jarvis_pannello", che suona su tutti i pannelli senza stanza.
-   */
-  private sceltaStanza(): TemplateResult {
-    const attuale = stanzaPannello();
-    const aree = [...connessione.registri.aree.map((a) => a.name)].sort((a, b) => a.localeCompare(b, "it"));
-    if (attuale && !aree.includes(attuale)) aree.unshift(attuale);
-    return html`<select
-        data-test="stanza-pannello"
-        aria-label="Stanza di questo pannello"
-        @change=${(e: Event) => {
-          impostaStanzaPannello((e.target as HTMLSelectElement).value || null);
-          this.requestUpdate();
-        }}
-      >
-        <option value="" ?selected=${!attuale}>Nessuna</option>
-        ${aree.map((a) => html`<option value=${a} ?selected=${a === attuale}>${a}</option>`)}
-      </select>
-      ${
-        attuale
-          ? html`<small class="nota" data-test="dispositivo-timer"
-              >Timer e voce di questo pannello: ${dispositivoDi(attuale)}</small
-            >`
-          : html`<small class="nota avviso" data-test="avviso-stanza"
-              >Scegli la stanza per i timer: senza, qui suonano solo i timer chiesti da pannelli senza stanza,
-              mai quelli di una stanza. E la musica non si tocca.</small
-            >`
-      }`;
-  }
-
-  /** Rumore a -80 dB per l'Echo in Bluetooth: acceso di serie (v0.4.5). */
-  private sceltaAudioSveglio(): TemplateResult {
-    const testo: Record<StatoAudioSveglio, string> = {
-      attivo: "attivo",
-      "attesa-tocco": "parte al primo tocco",
-      sospeso: "sospeso dal sistema, riprende al tocco",
-      spento: "spento",
-      "non-disponibile": "non disponibile su questo browser",
-    };
-    return html`<label class="interruttore">
-      <input
-        type="checkbox"
-        data-test="audio-sveglio"
-        .checked=${audioSveglio.attivo}
-        @change=${(e: Event) => {
-          audioSveglio.imposta((e.target as HTMLInputElement).checked);
-          this.requestUpdate();
-        }}
-      />
-      <span
-        >Tiene sveglio l'altoparlante Bluetooth ·
-        <span data-test="stato-audio-sveglio">${testo[audioSveglio.stato]}</span></span
-      >
-    </label>`;
   }
 
   protected disegna(): TemplateResult {
@@ -246,7 +139,6 @@ export class JarvisDiagnostica extends RiquadroSicuro {
       });
     return html`
       <header>
-        <h1>Diagnostica</h1>
         <div class="azioni">
           ${
             agg === "pronto"
@@ -255,7 +147,6 @@ export class JarvisDiagnostica extends RiquadroSicuro {
           }
           <button @click=${() => location.reload()}>Ricarica app</button>
           <button @click=${() => this.esci()}>Esci (dimentica login)</button>
-          <button data-test="chiudi-diagnostica" @click=${() => this.chiudi()}>Chiudi</button>
         </div>
       </header>
       <dl data-test="diagnostica">
@@ -267,10 +158,6 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         <dd data-test="origine">${origineHA()}</dd>
         <dt>Origine in uso</dt>
         <dd data-test="origine-in-uso">${testoOrigine()}</dd>
-        <dt>Stanza</dt>
-        <dd>${this.sceltaStanza()}</dd>
-        <dt>Audio sveglio</dt>
-        <dd>${this.sceltaAudioSveglio()}</dd>
         <dt>Stato</dt>
         <dd data-test="diag-stato">${info.stato}</dd>
         <dt>Latenza WebSocket</dt>

@@ -146,6 +146,15 @@ customElements.define("jarvis-timer", JarvisTimer);
  * grande da toccare senza guardare. Sparisce con Stop o da solo dopo 2 minuti.
  */
 export class JarvisTimerFinito extends RiquadroSicuro {
+  /** Sopra il riposo di notte: rosso scuro, niente arancione acceso (fase G). */
+  static override properties = { notte: { type: Boolean, reflect: true } };
+  declare notte: boolean;
+
+  constructor() {
+    super();
+    this.notte = false;
+  }
+
   static override styles = [
     stileBase,
     css`
@@ -214,6 +223,19 @@ export class JarvisTimerFinito extends RiquadroSicuro {
         font-weight: 700;
         cursor: pointer;
         touch-action: manipulation;
+      }
+      :host([notte]) {
+        background: #000d;
+      }
+      :host([notte]) .finito > .icona {
+        color: #b8452f;
+      }
+      :host([notte]) h2 {
+        color: #d9a397;
+      }
+      :host([notte]) button {
+        background: #b8452f;
+        color: #140806;
       }
       @media (orientation: landscape) and (max-height: 559px) {
         .finito {

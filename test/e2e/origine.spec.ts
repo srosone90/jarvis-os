@@ -35,10 +35,11 @@ async function origineInUso(page: Page, orologioFinto = false): Promise<string> 
     await page.mouse.down();
     await page.clock.runFor(3300);
     await page.mouse.up();
+    await page.getByTestId("sezione-diagnostica").click();
     await expect(page.getByTestId("diagnostica")).toBeVisible();
   } else await apriDiagnostica(page);
   const testo = (await page.getByTestId("origine-in-uso").textContent()) ?? "";
-  await page.getByTestId("chiudi-diagnostica").click();
+  await page.getByTestId("chiudi-impostazioni").click();
   return testo;
 }
 

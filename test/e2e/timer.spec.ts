@@ -1,5 +1,15 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { accedi, apriChat, apriDiagnostica, chiedi, comando, HA, info, pallino } from "./aiuti";
+import {
+  accedi,
+  apriChat,
+  apriDiagnostica,
+  apriImpostazioni,
+  chiedi,
+  comando,
+  HA,
+  info,
+  pallino,
+} from "./aiuti";
 
 /**
  * Timer di jarvis_voce (v0.4.5): l'evento `jarvis_timer` di HA diventa il conto
@@ -224,9 +234,9 @@ test("timer partito mentre il pannello era scollegato: alla riconnessione lo ril
   await expect(page.getByTestId("timer-rimasto")).toHaveText(/^[45]:\d\d$/);
 
   // cambiata la stanza in diagnostica: ora sono suoi i timer della camera
-  await apriDiagnostica(page);
+  await apriImpostazioni(page, "stanza");
   await page.getByTestId("stanza-pannello").selectOption("Camera da letto");
-  await page.getByTestId("chiudi-diagnostica").click();
+  await page.getByTestId("chiudi-impostazioni").click();
   await expect(page.getByTestId("timer")).toHaveCount(1);
   await expect(page.getByTestId("timer")).toContainText("riposo");
 });

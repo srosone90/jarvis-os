@@ -55,7 +55,11 @@ export async function aspettaServiceWorker(page: Page): Promise<void> {
   });
 }
 
-export async function apriDiagnostica(page: Page): Promise<void> {
+/** Impostazioni (fase G): orologio tenuto premuto 3 s, poi la sezione chiesta. */
+export async function apriImpostazioni(
+  page: Page,
+  sezione: "stanza" | "riposo" | "audio" | "diagnostica" = "stanza",
+): Promise<void> {
   const ora = page.getByTestId("ora");
   const box = await ora.boundingBox();
   if (!box) throw new Error("orologio non visibile");
@@ -63,6 +67,13 @@ export async function apriDiagnostica(page: Page): Promise<void> {
   await page.mouse.down();
   await page.waitForTimeout(3300);
   await page.mouse.up();
+  await expect(page.getByTestId("impostazioni")).toBeVisible();
+  await page.getByTestId(`sezione-${sezione}`).click();
+}
+
+/** La diagnostica di prima: ora è l'ultima sezione delle impostazioni. */
+export async function apriDiagnostica(page: Page): Promise<void> {
+  await apriImpostazioni(page, "diagnostica");
   await expect(page.getByTestId("diagnostica")).toBeVisible();
 }
 

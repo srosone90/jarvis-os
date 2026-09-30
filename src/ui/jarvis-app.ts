@@ -11,7 +11,11 @@ import "./jarvis-meteo";
 import "./jarvis-stanza";
 import "./jarvis-connessione";
 import "./jarvis-accesso";
-import "./jarvis-diagnostica";
+import "./jarvis-impostazioni";
+import "./jarvis-riposo";
+import "./jarvis-hub";
+import { ascoltaGuida, mostraGuida } from "./jarvis-guida";
+import { quandoPuoRiposare, vista } from "../vista/istanza";
 import "./jarvis-chat";
 import "./jarvis-voce-riquadro";
 import "./jarvis-timer";
@@ -98,6 +102,30 @@ class OsservaTimer implements ReactiveController {
 /** Sul tablet la colonna a sinistra non scorre: al massimo tanti timer in vista, poi "+N". */
 const TIMER_SUL_TABLET = 3;
 
+/**
+ * Ridisegna quando cambia la vista (completo, riposo, Hub), le sue impostazioni
+ * o la procedura guidata. Ogni cambio della voce conta come attività: dall'Hub
+ * si torna al riposo 30 s dopo che la voce ha finito, non 30 s dopo il tocco.
+ */
+class OsservaVista implements ReactiveController {
+  private smetti: (() => void)[] = [];
+  constructor(private readonly host: ReactiveControllerHost) {
+    host.addController(this);
+  }
+  hostConnected(): void {
+    this.smetti = [
+      vista.ascolta(() => this.host.requestUpdate()),
+      ascoltaGuida(() => this.host.requestUpdate()),
+      connessione.voce.ascolta(() => vista.attivita()),
+      connessione.assistente.ascolta(() => vista.attivita()),
+    ];
+  }
+  hostDisconnected(): void {
+    for (const f of this.smetti) f();
+    this.smetti = [];
+  }
+}
+
 /** Scene decise il 26/09 (CLAUDE.md): arrivano con la F3, qui solo il posto. */
 const SCENE = [
   { nome: "Buonanotte", icona: mdiWeatherNight },
@@ -129,6 +157,15 @@ const SCENE = [
  */
 export class JarvisApp extends LitElement {
   static override styles = css`
+    /* riposo e Hub (fase G): a tutto schermo, niente griglia del pannello */
+    :host([vista="riposo"]),
+    :host([vista="hub"]) {
+      display: block;
+      padding: 0;
+      min-height: 0;
+      height: 100dvh;
+      overflow: hidden;
+    }
     /* ---- base = modo ORIZZONTALE BASSO: la pagina scorre ---- */
     :host {
       display: grid;
@@ -401,23 +438,38 @@ export class JarvisApp extends LitElement {
     }
   `;
 
-  static override properties = { diagnostica: { state: true }, chat: { state: true } };
+  static override properties = { impostazioni: { state: true }, chat: { state: true } };
   /**
-   * Tasto "Indietro" di Android (v0.4.5): la chat aperta ha la sua voce nella
-   * cronologia, così Indietro chiude la chat invece di uscire dall'app. La
-   * tastiera, se aperta, la chiude Android da solo col primo Indietro.
+   * Tasto "Indietro" di Android (v0.4.5): la chat aperta (e dalla fase G le
+   * impostazioni) ha la sua voce nella cronologia, così Indietro la chiude
+   * invece di uscire dall'app. La tastiera, se aperta, la chiude Android da
+   * solo col primo Indietro.
    */
   private voceCronologia = false;
   private ignoraIndietro = false;
-  declare diagnostica: boolean;
+  /** Impostazioni del pannello (S1): si aprono tenendo premuto l'orologio 3 s. */
+  declare impostazioni: boolean;
   declare chat: boolean;
   private readonly connessione = new OsservaConnessione(this);
   private readonly schermata = new OsservaSchermata(this);
 
   constructor() {
     super();
-    this.diagnostica = false;
+    this.impostazioni = false;
     this.chat = false;
+    new OsservaVista(this);
+    // il riposo non nasconde mai qualcosa in corso: voce, risposta, chat, impostazioni, login, guida
+    quandoPuoRiposare(() => {
+      const v = connessione.voce;
+      return (
+        !this.chat &&
+        !this.impostazioni &&
+        !mostraGuida() &&
+        this.connessione.info.stato !== "login-richiesto" &&
+        !(v.attiva && v.fase !== "errore") &&
+        !connessione.assistente.occupato
+      );
+    });
     new OsservaRegistri(this);
     // la voce decide se mostrare il riquadro piccolo
     new OsservaVoce(this);
@@ -435,22 +487,27 @@ export class JarvisApp extends LitElement {
       }
       if (!this.voceCronologia) return;
       this.voceCronologia = false;
-      this.chat = false;
+      // prima ciò che sta sopra: le impostazioni coprono anche la chat
+      if (this.impostazioni) this.impostazioni = false;
+      else this.chat = false;
     });
+    // l'orologio tenuto premuto 3 s manda ancora "apri-diagnostica" (nome storico)
     this.addEventListener("apri-diagnostica", () => {
-      this.diagnostica = true;
+      this.impostazioni = true;
     });
-    this.addEventListener("chiudi-diagnostica", () => {
-      this.diagnostica = false;
+    this.addEventListener("chiudi-impostazioni", () => {
+      this.impostazioni = false;
     });
   }
 
   protected override updated(cambiati: PropertyValues<this>): void {
-    if (!cambiati.has("chat")) return;
-    if (this.chat && !this.voceCronologia) {
-      history.pushState({ jarvis: "chat" }, "");
+    if (this.getAttribute("vista") !== vista.vista) this.setAttribute("vista", vista.vista);
+    if (!cambiati.has("chat") && !cambiati.has("impostazioni")) return;
+    const aperto = this.chat || this.impostazioni;
+    if (aperto && !this.voceCronologia) {
+      history.pushState({ jarvis: this.impostazioni ? "impostazioni" : "chat" }, "");
       this.voceCronologia = true;
-    } else if (!this.chat && this.voceCronologia) {
+    } else if (!aperto && this.voceCronologia) {
       // chiusa col tasto o da sola: si toglie la sua voce, senza richiuderla col popstate
       this.voceCronologia = false;
       this.ignoraIndietro = true;
@@ -469,15 +526,26 @@ export class JarvisApp extends LitElement {
     const banner = offline && !loginRichiesto;
     const bannerNellaBarra = banner && this.schermata.unica;
     const bannerInCima = banner && !this.schermata.unica;
+    const aRiposo = vista.vista === "riposo";
+    const guida = !loginRichiesto && this.connessione.info.stato === "connesso" && mostraGuida();
     const sovrapposti = html`
       ${loginRichiesto ? html`<jarvis-accesso></jarvis-accesso>` : nothing}
-      ${this.diagnostica ? html`<jarvis-diagnostica tabindex="-1"></jarvis-diagnostica>` : nothing}
+      ${this.impostazioni ? html`<jarvis-impostazioni tabindex="-1"></jarvis-impostazioni>` : nothing}
+      ${guida ? html`<jarvis-guida data-test="guida"></jarvis-guida>` : nothing}
       ${
         connessione.timer.suonano.length > 0
-          ? html`<jarvis-timer-finito data-test="overlay-timer"></jarvis-timer-finito>`
+          ? html`<jarvis-timer-finito
+              data-test="overlay-timer"
+              ?notte=${aRiposo && vista.momento() === "notte"}
+            ></jarvis-timer-finito>`
           : nothing
       }
     `;
+    // fase G: riposo e Hub al posto del pannello (connessione, timer, voce restano accesi)
+    if (vista.vista === "riposo" && !loginRichiesto)
+      return html`<jarvis-riposo data-test="vista-riposo"></jarvis-riposo>${sovrapposti}`;
+    if (vista.vista === "hub" && !loginRichiesto)
+      return html`<jarvis-hub data-test="vista-hub"></jarvis-hub>${sovrapposti}`;
     const chatAperta = this.chat && !loginRichiesto;
     // riquadro piccolo della voce: solo a chat chiusa (a chat aperta la voce sta nella chat)
     const riquadro =

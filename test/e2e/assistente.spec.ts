@@ -204,6 +204,9 @@ test("la chat si chiude da sola dopo 60 s senza tocchi; riaperta entro 5 minuti 
   // oltre 5 minuti HA ha dimenticato il contesto: la chat riparte vuota
   await page.getByRole("button", { name: "Chiudi" }).click();
   await page.clock.fastForward(5 * 60_000);
+  // fase G: dopo 2 minuti senza tocchi il pannello è andato a riposo; un tocco fuori dalla sfera lo riporta
+  await expect(page.getByTestId("riposo")).toBeVisible();
+  await page.getByTestId("riposo-ora").click();
   await apriChat(page);
   await expect(risposte(page)).toHaveCount(0);
 });

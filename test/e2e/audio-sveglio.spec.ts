@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriChat, apriDiagnostica, comando } from "./aiuti";
+import { accedi, apriChat, apriDiagnostica, apriImpostazioni, comando } from "./aiuti";
 
 /**
  * Audio "sveglio" per l'Echo in Bluetooth (v0.4.5): rumore a -80 dB in loop,
@@ -72,7 +72,7 @@ test("acceso di serie: rumore in loop a -80 dB, contesto attivo; la voce funzion
 test("spento dalla diagnostica: si ferma e resta spento anche dopo una ricarica", async ({ page }) => {
   await spia(page);
   await accedi(page);
-  await apriDiagnostica(page);
+  await apriImpostazioni(page, "audio");
   await expect(statoInDiagnostica(page)).toHaveText("attivo");
   const interruttore = page.getByTestId("audio-sveglio");
   await expect(interruttore).toBeChecked();
@@ -86,7 +86,7 @@ test("spento dalla diagnostica: si ferma e resta spento anche dopo una ricarica"
   await page.mouse.click(5, 5);
   await page.waitForTimeout(500);
   expect(await leggi(page)).toHaveLength(0);
-  await apriDiagnostica(page);
+  await apriImpostazioni(page, "audio");
   await expect(statoInDiagnostica(page)).toHaveText("spento");
   await page.getByTestId("audio-sveglio").check();
   await expect(statoInDiagnostica(page)).toHaveText("attivo");
@@ -102,7 +102,9 @@ test("sospeso dal sistema: lo scrive nel log e riprende al primo tocco", async (
   );
   await apriDiagnostica(page);
   await expect(page.getByTestId("log")).toContainText("Audio sveglio sospeso dal sistema");
-  // aprire la diagnostica è già un tocco: riprende
+  // aprire le impostazioni è già un tocco: riprende
+  await page.getByTestId("sezione-audio").click();
   await expect(statoInDiagnostica(page)).toHaveText("attivo");
+  await page.getByTestId("sezione-diagnostica").click();
   await expect(page.getByTestId("log")).toContainText("Audio sveglio ripreso");
 });

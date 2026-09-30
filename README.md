@@ -17,8 +17,11 @@ orizzontale acceso 24/7.
 | Musica in pausa mentre Jarvis ascolta e parla; mai più una versione vecchia | **v0.4.4** |
 | Timer che suonano, pulsante del microfono mai bloccato, tastiera della chat, audio sveglio per il Bluetooth | **v0.4.5** |
 | Timer solo sul pannello a cui appartengono, Stop che ferma tutti | **v0.4.6** |
-| G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la prova "Ehi Jarvis" |
-| Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
+| Timer in pausa fermi, stanza calcolata come il server | **v0.4.7** |
+| Fase G: schermo a riposo con la sfera, Hub vocale, impostazioni a sezioni, procedura guidata al primo avvio | **v0.4.8** |
+| «Jarvis» sempre in ascolto | Prossima: v0.5.0 |
+| Navigazione laterale e schermate Stanza, Meteo, poi Musica | Dopo la v0.5.0 |
+| G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
 
 ## Installazione sul server (Home Assistant)

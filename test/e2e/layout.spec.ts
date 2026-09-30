@@ -381,3 +381,156 @@ for (const v of MISURE) {
     await expect(overlay).toHaveCount(0);
   });
 }
+
+// --- fase G (v0.4.8): riposo, Hub, impostazioni, guida a tutte le misure ---
+
+/** Problemi comuni: testi tagliati, parole spezzate, scorrimento orizzontale. */
+async function problemiTesto(page: Page, larghezza: number): Promise<string[]> {
+  const g = await misura(page);
+  const q = [
+    ...g.tagliati.map((t) => `testo tagliato: ${t}`),
+    ...g.spezzate.map((t) => `parola spezzata: ${t}`),
+  ];
+  if (g.larghezzaPagina > larghezza) q.push(`scorrimento orizzontale: ${g.larghezzaPagina}`);
+  return q;
+}
+
+/** Rettangoli dentro lo schermo e senza sovrapposizioni tra loro. */
+async function controllaParti(page: Page, v: { width: number; height: number }, percorsi: string[][]) {
+  const schermo = { nome: "schermo", x: 0, y: 0, r: v.width, b: v.height };
+  const parti = (await Promise.all(percorsi.map((p) => rettangolo(page, p)))).filter(
+    (p): p is NonNullable<typeof p> => p !== null && p.r - p.x > 0,
+  );
+  const q: string[] = [];
+  if (parti.length !== percorsi.length) q.push(`parti mancanti: ${parti.length} di ${percorsi.length}`);
+  for (const p of parti) if (!dentro(p, schermo)) q.push(`${p.nome} esce dallo schermo`);
+  for (const [a, b] of coppie(parti)) if (siIntersecano(a, b)) q.push(`${a.nome} ↔ ${b.nome}`);
+  return q;
+}
+
+for (const v of MISURE) {
+  test(`layout ${v.nome} fase G: riposo (giorno e notte), Hub, impostazioni, guida`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await page.addInitScript(() =>
+      localStorage.setItem("jarvis-riposo", JSON.stringify({ attesaMin: 2, notteDa: 0, notteA: 0 })),
+    );
+    await comando(request, "musica", {
+      stato: "in_riproduzione",
+      stanza: "Cucina",
+      volume: 40,
+      titolo: "Bohemian Rhapsody",
+    });
+    await accedi(page);
+    for (const t of [
+      { id: "t1", nome: "pasta", secondi_totali: 600, secondi_rimasti: 540 },
+      { id: "t2", nome: "uova sode per l'insalata di stasera", secondi_totali: 5400, secondi_rimasti: 3725 },
+      { id: "t3", nome: null, secondi_totali: 90, secondi_rimasti: 45, in_pausa: true },
+    ])
+      await comando(request, "timer", { tipo: "started", ...t });
+
+    // 1. riposo di giorno, con timer e musica
+    await page.getByTestId("ora").click({ delay: 3300 });
+    await page.getByTestId("sezione-riposo").click();
+    await page.getByTestId("prova-riposo").click();
+    await expect(page.getByTestId("riposo-musica")).toContainText("Bohemian Rhapsody");
+    await expect(page.getByTestId("riposo-timer")).toHaveCount(3);
+    await page.screenshot({ path: `schermate/layout/riposo-${v.nome}.png` });
+    const r = ["jarvis-app", "jarvis-riposo"];
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          [...r, "jarvis-sfera"],
+          [...r, ".testo"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "riposo",
+    ).toEqual([]);
+
+    // 2. timer finito sopra il riposo
+    await comando(request, "timer", { tipo: "finished", id: "t1", nome: "pasta", secondi_totali: 600 });
+    await expect(page.getByTestId("timer-finito")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/riposo-timer-finito-${v.nome}.png` });
+    expect(
+      await controllaParti(page, v, [
+        ["jarvis-app", "jarvis-timer-finito", "h2"],
+        ["jarvis-app", "jarvis-timer-finito", "button"],
+      ]),
+      "timer finito",
+    ).toEqual([]);
+    await page.getByTestId("timer-stop").click();
+
+    // 3. Hub con la risposta
+    await page.getByTestId("riposo-sfera").click();
+    await expect(page.getByTestId("hub-risposta")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/hub-${v.nome}.png` });
+    const h = ["jarvis-app", "jarvis-hub"];
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          [...h, ".angolo"],
+          [...h, "jarvis-timer"],
+          [...h, "button.griglia"],
+          [...h, "jarvis-sfera"],
+          [...h, ".sott"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "hub",
+    ).toEqual([]);
+    await page.getByTestId("hub-completo").click();
+
+    // 4. impostazioni, sezione per sezione
+    for (const s of ["stanza", "riposo", "audio", "diagnostica"]) {
+      if (s === "stanza") await page.getByTestId("ora").click({ delay: 3300 });
+      await page.getByTestId(`sezione-${s}`).click();
+      await page.screenshot({ path: `schermate/layout/impostazioni-${s}-${v.nome}.png` });
+      expect(
+        [
+          ...(await controllaParti(page, v, [
+            ["jarvis-app", "jarvis-impostazioni", "header"],
+            ["jarvis-app", "jarvis-impostazioni", "nav"],
+            ["jarvis-app", "jarvis-impostazioni", "main"],
+          ])),
+          ...(await problemiTesto(page, v.width)),
+        ],
+        `impostazioni ${s}`,
+      ).toEqual([]);
+    }
+    // 5. guida (rifatta dalle impostazioni)
+    await page.getByTestId("sezione-stanza").click();
+    await page.getByTestId("rifai-guida").click();
+    await expect(page.getByTestId("guida")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/guida-${v.nome}.png`, fullPage: true });
+    expect(await problemiTesto(page, v.width), "guida").toEqual([]);
+  });
+}
+
+test("layout riposo di notte (tablet e telefono verticale)", async ({ page, request }) => {
+  await page.addInitScript(() => {
+    const h = new Date().getHours();
+    localStorage.setItem("jarvis-riposo", JSON.stringify({ attesaMin: 2, notteDa: h, notteA: (h + 1) % 24 }));
+  });
+  await accedi(page);
+  await comando(request, "timer", {
+    tipo: "started",
+    id: "t1",
+    nome: "pasta",
+    secondi_totali: 600,
+    secondi_rimasti: 540,
+  });
+  for (const v of [MISURE[0], MISURE[4]]) {
+    if (!v) continue;
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await page.getByTestId("ora").click({ delay: 3300 });
+    await page.getByTestId("sezione-riposo").click();
+    await page.getByTestId("prova-riposo").click();
+    await expect(page.getByTestId("riposo")).toHaveAttribute("data-momento", "notte");
+    await page.screenshot({ path: `schermate/layout/riposo-notte-${v.nome}.png` });
+    expect(await problemiTesto(page, v.width), `notte ${v.nome}`).toEqual([]);
+    await page.getByTestId("riposo-ora").click();
+  }
+});

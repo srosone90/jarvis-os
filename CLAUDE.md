@@ -115,6 +115,10 @@ In casa **non ci sono luci smart**.
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
 | `src/timer/` | Timer di `jarvis_voce` (v0.4.5): `timer.ts` (evento `jarvis_timer` → timer attivi e finiti, logica pura + classe), `suoneria.ts` (WebAudio, niente file), `pannello.ts` (device_id `jarvis_<stanza>`, v0.4.6) |
+| `src/vista/` | Fase G (v0.4.8): `vista.ts` (viste completo/riposo/hub, momento del giorno, notte, `prossimaVista` pura, `ControlloVista` con impostazioni in `jarvis-riposo`), `istanza.ts` (l'istanza unica e `quandoPuoRiposare`) |
+| `src/ui/jarvis-sfera.ts`, `jarvis-riposo.ts`, `jarvis-hub.ts` | Sfera (solo CSS, anelli SVG dei timer), schermo a riposo C, Hub H1 con sottotitoli |
+| `src/ui/jarvis-impostazioni.ts`, `jarvis-guida.ts` | Impostazioni S1 a sezioni (stanza, riposo, audio, diagnostica) e procedura guidata S3 del primo avvio |
+| `test/e2e/fase-g.spec.ts`, `test/unit/vista.test.ts`, `test/e2e/stato-iniziale.json` | Prove della fase G; stato iniziale delle e2e con la guida già fatta |
 | `src/voce/audio-sveglio.ts` | Rumore a -80 dB in loop per tenere sveglio l'Echo in Bluetooth (v0.4.5) |
 | `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
 | `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
@@ -1053,6 +1057,41 @@ stessa chiamata di HA, cioè `start_playback()` con `position_ms: 0`.
 
 Prima mockup e domande, insieme alle nuove schermate e alla navigazione.
 
+### Fase G (v0.4.8, 30/09): riposo, Hub, impostazioni, guida
+
+Scelte di Salvatore sui mockup: riposo **C**, Hub **H1**, impostazioni **S1**,
+guida **S3**. In questo giro niente navigazione laterale né schermate Stanza,
+Meteo, Musica. Solo dati che il server manda davvero.
+
+- **Tre viste, una sola istanza** (`src/vista/istanza.ts`): completo, riposo,
+  hub. Cambiare vista non ricarica niente e non tocca timer, voce, musica.
+  - completo → riposo dopo `attesaMin` minuti senza `pointerdown`/`keydown`
+    (di serie 2; 1/2/5/10 o `null` = mai), **solo se** `puoRiposare`: niente
+    chat, impostazioni o guida aperte, niente login richiesto, voce ferma,
+    assistente libero (`jarvis-app.ts`, `quandoPuoRiposare`);
+  - riposo → hub toccando la sfera (parte subito la voce, `DoveVoce = "hub"`);
+    tocco altrove → completo;
+  - hub → riposo dopo 30 s senza attività; i cambi di voce e assistente
+    contano come attività, quindi una risposta lunga non viene tagliata.
+- **Impostazioni del riposo** in localStorage `jarvis-riposo`
+  `{attesaMin, notteDa, notteA}` (di serie 2/23/7). Notte con `da = a` = mai
+  notte. Momento: mattina 5-11, giorno 11-18, sera, notte dalle impostazioni.
+- **Riposo**: sfera + ora, data, righe (meteo, temperature delle stanze da
+  `PREFERENZE`, musica da `jarvis_musica.stato` ogni 60 s), al massimo 3
+  pastiglie dei timer (+N), anelli SVG (massimo 2). **Di notte** solo ora e
+  un timer, sfera `notturna` ferma. Anti burn-in: contenuto con `inset: 8px`
+  spostato di ±6 px ogni minuto.
+- **Timer finito** resta sopra il riposo (non riporta al completo); di notte in
+  rosso scuro (attributo `notte`).
+- **Hub**: griglia a due righe (testa con ora/stanza/pallino, timer, tasto
+  griglia; centro con sfera e sottotitoli). Stato della sfera letto dalle fasi
+  della voce.
+- **Impostazioni**: pressione lunga di 3 s sull'orologio (come la vecchia
+  diagnostica, che ora è una sezione), niente PIN. Esc e "Indietro" di Android
+  le chiudono. Sotto i 700 px le sezioni diventano linguette.
+- **Guida**: `jarvis-guida` = "fatta" nel localStorage. Un pannello che ha già
+  la stanza è "di prima della fase G" e non la vede. Si rifà dalle impostazioni.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -1239,6 +1278,16 @@ se ne scrive una nuova che annulla la precedente.
   parola più l'audio dal vivo. "Jarvis, spegni la TV" arriva intero. Se un
   giorno `no_vad` servisse davvero: prima si scrive in STATO.md perché, e
   come il pannello decide la fine della frase.
+- **2026-09-30** — **Cambio d'ordine deciso da Salvatore: prima la fase G
+  (v0.4.8), poi subito la v0.5.0.** Nella G: riposo C, "Timer finito" al
+  centro, Hub H1 toccando la sfera, impostazioni S1 (orologio premuto 3 s,
+  niente PIN), guida S3 solo al primo avvio. Solo dati che il server manda
+  davvero (timer con `in_pausa`, `timer_attivi`, `jarvis_musica.stato`).
+  Escluse da questo giro navigazione laterale e schermate Stanza, Meteo,
+  Musica. La guida per ora chiede stanza e riposo; voce, pronuncia e prova
+  entrano con la v0.5.0. Il riposo parte sempre dopo l'attesa scelta (di serie
+  2 minuti): i ~90 s del gruppo 3 valgono per le schermate della navigazione,
+  che non esistono ancora.
 
 ## 7. Convenzioni
 
@@ -1461,3 +1510,15 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   c'era modo di sapere se riconoscesse davvero "hey jarvis".
 - **Un comando con `rm -rf` va evitato anche nella scratchpad**: è stato
   rifiutato di nuovo; si crea una cartella con un nome nuovo invece di cancellare.
+- **Una condizione che dipende da ciò che l'utente sta cambiando va decisa una
+  volta sola.** La guida valutava "stanza già scelta = guida fatta" a ogni
+  ridisegno: appena si sceglieva la stanza al passo 1 si chiudeva da sola. Ora
+  si decide alla prima domanda (`primaStanza`). L'ha trovato la prova e2e.
+- **L'anti burn-in sposta il contenuto: va lasciato il margine.** Con
+  `inset: 0` la traslazione di ±6 px faceva uscire l'orologio dallo schermo sui
+  telefoni bassi; con `inset: 8px` resta dentro. Visto negli screenshot a
+  915×330, non nelle prove.
+- **Le prove che dipendono dall'ora vanno fissate.** Le prove del riposo sono
+  cadute alle 23:07: era notte, quindi niente righe e un solo timer. L'aiuto
+  `senzaNotte` (notte da 0 a 0 = mai) le rende indipendenti dall'orario; la
+  notte ha una prova a parte che la imposta sull'ora corrente.

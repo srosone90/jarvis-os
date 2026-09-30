@@ -18,7 +18,8 @@ import { Microfono, MicrofonoNonDisponibile } from "./microfono";
  * (continue_conversation), finito l'audio il microfono si riapre da solo.
  */
 export type FaseVoce = "spenta" | "apertura" | "ascolto" | "pensa" | "risponde" | "errore";
-export type DoveVoce = "chat" | "riquadro";
+/** Dove si vede la voce: nella chat, nel riquadro piccolo o nell'Hub (fase G). */
+export type DoveVoce = "chat" | "riquadro" | "hub";
 
 /** Rete di sicurezza: HA chiude l'ascolto al massimo dopo 15 s (vad.py); noi dopo 20. */
 export const ASCOLTO_MASSIMO_MS = 20_000;

@@ -117,6 +117,11 @@ export class Connessione {
     });
   }
 
+  /** Cosa suona adesso, letto da Spotify (jarvis_musica.stato): per lo schermo a riposo. */
+  statoMusica(): Promise<Record<string, unknown>> {
+    return this.chiamaServizio("jarvis_musica", "stato", {});
+  }
+
   /** <dominio>.<servizio> con la risposta: jarvis_musica (stato vero di Spotify) e jarvis_voce (timer). */
   private async chiamaServizio(
     dominio: string,

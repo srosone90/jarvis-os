@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.4.8
+
+Fase G: schermo a riposo con la sfera, Hub vocale, impostazioni nuove e
+procedura guidata al primo avvio.
+
+- **Schermo a riposo** (variante C): dopo 2 minuti senza tocchi il pannello
+  mostra una sfera che respira, con accanto ora, data, meteo, temperature delle
+  stanze e cosa suona (da `jarvis_musica`). I timer compaiono come anelli
+  attorno alla sfera e come pastiglie col conto alla rovescia; un timer in
+  pausa resta fermo. Un tocco fuori dalla sfera torna al pannello. Il riposo
+  cambia solo la vista: timer, voce e musica restano accesi.
+- **Di notte** (di serie dalle 23 alle 7) a riposo restano solo ora e timer,
+  con la sfera ferma e fioca. Il contenuto si sposta di pochi pixel ogni minuto
+  per non segnare lo schermo.
+- Il pannello **non va a riposo** mentre la chat, le impostazioni o la guida
+  sono aperte, né mentre Jarvis ascolta o risponde.
+- **"Timer finito"** compare come riquadro al centro con Stop grande, sopra il
+  riposo; di notte in rosso scuro.
+- **Hub**: toccando la sfera Jarvis ascolta subito. Domanda e risposta
+  compaiono come sottotitoli sotto la sfera; in alto ora, stanza, timer e il
+  tasto griglia per il pannello completo. Dopo 30 s senza attività torna a
+  riposo.
+- **Impostazioni** (tieni premuto l'orologio 3 s, senza PIN): elenco a sezioni
+  come su Android. Stanza del pannello, schermo a riposo (dopo 1/2/5/10 minuti
+  o mai, orari della notte, "Metti a riposo" per provarlo subito), audio
+  sveglio, diagnostica. Esc e "Indietro" di Android le chiudono.
+- **Procedura guidata** al primo avvio, per i pannelli nuovi: stanza e schermo
+  a riposo, poi un riepilogo. I pannelli già installati (stanza già scelta) non
+  la vedono. Si rifà dalle impostazioni, sezione "Stanza".
+- Nessuna modifica lato server: usa solo `jarvis_timer` (con `in_pausa`),
+  `timer_attivi` e `jarvis_musica.stato`.
+
 ## v0.4.7
 
 Timer in pausa, e nome della stanza calcolato esattamente come il server.

@@ -4,6 +4,7 @@ import { avviaRicaricaNotturna, registraServiceWorker } from "./pwa/aggiornament
 import { passaAllOrigineVeloce, sorvegliaRitorno } from "./pwa/origine";
 import "./ui/jarvis-app";
 import { audioSveglio } from "./voce/audio-sveglio";
+import { vista } from "./vista/istanza";
 
 // Nessun errore deve sparire in silenzio: tutto finisce nel log diagnostico.
 window.addEventListener("error", (e) => log.errore(`Errore: ${e.message} (${e.filename}:${e.lineno})`));
@@ -17,6 +18,8 @@ passaAllOrigineVeloce();
 document.body.append(document.createElement("jarvis-app"));
 
 if (import.meta.env.PROD) void registraServiceWorker();
+// fase G: riposo dopo i minuti senza tocchi, Hub, pannello completo
+vista.avvia();
 // audio impercettibile per l'Echo in Bluetooth (v0.4.5): parte subito o al primo tocco
 audioSveglio.avvia();
 avviaRicaricaNotturna(() => connessione.timer.occupato);

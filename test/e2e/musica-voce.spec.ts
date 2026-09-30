@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { accedi, apriChat, apriDiagnostica, comando, HA, info } from "./aiuti";
+import { accedi, apriChat, apriDiagnostica, apriImpostazioni, comando, HA, info } from "./aiuti";
 
 /**
  * Pausa della musica durante la voce (v0.4.4). Il finto HA simula jarvis_musica
@@ -32,9 +32,9 @@ async function statoMusica(request: APIRequestContext): Promise<string | undefin
 }
 
 async function impostaStanza(page: Page, stanza: string): Promise<void> {
-  await apriDiagnostica(page);
+  await apriImpostazioni(page, "stanza");
   await page.getByTestId("stanza-pannello").selectOption(stanza);
-  await page.getByTestId("chiudi-diagnostica").click();
+  await page.getByTestId("chiudi-impostazioni").click();
 }
 
 async function domandaAVoce(page: Page): Promise<void> {
@@ -142,7 +142,7 @@ test("stanza del pannello: si sceglie tra le aree di HA e resta dopo una ricaric
   // telefono piccolo: avviso e nota non devono allargare la pagina
   await page.setViewportSize({ width: 360, height: 740 });
   await accedi(page);
-  await apriDiagnostica(page);
+  await apriImpostazioni(page, "stanza");
   const scelta = page.getByTestId("stanza-pannello");
   await expect(scelta).toHaveValue("");
   await expect(scelta.locator("option")).toHaveText([
@@ -162,6 +162,6 @@ test("stanza del pannello: si sceglie tra le aree di HA e resta dopo una ricaric
   expect(await larghezza()).toBeLessThanOrEqual(360);
   await expect(page.getByTestId("avviso-stanza")).toHaveCount(0);
   await page.reload();
-  await apriDiagnostica(page);
+  await apriImpostazioni(page, "stanza");
   await expect(page.getByTestId("stanza-pannello")).toHaveValue("Cucina");
 });
