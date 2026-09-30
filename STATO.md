@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.7 (timer in pausa, slug come il tuo) e jarvis_musica 0.4.0 nel repo, identico al server; sha256 sotto appena la release è verificata._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.7 (timer in pausa, slug come il tuo) e jarvis_musica 0.4.0 nel repo, identico al server. Release verificata._
 
 ## Adesso
 
@@ -47,7 +47,7 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.7 (timer in pausa, slug come il tuo) 
 |---|---|
 | Versione | **v0.4.7**: timer in pausa fermi; slug della stanza come il server |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.7 |
-| sha256 dello zip | _in arrivo: lo scrivo qui appena scaricato e verificato_ |
+| sha256 dello zip | `9c7684eaea06503abdc154ed60df82c1364534d7ce494b47769041c9d356bbc4` (6,8 MB, service worker 0.4.7, verificati) |
 | Precedente | v0.4.6, sha256 `02363cce…08b0`, installata il 30/09 |
 
 ## Da installare lato server: v0.4.7
