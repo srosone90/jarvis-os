@@ -34,7 +34,7 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.4 pubblicata; `jarvis_musica` 0.3 da 
 |---|---|
 | Versione | **v0.4.4**: pausa della musica durante la voce; mai su una versione vecchia |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.4 |
-| sha256 dello zip | _in arrivo: lo scrivo appena il workflow pubblica lo zip_ |
+| sha256 dello zip | `e79a64faa5b212600a89a93d48410dd7551d357c96056e5ab5a9d28c65b0c88b` (6,8 MB, service worker 0.4.4, verificati) |
 | Precedente | v0.4.3, sha256 `de0a265d…a355`, installata il 30/09 |
 
 ## Da installare lato server: v0.4.4
