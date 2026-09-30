@@ -15,6 +15,9 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.6 pubblicata e verificata (timer solo
     notte, evento, timer attivi e timer finito; Hub in 3 varianti (H1 sfera al
     centro, H2 sfera e conversazione, H3 sfera come luce di fondo); schema di
     come si collegano. Sorgente: `docs/mockup-riposo-hub.html`.
+  - **Scelte di Salvatore sul gruppo 1**: riposo = C (sfera), Hub = H1
+    (sfera al centro), riposo dopo 2 minuti senza tocchi, "Timer finito" come
+    riquadro al centro sopra il riposo.
   - Poi: impostazioni del pannello (fase G), schermate e navigazione,
     musica.
 - **Prossima release (dopo i mockup, piccola)**: slug della stanza come il

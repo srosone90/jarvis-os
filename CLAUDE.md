@@ -1177,6 +1177,21 @@ se ne scrive una nuova che annulla la precedente.
   quello della stanza detta a voce), e Stop li ferma tutti. Annulla il "con
   più pannelli suonano tutti" della v0.4.5. Contratto con `jarvis_voce` 0.1.8
   nella sezione "Timer per pannello".
+- **2026-09-30** — **Mockup gruppo 1, scelte di Salvatore**
+  (`docs/mockup-riposo-hub.html`):
+  - **schermo a riposo = variante C, "sfera"**: la sfera dell'Hub fioca che
+    respira, orologio accanto, timer come anelli attorno alla sfera. Toccando
+    la sfera parte Jarvis (riposo e Hub sono lo stesso oggetto); toccando
+    fuori si apre il pannello completo;
+  - **Hub = H1, sfera al centro**, sottotitoli sotto che sfumano, angolo con
+    ora, stanza e pallino, tasto "griglia" per il completo;
+  - il riposo parte **dopo 2 minuti senza tocchi**, di giorno e di notte. Dopo
+    la risposta l'Hub torna al riposo in 30 s; dal completo si torna al
+    riposo dopo ~90 s;
+  - **"Timer finito" sul riposo = riquadro al centro** con Stop grande, il
+    resto si abbassa senza accendersi; di notte in rosso scuro;
+  - vincolo invariato: il riposo cambia solo la vista. WebSocket, timer, voce,
+    musica e «Jarvis» restano accesi.
 
 ## 7. Convenzioni
 
