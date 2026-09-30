@@ -115,6 +115,8 @@ In casa **non ci sono luci smart**.
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
 | `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
+| `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: far partire Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero) e `script.jarvis_musica` per Gemini |
+| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (29 casi) |
 | `prova-ehi-jarvis.html`, `src/prova/`, `vite.prova.config.ts` | Pagina della prova di fattibilità "Ehi Jarvis": build a parte, fuori dal pannello e dal service worker |
 | `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
@@ -688,6 +690,48 @@ sempre**, anche quando esisterà la parola di attivazione.
   (`CONVERSATION_TIMEOUT` in `helpers/chat_session.py`): oltre, anche mandando
   il vecchio `conversation_id`, riparte da zero con un id nuovo.
 
+### Musica: jarvis_musica (lato HA, 30/09) e fase M
+
+**Scoperta della sessione server, verificata nel codice di HA 2026.9.3**
+(`components/spotify/media_player.py`, identico nel pacchetto installato):
+senza una riproduzione attiva sull'account, `supported_features` è solo
+`SELECT_SOURCE`. Quindi `play_media` viene rifiutato ("does not support action
+media_player.play_media") e `select_source` non avvia niente: con
+l'integrazione standard la musica non parte dal silenzio.
+
+**Soluzione**: componente `jarvis_musica`. Riusa `entry.runtime_data.coordinator.client`
+(lo SpotifyClient di spotifyaio già autenticato dall'integrazione, token
+rinnovato dalla sua `OAuth2Session`: nessuna credenziale nuova), cerca e chiama
+`start_playback(device_id=…)`. Stanza → dispositivo Spotify Connect **in
+configurazione** (`jarvis_musica: stanze:`), mai nel codice (multi-casa).
+
+**spotifyaio 2.0.2, letto nel codice** (`_request`):
+- solleva errore solo per 403 (`SpotifyForbiddenError`), timeout
+  (`SpotifyConnectionError`) e un 404 riconosciuto cercando il testo
+  `"status": 404`;
+- tutti gli altri rifiuti di Spotify tornano **in silenzio**;
+- `start_playback` non restituisce niente.
+
+Quindi il componente **rilegge `get_playback()`** (ogni 0,5 s, fino a 8 s) e
+considera partito solo lo stesso contesto o brano sullo stesso dispositivo.
+Altrimenti prova il candidato successivo (al massimo 3), poi risponde
+`avvio_non_riuscito`.
+
+Il rinnovo del token in HA 2026.9.3 alza `OAuth2TokenRequestReauthError`
+(accesso da rifare, HA apre già la richiesta) oppure
+`OAuth2TokenRequestTransientError` (un `ClientResponseError`, passeggero).
+
+**Da verificare sugli Echo veri** (sessione server): se gli Echo Pop restano
+tra i dispositivi Spotify dopo ore di inattività, e i tempi di avvio.
+
+**Fase M (pannello, dopo la G)**:
+- card "In riproduzione" solo quando suona;
+- schermata Musica;
+- ducking durante la voce;
+- piattaforme e uscite configurabili.
+
+Prima mockup e domande, insieme alle nuove schermate e alla navigazione.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -801,6 +845,12 @@ se ne scrive una nuova che annulla la precedente.
   obbligatorio sulla riserva: l'app Tailscale di Android può spegnersi (è
   successo la notte del 30/09 alle 02:19) ed è l'unico pezzo fuori dal
   guardiano. Dettagli nella sezione 2, "Due origini".
+- **2026-09-30** — **Musica: fase M dopo la G**, con Spotify tramite il
+  componente `jarvis_musica`: l'integrazione standard non parte dal silenzio.
+  Music Assistant (altre piattaforme) resta da valutare lato server, per il
+  peso sul Redmi. Nuove schermate e navigazione: tutte disegnate ora a livello
+  di mockup, implementate per fasi dopo la G: prima navigazione, Stanza e
+  Meteo, poi Musica, poi il resto.
 
 ## 7. Convenzioni
 
@@ -829,6 +879,12 @@ node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/
 # push sul branch principale. Il workflow "Release" vede che vX.Y.Z non esiste,
 # rifà tutte le verifiche, crea il tag e allega jarvis-dist.zip. Se la release
 # esiste già non fa niente.
+
+# Prova di jarvis_musica (HA 2026.9.3 vuole Python ≥ 3.14.2; l'uv vecchio
+# conosceva solo 3.14.0rc2: `pip install -U uv` in un venv a parte)
+uv python install 3.14.7 && uv venv -p 3.14.7 .venv-ha-2026-9
+VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 29/29
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
@@ -937,6 +993,13 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **Una libreria che non segnala gli errori va controllata dal risultato.**
+  spotifyaio 2.0.2 lascia passare in silenzio quasi tutti i rifiuti di Spotify:
+  fidarsi di "`start_playback` non ha sollevato" avrebbe fatto dire a Gemini
+  "sta suonando" con le casse mute. Si rilegge lo stato. **Controprova fatta**:
+  togliendo la rilettura, 3 verifiche su 29 falliscono. Nella stessa prova, i
+  dati finti costruiti coi modelli veri della libreria hanno scoperto due errori
+  della prova stessa: un nome non esportato e un campo mancante.
 - **Il finto HA accettava un solo login alla volta.** Valeva solo l'ultimo
   token rilasciato: con due origini il login sulla veloce "scollegava" la
   riserva ("HA non riconosce più questo pannello"). HA vero tiene validi tutti i

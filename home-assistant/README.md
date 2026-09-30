@@ -181,3 +181,100 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 Provato con Home Assistant 2026.2.3, l'ultima versione installabile col Python
 3.13 del banco di prova. La casa gira la 2026.9. La sintassi usata (`triggers:`,
 `actions:`, `trigger: state`, template) è quella stabile da fine 2024.
+
+## Musica: `jarvis_musica` (componente + pacchetto a parte)
+
+**Perché serve.** Verificato nel codice di HA 2026.9.3
+(`components/spotify/media_player.py`): finché sull'account Spotify non suona
+niente, il media_player dichiara solo `SELECT_SOURCE`. `media_player.play_media`
+viene rifiutato e `select_source` da solo non avvia niente. Con l'integrazione
+standard la musica non parte "dal silenzio".
+
+**Cosa fa.** `custom_components/jarvis_musica` riusa il client spotifyaio **già
+autenticato** dall'integrazione ufficiale Spotify (niente credenziali nuove,
+niente scraping né cookie). Poi:
+
+1. cerca su Spotify (brano, artista, album, playlist, genere);
+2. sceglie il risultato: a parità vince il nome identico;
+3. avvia la riproduzione sul dispositivo Spotify Connect della stanza, anche da
+   inattivo;
+4. **rilegge lo stato per controllare che suoni davvero**. spotifyaio 2.0.2 non
+   segnala molti rifiuti di Spotify, per esempio le playlist editoriali bloccate
+   per le app nuove. Se non parte prova il candidato successivo, al massimo 3, e
+   poi lo dice.
+
+| Cosa | Nome |
+|---|---|
+| Servizio (risposta facoltativa) | `jarvis_musica.riproduci` con `cosa`, `dove`, `tipo` (auto, brano, artista, album, playlist, genere) |
+| Script per Gemini | `script.jarvis_musica`: restituisce `esito` ok/errore, `messaggio` breve, `dispositivo`, `stanza` |
+
+Errori, con un `codice` stabile e un `messaggio` in italiano:
+
+| Codice | Quando |
+|---|---|
+| `nessun_risultato` | La ricerca non trova niente |
+| `stanza_sconosciuta` | La stanza non è configurata |
+| `stanza_ambigua` | Per esempio "camera" con due camere configurate |
+| `stanza_mancante` | Non si è detto dove |
+| `dispositivo_non_disponibile` | L'Echo è spento o addormentato; nella risposta c'è l'elenco dei dispositivi visibili |
+| `dispositivo_non_comandabile` | Il dispositivo esiste ma non accetta comandi da remoto |
+| `avvio_non_riuscito` | Spotify ha accettato il comando ma non suona niente |
+| `non_consentito` | Errore 403: serve Premium |
+| `spotify_irraggiungibile` | Spotify non risponde |
+| `accesso_scaduto` | Il login a Spotify va rifatto: HA apre da solo la richiesta |
+| `spotify_non_configurato` | L'integrazione Spotify non c'è o non è partita |
+
+Chiamato senza risposta, per esempio dal pannello, l'errore arriva come
+eccezione con lo stesso messaggio.
+
+**Installazione.**
+
+1. Serve l'integrazione ufficiale **Spotify** già configurata e funzionante, con
+   un account **Premium**: senza Premium Spotify non permette il controllo
+   remoto.
+2. Copia `custom_components/jarvis_musica/` in `/config/custom_components/` e
+   `packages/jarvis_musica.yaml` in `/config/packages/`. Vanno messi **insieme**:
+   il pacchetto senza componente non passa la verifica.
+3. Compila `stanze` in `jarvis_musica.yaml` con i **nomi esatti** dei
+   dispositivi Spotify Connect. Li trovi nell'attributo `source_list` del
+   media_player Spotify, mentre i dispositivi sono accesi. Facoltativa:
+   `predefinita`. Esempio:
+   ```yaml
+   stanze:
+     Camera da letto: Echo Pop Camera
+     Soggiorno: [TV Samsung, Echo Pop Soggiorno]   # il primo che Spotify vede
+   predefinita: Soggiorno
+   ```
+4. Esegui la verifica della configurazione, poi **riavvia** HA: è un
+   componente nuovo.
+5. **Esponi ad Assist** `script.jarvis_musica`. Per pausa, volume, brano
+   successivo e "cosa sta suonando" Gemini usa il media_player Spotify, che
+   funziona normalmente appena qualcosa suona. Lo stesso vale per "sposta la
+   musica in soggiorno", con `select_source`.
+
+**Da provare sugli Echo veri** (qui non si può):
+
+- se gli Echo Pop compaiono tra i dispositivi Spotify anche dopo ore di
+  inattività (a volte spariscono finché non li si usa);
+- quanto ci mettono a partire. Il componente aspetta fino a 8 s per candidato.
+
+**Prova.** `prove/prova_musica.py` avvia HA **2026.9.3** con componente e
+pacchetto. Al posto di Spotify c'è un client finto che restituisce oggetti
+costruiti con i **modelli veri di spotifyaio 2.0.2**. Verifica 29 casi:
+
+- artista, brano e genere;
+- secondo dispositivo della stanza;
+- candidato che non parte in silenzio;
+- stanza predefinita e stanza già attiva;
+- tutti gli errori della tabella;
+- lo script con la risposta per Gemini;
+- log senza errori.
+
+Controprova: togliendo il controllo "suona davvero?" 3 verifiche falliscono.
+
+```bash
+uv python install 3.14.7   # HA 2026.9.3 vuole Python ≥ 3.14.2
+uv venv -p 3.14.7 .venv-ha-2026-9 && VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 29/29
+.venv-ha-2026-9/bin/hass --script check_config -c <cartella con configuration.yaml, packages/, custom_components/>
+```
