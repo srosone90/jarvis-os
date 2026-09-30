@@ -29,6 +29,8 @@ test("risposta normale: domanda, sto pensando, risposta; il contesto resta tra l
   let i = await info(request);
   expect(i.richiesteAssistente).toEqual([
     {
+      // senza stanza scelta il device_id non si manda (v0.4.6)
+      device_id: null,
       testo: "Che temperatura c'è in camera?",
       conversation_id: null,
       start_stage: "intent",

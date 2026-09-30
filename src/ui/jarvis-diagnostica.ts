@@ -5,6 +5,7 @@ import { log, type VoceLog } from "../diagnostica/log";
 import { statoAggiornamento, applicaAggiornamento, versioneSulServer } from "../pwa/aggiornamenti";
 import { statoOrigine } from "../pwa/origine";
 import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
+import { dispositivoDi } from "../timer/pannello";
 import { audioSveglio, type StatoAudioSveglio } from "../voce/audio-sveglio";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 
@@ -102,6 +103,15 @@ export class JarvisDiagnostica extends RiquadroSicuro {
           grid-template-columns: max-content minmax(0, 1fr);
         }
       }
+      .nota {
+        display: block;
+        margin-top: 4px;
+        font-size: 13px;
+        color: var(--attenuato);
+      }
+      .nota.avviso {
+        color: var(--avviso-testo);
+      }
       .interruttore {
         display: flex;
         align-items: center;
@@ -163,22 +173,36 @@ export class JarvisDiagnostica extends RiquadroSicuro {
     location.reload();
   }
 
-  /** Serve alla pausa della musica durante la voce: senza stanza la musica non si tocca. */
+  /**
+   * Serve alla pausa della musica durante la voce e ai timer (v0.4.6): senza
+   * stanza la musica non si tocca, e i timer chiesti da qui vanno a
+   * "jarvis_pannello", che suona su tutti i pannelli senza stanza.
+   */
   private sceltaStanza(): TemplateResult {
     const attuale = stanzaPannello();
     const aree = [...connessione.registri.aree.map((a) => a.name)].sort((a, b) => a.localeCompare(b, "it"));
     if (attuale && !aree.includes(attuale)) aree.unshift(attuale);
     return html`<select
-      data-test="stanza-pannello"
-      aria-label="Stanza di questo pannello"
-      @change=${(e: Event) => {
-        impostaStanzaPannello((e.target as HTMLSelectElement).value || null);
-        this.requestUpdate();
-      }}
-    >
-      <option value="" ?selected=${!attuale}>Nessuna (la musica non si tocca)</option>
-      ${aree.map((a) => html`<option value=${a} ?selected=${a === attuale}>${a}</option>`)}
-    </select>`;
+        data-test="stanza-pannello"
+        aria-label="Stanza di questo pannello"
+        @change=${(e: Event) => {
+          impostaStanzaPannello((e.target as HTMLSelectElement).value || null);
+          this.requestUpdate();
+        }}
+      >
+        <option value="" ?selected=${!attuale}>Nessuna</option>
+        ${aree.map((a) => html`<option value=${a} ?selected=${a === attuale}>${a}</option>`)}
+      </select>
+      ${
+        attuale
+          ? html`<small class="nota" data-test="dispositivo-timer"
+              >Timer e voce di questo pannello: ${dispositivoDi(attuale)}</small
+            >`
+          : html`<small class="nota avviso" data-test="avviso-stanza"
+              >Scegli la stanza per i timer: senza, qui suonano solo i timer chiesti da pannelli senza stanza,
+              mai quelli di una stanza. E la musica non si tocca.</small
+            >`
+      }`;
   }
 
   /** Rumore a -80 dB per l'Echo in Bluetooth: acceso di serie (v0.4.5). */

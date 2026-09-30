@@ -1,5 +1,5 @@
-import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriChat, comando, HA, info, pallino } from "./aiuti";
+import { expect, test, type Browser, type Page } from "@playwright/test";
+import { accedi, apriChat, apriDiagnostica, chiedi, comando, HA, info, pallino } from "./aiuti";
 
 /**
  * Timer di jarvis_voce (v0.4.5): l'evento `jarvis_timer` di HA diventa il conto
@@ -97,25 +97,149 @@ test("dopo che HA si riavvia i timer arrivano ancora (iscrizione rinnovata)", as
   await expect(page.getByTestId("timer")).toContainText("pasta");
 });
 
-test("con due pannelli suonano tutti e due, e ognuno si ferma col suo Stop", async ({ browser, request }) => {
-  const contesti = await Promise.all([browser.newContext(), browser.newContext()]);
+// --- ognuno sul suo pannello (v0.4.6, jarvis_voce 0.1.8) ---
+
+/** Un pannello in un contesto suo (come un altro tablet), con la stanza già scelta. */
+async function pannello(
+  browser: Browser,
+  stanza: string | null,
+): Promise<{ pagina: Page; chiudi: () => Promise<void> }> {
+  const contesto = await browser.newContext();
+  if (stanza) await contesto.addInitScript((s) => localStorage.setItem("jarvis-stanza-pannello", s), stanza);
+  const pagina = await contesto.newPage();
+  await pagina.goto(`${HA}/local/jarvis/index.html`);
+  await pagina.getByRole("button", { name: "Accedi" }).click();
+  await expect(pallino(pagina)).toHaveAttribute("data-stato", "connesso");
+  return { pagina, chiudi: () => contesto.close() };
+}
+
+/** Domanda scritta nella chat del pannello. */
+async function chiediDa(p: Page, testo: string): Promise<void> {
+  await apriChat(p);
+  await chiedi(p, testo);
+  await expect(p.getByTestId("risposta").last()).toContainText("Timer");
+  await p.getByRole("button", { name: "Chiudi" }).click();
+}
+
+test("ogni domanda porta il device_id del pannello (voce e chat); senza stanza non si manda", async ({
+  page,
+  request,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("jarvis-stanza-pannello", "Camera da letto"));
+  await accedi(page);
+  await apriChat(page);
+  await chiedi(page, "che ore sono?");
+  await expect(page.getByTestId("risposta")).toHaveCount(1);
+  await page.getByRole("button", { name: "Parla", exact: true }).click();
+  await expect(page.getByTestId("risposta")).toHaveCount(2);
+  await expect
+    .poll(async () => (await info(request)).richiesteAssistente.map((r) => r.device_id))
+    .toEqual(["jarvis_camera_da_letto", "jarvis_camera_da_letto"]);
+
+  await page.evaluate(() => localStorage.removeItem("jarvis-stanza-pannello"));
+  await chiedi(page, "e adesso?");
+  await expect(page.getByTestId("risposta")).toHaveCount(3);
+  expect((await info(request)).richiesteAssistente[2]?.device_id).toBeNull();
+});
+
+test("timer chiesto dalla cucina suona solo in cucina; 'in camera da letto' suona solo in camera", async ({
+  browser,
+  request,
+}) => {
+  const cucina = await pannello(browser, "Cucina");
+  const camera = await pannello(browser, "Camera da letto");
   try {
-    const pagine = await Promise.all(contesti.map((c) => c.newPage()));
-    for (const p of pagine) {
-      await p.goto(`${HA}/local/jarvis/index.html`);
-      await p.getByRole("button", { name: "Accedi" }).click();
-      await expect(pallino(p)).toHaveAttribute("data-stato", "connesso");
-    }
     await expect.poll(async () => (await info(request)).iscrittiTimer).toBe(2);
-    await comando(request, "timer", { tipo: "finished", ...PASTA, secondi_rimasti: 0 });
-    const [a, b] = pagine;
-    if (!a || !b) throw new Error("pagine mancanti");
-    await expect(a.getByTestId("timer-finito")).toContainText("Timer pasta finito");
-    await expect(b.getByTestId("timer-finito")).toContainText("Timer pasta finito");
-    await a.getByTestId("timer-stop").click();
-    await expect(a.getByTestId("timer-finito")).toHaveCount(0);
-    await expect(b.getByTestId("timer-finito")).toBeVisible();
+    await comando(request, "assistente?modo=timer");
+    await chiediDa(cucina.pagina, "metti un timer per la pasta");
+    await expect(cucina.pagina.getByTestId("timer")).toContainText("pasta");
+    await expect(cucina.pagina.getByTestId("timer-finito")).toContainText("Timer pasta finito");
+    await expect(camera.pagina.getByTestId("timer")).toHaveCount(0);
+    await expect(camera.pagina.getByTestId("timer-finito")).toHaveCount(0);
+    await cucina.pagina.getByTestId("timer-stop").click();
+
+    await comando(request, "assistente?modo=timer-camera");
+    await chiediDa(cucina.pagina, "metti un timer in camera da letto");
+    await expect(camera.pagina.getByTestId("timer-finito")).toContainText("Timer pasta finito");
+    await camera.pagina.waitForTimeout(500);
+    await expect(cucina.pagina.getByTestId("timer-finito")).toHaveCount(0);
   } finally {
-    await Promise.all(contesti.map((c) => c.close()));
+    await Promise.all([cucina.chiudi(), camera.chiudi()]);
   }
+});
+
+test("Stop su un pannello ferma anche l'altro che suona per lo stesso timer", async ({
+  browser,
+  request,
+}) => {
+  // stessa stanza: stesso device_id, suonano entrambi (va bene così)
+  const a = await pannello(browser, "Cucina");
+  const b = await pannello(browser, "Cucina");
+  try {
+    await expect.poll(async () => (await info(request)).iscrittiTimer).toBe(2);
+    await comando(request, "timer", {
+      tipo: "finished",
+      ...PASTA,
+      secondi_rimasti: 0,
+      pannello: "jarvis_cucina",
+    });
+    await expect(a.pagina.getByTestId("timer-finito")).toBeVisible();
+    await expect(b.pagina.getByTestId("timer-finito")).toBeVisible();
+    await a.pagina.getByTestId("timer-stop").click();
+    await expect(a.pagina.getByTestId("timer-finito")).toHaveCount(0);
+    await expect(b.pagina.getByTestId("timer-finito")).toHaveCount(0);
+    const chiamate = (await info(request)).chiamate.filter((c) => c.servizio === "jarvis_voce.timer_ferma");
+    expect(chiamate.map((c) => c.dati)).toEqual([{ id: PASTA.id }]);
+  } finally {
+    await Promise.all([a.chiudi(), b.chiudi()]);
+  }
+});
+
+test("timer partito mentre il pannello era scollegato: alla riconnessione lo rilegge (solo i suoi)", async ({
+  page,
+  request,
+}) => {
+  await page.addInitScript(() => localStorage.setItem("jarvis-stanza-pannello", "Cucina"));
+  await accedi(page);
+  await comando(request, "spegni");
+  await expect(pallino(page)).not.toHaveAttribute("data-stato", "connesso", { timeout: 10_000 });
+  await comando(request, "timer", {
+    tipo: "started",
+    ...PASTA,
+    secondi_rimasti: 300,
+    pannello: "jarvis_cucina",
+  });
+  await comando(request, "timer", {
+    tipo: "started",
+    id: "t-letto",
+    nome: "riposo",
+    secondi_totali: 600,
+    secondi_rimasti: 600,
+    pannello: "jarvis_camera_da_letto",
+  });
+  await comando(request, "accendi");
+  await expect(pallino(page)).toHaveAttribute("data-stato", "connesso", { timeout: 30_000 });
+  await expect(page.getByTestId("timer")).toHaveCount(1);
+  await expect(page.getByTestId("timer")).toContainText("pasta");
+  await expect(page.getByTestId("timer-rimasto")).toHaveText(/^[45]:\d\d$/);
+
+  // cambiata la stanza in diagnostica: ora sono suoi i timer della camera
+  await apriDiagnostica(page);
+  await page.getByTestId("stanza-pannello").selectOption("Camera da letto");
+  await page.getByTestId("chiudi-diagnostica").click();
+  await expect(page.getByTestId("timer")).toHaveCount(1);
+  await expect(page.getByTestId("timer")).toContainText("riposo");
+});
+
+test("server senza timer_attivi (jarvis_voce vecchio): gli eventi funzionano, l'errore va nel log", async ({
+  page,
+  request,
+}) => {
+  await comando(request, "jarvis-voce?installato=0");
+  await accedi(page);
+  await expect.poll(async () => (await info(request)).iscrittiTimer).toBe(1);
+  await comando(request, "timer", { tipo: "started", ...PASTA, secondi_rimasti: 300 });
+  await expect(page.getByTestId("timer")).toContainText("pasta");
+  await apriDiagnostica(page);
+  await expect(page.getByTestId("log")).toContainText("jarvis_voce.timer_attivi non riuscito");
 });

@@ -21,7 +21,8 @@
  *   /__prova/aggiungi            {area?, dispositivo?, entita, s, a}: dispositivo nuovo nei registri
  *   /__prova/assistente?modo=    come risponde Gemini (assist_pipeline/run):
  *                                normale | lenta (&ms=10000) | errore | quota | occupato
- *                                | cade | azione | lunga
+ *                                | cade | azione | lunga | timer | timer-camera (timer di 2 s
+ *                                al device_id della domanda, o a jarvis_camera_da_letto)
  *                                voce: &trascrizione=… (cosa "sente" l'STT), &stt=silenzio|manuale|guasto
  *                                (nessuna parola / fine solo col tocco / stt-stream-failed), &tts=streaming (risposta locale: run-end
  *                                solo dopo che l'audio è stato scaricato), &continua=N (le
@@ -34,8 +35,10 @@
  *                                nello zip non c'è (es. parola.json di una casa)
  *   /__prova/musica              {stato, stanza, volume, titolo} | null: jarvis_musica (lo stato
  *                                vero di Spotify); null = componente non installato
- *   /__prova/timer               {tipo, id, nome, secondi_totali, secondi_rimasti}: evento
- *                                jarvis_timer (come lo manda jarvis_voce 0.1.5 lato server)
+ *   /__prova/timer               {tipo, id, nome, secondi_totali, secondi_rimasti, pannello}:
+ *                                evento jarvis_timer, e l'elenco di jarvis_voce.timer_attivi si
+ *                                aggiorna (come jarvis_voce 0.1.8 lato server)
+ *   /__prova/jarvis-voce?installato=0  servizi jarvis_voce assenti (server vecchio)
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -182,6 +185,9 @@ function reset() {
     fileVirtuali: new Map(), // nome → {contenuto, tipo}
     versioneServer: null, // nuova-versione?versione=x.y.z: VERSIONE diversa in sw.js
     musica: null, // jarvis_musica: {stato, stanza, volume, titolo}; null = non installato
+    // jarvis_voce (lato server): timer in corso {id, nome, secondi_totali, scadenza, pannello}
+    timerServer: new Map(),
+    jarvisVoce: true, // false = servizi jarvis_voce non installati (server vecchio)
     registri: registriIniziali(),
     rifiuta: new Set(), // "dominio.servizio" che HA rifiuta
     muti: new Set(), // entity_id che non cambiano stato dopo un comando
@@ -236,6 +242,43 @@ async function invia(cliente, msg) {
       cliente.ws.send(JSON.stringify(gruppo.length === 1 ? gruppo[0] : gruppo));
   });
 }
+
+/** jarvis_voce finto: tiene l'elenco dei timer come il server e manda l'evento. */
+function eventoTimerServer(ev) {
+  const { tipo, id } = ev;
+  if (tipo === "started" || tipo === "updated")
+    stato.timerServer.set(id, {
+      id,
+      nome: ev.nome ?? null,
+      secondi_totali: ev.secondi_totali ?? null,
+      scadenza: Date.now() + (ev.secondi_rimasti ?? ev.secondi_totali ?? 0) * 1000,
+      pannello: ev.pannello ?? null,
+    });
+  else stato.timerServer.delete(id);
+  trasmettiEvento("jarvis_timer", ev);
+}
+
+function elencoTimerServer() {
+  return [...stato.timerServer.values()].map(({ scadenza, ...t }) => ({
+    ...t,
+    secondi_rimasti: Math.max(0, Math.round((scadenza - Date.now()) / 1000)),
+  }));
+}
+
+/**
+ * Timer chiesto a Gemini, come jarvis_voce 0.1.8: senza stanza va al device_id
+ * della richiesta (o "jarvis_pannello" se manca), con la stanza a quella.
+ */
+function timerDaAssistente(deviceId, stanza) {
+  const id = `t-${++contatoreTimer}`;
+  const pannello = stanza ?? deviceId ?? "jarvis_pannello";
+  const t = { id, nome: "pasta", secondi_totali: 2, secondi_rimasti: 2, pannello };
+  eventoTimerServer({ tipo: "started", ...t });
+  setTimeout(() => {
+    if (stato.timerServer.has(id)) eventoTimerServer({ tipo: "finished", ...t, secondi_rimasti: 0 });
+  }, 2000);
+}
+let contatoreTimer = 0;
 
 function trasmettiEvento(tipo, dati) {
   for (const c of clienti)
@@ -437,7 +480,15 @@ async function rispondiAssistente(cliente, id, conversationId, testoDomanda, voc
     });
     await evento("intent-progress", { chat_log_delta: { role: "assistant" } });
   }
+  // "metti un timer" (qui di 2 s): a chi chiede, o alla camera da letto se lo dice
+  if (modo === "timer" || modo === "timer-camera")
+    timerDaAssistente(
+      cliente.dispositivi.get(id) ?? null,
+      modo === "timer-camera" ? "jarvis_camera_da_letto" : null,
+    );
   const testi = {
+    timer: ["Timer ", "avviato."],
+    "timer-camera": ["Timer avviato ", "in camera da letto."],
     normale: ["In camera ci sono ", "25,1°, ", "con umidità al 43%."],
     lenta: ["Scusa l'attesa: ", "in soggiorno ci sono 25,7°."],
     azione: ["Fatto, ", "ho spento la TV del salotto."],
@@ -697,7 +748,8 @@ const server = createServer(async (req, res) => {
       stato.versioneServer = url.searchParams.get("versione");
     } else if (comando === "musica") stato.musica = JSON.parse((await leggiCorpo(req)) || "null");
     // evento jarvis_timer di jarvis_voce: {tipo, id, nome, secondi_totali, secondi_rimasti}
-    else if (comando === "timer") trasmettiEvento("jarvis_timer", JSON.parse(await leggiCorpo(req)));
+    else if (comando === "timer") eventoTimerServer(JSON.parse(await leggiCorpo(req)));
+    else if (comando === "jarvis-voce") stato.jarvisVoce = url.searchParams.get("installato") !== "0";
     else if (comando === "reset") {
       for (const c of clienti) c.ws.terminate();
       reset();
@@ -832,6 +884,7 @@ function gestisci(ws, veloce) {
     invioProgrammato: false,
     abbonamentiEntita: new Set(),
     abbonamentiMeteo: new Map(),
+    dispositivi: new Map(), // id della pipeline → device_id mandato dal pannello
     pipeline: new Set(), // assist_pipeline/run in corso (o finite e non ancora disiscritte, come in HA)
     gestori: new Map(), // id (1 byte) → gestore dell'audio in arrivo, come async_register_binary_handler
     prossimoGestore: 1,
@@ -912,6 +965,25 @@ function gestisci(ws, veloce) {
             success: false,
             error: { code: "home_assistant_error", message: "Il dispositivo non risponde" },
           });
+        if (msg.domain === "jarvis_voce") {
+          if (!stato.jarvisVoce)
+            return invia(cliente, {
+              id,
+              type: "result",
+              success: false,
+              error: { code: "service_not_found", message: `Service ${chiave} not found.` },
+            });
+          let response = {};
+          if (msg.service === "timer_attivi") response = { timer: elencoTimerServer() };
+          if (msg.service === "timer_ferma")
+            trasmettiEvento("jarvis_timer", { tipo: "fermato", id: dati.id });
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: true,
+            result: { context: { id: "ctx" }, response },
+          });
+        }
         if (msg.domain === "jarvis_musica") {
           // come il componente vero: stato letto da Spotify, comandi confermati
           const m = stato.musica;
@@ -950,7 +1022,9 @@ function gestisci(ws, veloce) {
       }
       case "assist_pipeline/run": {
         const testoDomanda = msg.input?.text;
+        cliente.dispositivi.set(id, msg.device_id ?? null);
         stato.richiesteAssistente.push({
+          device_id: msg.device_id ?? null,
           testo: testoDomanda,
           conversation_id: msg.conversation_id ?? null,
           start_stage: msg.start_stage,

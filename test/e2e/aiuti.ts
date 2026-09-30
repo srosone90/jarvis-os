@@ -10,6 +10,8 @@ export async function comando(request: APIRequestContext, percorso: string, corp
 }
 
 export interface RichiestaAssistente {
+  /** device_id mandato dal pannello (v0.4.6), null se senza stanza. */
+  device_id: string | null;
   testo: string;
   conversation_id: string | null;
   start_stage: string;

@@ -139,18 +139,28 @@ test("componente della musica assente: la voce funziona lo stesso, l'errore va n
 });
 
 test("stanza del pannello: si sceglie tra le aree di HA e resta dopo una ricarica", async ({ page }) => {
+  // telefono piccolo: avviso e nota non devono allargare la pagina
+  await page.setViewportSize({ width: 360, height: 740 });
   await accedi(page);
   await apriDiagnostica(page);
   const scelta = page.getByTestId("stanza-pannello");
   await expect(scelta).toHaveValue("");
   await expect(scelta.locator("option")).toHaveText([
-    "Nessuna (la musica non si tocca)",
+    "Nessuna",
     "Camera da letto",
     "Cucina",
     "Soggiorno",
     "Veranda",
   ]);
+  await expect(page.getByTestId("avviso-stanza")).toContainText("Scegli la stanza per i timer");
+  await page.screenshot({ path: "schermate/layout/diagnostica-senza-stanza-360.png" });
+  const larghezza = () => page.evaluate(() => document.documentElement.scrollWidth);
+  expect(await larghezza()).toBeLessThanOrEqual(360);
   await scelta.selectOption("Cucina");
+  await expect(page.getByTestId("dispositivo-timer")).toContainText("jarvis_cucina");
+  await page.screenshot({ path: "schermate/layout/diagnostica-stanza-360.png" });
+  expect(await larghezza()).toBeLessThanOrEqual(360);
+  await expect(page.getByTestId("avviso-stanza")).toHaveCount(0);
   await page.reload();
   await apriDiagnostica(page);
   await expect(page.getByTestId("stanza-pannello")).toHaveValue("Cucina");

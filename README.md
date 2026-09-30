@@ -16,6 +16,7 @@ orizzontale acceso 24/7.
 | Origine veloce con ripiego sul link di riserva | **v0.4.2** |
 | Musica in pausa mentre Jarvis ascolta e parla; mai più una versione vecchia | **v0.4.4** |
 | Timer che suonano, pulsante del microfono mai bloccato, tastiera della chat, audio sveglio per il Bluetooth | **v0.4.5** |
+| Timer solo sul pannello a cui appartengono, Stop che ferma tutti | **v0.4.6** |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la prova "Ehi Jarvis" |
 | Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
@@ -103,6 +104,11 @@ Assistant (vedi `home-assistant/README.md`).
 server, che manda l'evento `jarvis_timer`. Il pannello li mostra sotto
 l'orologio col conto alla rovescia. Quando uno finisce, suona a ripetizione e
 mostra "Timer … finito" con un grande Stop; dopo 2 minuti si ferma da solo.
+Dalla v0.4.6 (con `jarvis_voce` 0.1.8) il timer suona solo sul pannello da
+cui l'hai chiesto, o su quello della stanza che hai detto ("metti un timer in
+camera da letto"). Per questo ogni pannello deve avere la sua **Stanza** in
+diagnostica: il pannello si presenta come `jarvis_<stanza>`. Stop su un
+pannello ferma anche gli altri che suonano per lo stesso timer.
 Chrome non fa suonare una pagina mai toccata: se il pannello è stato appena
 aperto e nessuno l'ha toccato, suona al primo tocco (l'avviso compare
 comunque).

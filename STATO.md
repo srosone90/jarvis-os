@@ -4,10 +4,23 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.5 pubblicata e verificata (timer, pulsante mai bloccato, tastiera, audio sveglio)._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.6 (timer solo sul pannello proprietario, per jarvis_voce 0.1.8); sha256 sotto appena la release è verificata._
 
 ## Adesso
 
+- **Finito:** v0.4.6, la richiesta urgente sui timer, con tutti e 6 i punti:
+  1. device_id `jarvis_<stanza>`, con l'avviso "Scegli la stanza per i
+     timer";
+  2. device_id mandato sempre, voce e chat;
+  3. suona e mostra solo i timer suoi;
+  4. Stop → `timer_ferma`, e `fermato` ferma tutti;
+  5. `timer_attivi` alla connessione e alla riconnessione (anche al cambio di
+     stanza);
+  6. stessa stanza = suonano entrambi.
+
+  Sotto, cosa installare e come provarla. Una cosa da sapere: la chat usa
+  `assist_pipeline/run` (start_stage intent) e non `conversation/process`.
+  Il `device_id` va lì, e lo schema di HA 2026.9.3 lo accetta.
 - **Finito:** v0.4.5 del pannello, con le richieste del 30/09 in ordine:
   1. timer che suonano (`jarvis_timer`);
   2. audio sveglio per il Bluetooth, acceso di serie;
@@ -41,10 +54,39 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.5 pubblicata e verificata (timer, pul
 
 | | |
 |---|---|
-| Versione | **v0.4.5**: timer che suonano, pulsante mai bloccato, tastiera della chat, audio sveglio |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.5 |
-| sha256 dello zip | `fc96409024f1cefc301aa937141cf0c256f6859013c452922141a60154ce2edb` (6,8 MB, service worker 0.4.5, verificati) |
-| Precedente | v0.4.4, sha256 `e79a64fa…8b`, installata il 30/09 |
+| Versione | **v0.4.6**: il timer suona solo sul pannello a cui appartiene; Stop li ferma tutti |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.6 |
+| sha256 dello zip | _in arrivo: lo scrivo qui appena scaricato e verificato_ |
+| Precedente | v0.4.5, sha256 `fc964090…2edb` |
+
+## Da installare lato server: v0.4.6
+
+1. Scompatta lo zip sopra `/config/www/jarvis/`, come sempre. Serve
+   `jarvis_voce` 0.1.8, che hai già.
+2. **Su ogni pannello, una volta**: tieni premuto l'orologio 3 s, scegli la
+   "Stanza" (per esempio Cucina) e tocca "Chiudi". Sotto la scelta compare
+   "Timer e voce di questo pannello: jarvis_cucina". Senza stanza compare
+   l'avviso "Scegli la stanza per i timer".
+
+**Come provarla, dentro il pannello:**
+
+1. Dal tablet della cucina: "metti un timer di un minuto per la pasta". Il
+   conto alla rovescia compare solo in cucina, e a zero suona solo lì.
+2. Sempre dalla cucina: "metti un timer di un minuto in camera da letto". In
+   cucina non compare niente; suona il pannello della camera, se c'è.
+3. Due pannelli nella stessa stanza: suonano entrambi, e Stop su uno ferma
+   anche l'altro.
+4. Timer partito, poi Wi-Fi del tablet spento per qualche secondo e riacceso:
+   il conto alla rovescia torna giusto.
+
+Nel log della diagnostica: "Timer riletti (connessione): 1 di jarvis_cucina
+su 2 in casa", e per gli eventi di altri pannelli "… non per questo pannello".
+
+## v0.4.5: installata
+
+Timer, pulsante mai bloccato, tastiera, audio sveglio. Le prove di allora
+valgono ancora, tranne "con più pannelli suonano tutti", superata dalla
+v0.4.6.
 
 ## Da installare lato server: v0.4.5
 
@@ -146,17 +188,19 @@ Solo il componente: stanze e pacchetto degli script **non cambiano**.
 5. **Echo in Bluetooth**: con la v0.4.4 la musica si ferma prima che Jarvis
    parli. Dimmi se l'Echo riparte bene con Spotify dopo la voce, o se resta
    agganciato al Bluetooth.
-6. **Timer dopo una riconnessione** (v0.4.5): se il pannello perde HA mentre
-   un timer corre, gli eventi di quel periodo si perdono, e non c'è modo di
-   rileggere i timer attivi. Un timer arrivato a zero senza `finished`
-   sparisce dopo 60 s senza suonare (poteva essere stato annullato). Potresti
-   aggiungere un modo per leggerli, per esempio un servizio
-   `jarvis_voce.timer_attivi` con `return_response`, o un sensore con la lista
-   negli attributi? Il pannello lo leggerebbe a ogni connessione.
-7. **Stop su tutti i pannelli**: ora Stop ferma solo il pannello dove lo
-   tocchi. Quando ci saranno più pannelli, vuoi che Stop li fermi tutti? Serve
-   un modo lato server, per esempio un servizio `jarvis_voce.ferma_suoneria`
-   che manda `jarvis_timer` con `tipo: stopped`.
+6. ~~Timer dopo una riconnessione~~ e 7. ~~Stop su tutti i pannelli~~:
+   risolte da `jarvis_voce` 0.1.8 (`timer_attivi`, `timer_ferma`/`fermato`),
+   usate dalla v0.4.6.
 8. **`finished` e `id`**: `id` è lo stesso di `started` per lo stesso timer?
    Il pannello lo usa per collegare il nome, e se `finished` non ha `nome` lo
    prende da `started`.
+9. **Chiave della risposta di `timer_attivi`**: il pannello accetta
+   `{timer: [...]}`, `{timers: [...]}`, `{attivi: [...]}` o un elenco nudo.
+   Qual è quella vera? Se è un'altra, nel log compare "risposta di
+   timer_attivi non riconosciuta" con la risposta intera.
+10. **Slug della stanza**: il pannello usa le regole di
+    `homeassistant.util.slugify`, provate su HA 2026.9.3: minuscolo, senza
+    accenti, ogni carattere che non è lettera o cifra diventa "_", niente
+    "_" doppi. Per esempio "Camera dell'ospite" → `jarvis_camera_dell_ospite`.
+    Lo script `jarvis_timer_stanza` usa la stessa funzione? Se no, con
+    apostrofi o trattini i due device_id non coincidono.

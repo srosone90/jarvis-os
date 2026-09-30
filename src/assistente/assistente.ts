@@ -43,6 +43,11 @@ export interface DipendenzeAssistente {
   collegato: () => boolean;
   /** Avvisa quando lo stato della connessione cambia; ritorna la funzione per smettere. */
   ascoltaConnessione: (f: () => void) => () => void;
+  /**
+   * device_id di questo pannello (`jarvis_<stanza>`), mandato con ogni domanda:
+   * jarvis_voce assegna a lui i timer chiesti da qui (v0.4.6). null = non si manda.
+   */
+  dispositivo?: () => string | null;
   adesso?: () => number;
 }
 
@@ -276,6 +281,9 @@ export class Assistente {
           conversation_id: this.conversationId,
           timeout: MASSIMO_MS / 1000,
         };
+    const dispositivo = this.dip.dispositivo?.() ?? null;
+    // accettato da assist_pipeline/run (vol.Optional("device_id"), HA 2026.9.3)
+    if (dispositivo) messaggio["device_id"] = dispositivo;
     conn
       .subscribeMessage<EventoPipeline>((ev) => this.suEvento(esecuzione, ev), messaggio, {
         resubscribe: false,

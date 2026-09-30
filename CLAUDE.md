@@ -114,7 +114,7 @@ In casa **non ci sono luci smart**.
 | `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
-| `src/timer/` | Timer di `jarvis_voce` (v0.4.5): `timer.ts` (evento `jarvis_timer` → timer attivi e finiti, logica pura + classe), `suoneria.ts` (WebAudio, niente file) |
+| `src/timer/` | Timer di `jarvis_voce` (v0.4.5): `timer.ts` (evento `jarvis_timer` → timer attivi e finiti, logica pura + classe), `suoneria.ts` (WebAudio, niente file), `pannello.ts` (device_id `jarvis_<stanza>`, v0.4.6) |
 | `src/voce/audio-sveglio.ts` | Rumore a -80 dB in loop per tenere sveglio l'Echo in Bluetooth (v0.4.5) |
 | `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
 | `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
@@ -865,8 +865,40 @@ secondi_rimasti}`. Il pannello (`src/timer/`) non decide niente:
   va nel log una volta e suona al primo tocco; l'overlay si vede comunque.
 - La **ricarica notturna** delle 04:00 aspetta se c'è un timer in corso o che
   suona: la finestra dura un'ora.
-- Stop su un pannello ferma solo quello: gli altri suonano fino al loro Stop
-  o ai 2 minuti.
+- Stop su un pannello ferma solo quello (v0.4.5). Superato dalla v0.4.6,
+  sezione sotto: suona solo il pannello proprietario, e Stop ferma tutti.
+
+### Timer per pannello (v0.4.6, 30/09, con jarvis_voce 0.1.8)
+
+Richiesta di Salvatore: un timer suona SOLO sul pannello da cui è stato
+chiesto, a meno che non si dica un'altra stanza. Contratto con il server
+(`src/timer/pannello.ts`, `src/timer/timer.ts`):
+
+- **device_id** del pannello = `jarvis_` + slug della Stanza scelta in
+  diagnostica. Lo slug è quello di `homeassistant.util.slugify`: minuscolo,
+  niente accenti, ogni carattere che non è lettera o cifra diventa "_", niente
+  "_" doppi né ai bordi. I valori di prova sono presi da HA 2026.9.3, per
+  esempio "Camera dell'ospite" → `camera_dell_ospite`.
+- Si manda con OGNI `assist_pipeline/run`, voce e chat: lo schema di HA
+  2026.9.3 ha `vol.Optional("device_id")`. Senza stanza non si manda, e il
+  server usa `jarvis_pannello`: il pannello considera suoi i timer di
+  `jarvis_pannello`. Due pannelli nella stessa stanza hanno lo stesso
+  device_id e suonano entrambi, come voluto.
+- L'evento `jarvis_timer` ha `pannello`. Il pannello mostra e fa suonare solo
+  i suoi. Senza `pannello` (server vecchio) il timer vale per tutti.
+- **Stop** ferma subito qui e chiama `jarvis_voce.timer_ferma {id}`. Il server
+  manda `{tipo: "fermato", id}` a tutti, e chi suona per quell'id si ferma.
+  Lo stop automatico dopo 2 minuti non chiama il server: ogni pannello ha i
+  suoi 2 minuti.
+- **Rilettura** con `jarvis_voce.timer_attivi` (return_response): dopo
+  l'iscrizione all'evento, a ogni riconnessione e quando cambia la stanza.
+  Sostituisce l'elenco dei timer attivi, filtrato per pannello; quelli che
+  suonano restano. La chiave dell'elenco nella risposta non è scritta nel
+  contratto: si accettano `timer`, `timers`, `attivi` o un elenco nudo, e una
+  forma diversa va nel log. Se il servizio manca, avviso nel log una volta e
+  restano gli eventi.
+- In diagnostica, sotto Stanza: "Timer e voce di questo pannello:
+  jarvis_cucina", oppure l'avviso "Scegli la stanza per i timer".
 
 ### Pulsante del microfono mai bloccato (v0.4.5, 30/09)
 
@@ -1141,6 +1173,10 @@ se ne scrive una nuova che annulla la precedente.
   audio sveglio) → **mockup** (G, schermo a riposo/AOD con i timer, Hub) →
   **v0.5.0** («Jarvis» sempre in ascolto). Vincolo per lo schermo a riposo:
   non ferma nessun processo (timer, voce, musica).
+- **2026-09-30** — **Il timer suona solo sul pannello da cui è chiesto** (o su
+  quello della stanza detta a voce), e Stop li ferma tutti. Annulla il "con
+  più pannelli suonano tutti" della v0.4.5. Contratto con `jarvis_voce` 0.1.8
+  nella sezione "Timer per pannello".
 
 ## 7. Convenzioni
 

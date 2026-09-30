@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.4.6
+
+Il timer suona solo sul pannello da cui l'hai chiesto.
+
+- Ogni pannello dice a Home Assistant chi è ("jarvis_cucina",
+  "jarvis_camera_da_letto"…), in base alla stanza scelta in diagnostica.
+  Vale per la voce e per la chat.
+- Un timer suona e compare solo sul pannello a cui appartiene: quello da cui
+  l'hai chiesto, oppure quello della stanza che hai detto ("metti un timer in
+  camera da letto").
+- Stop su un pannello ferma anche gli altri che suonano per lo stesso timer.
+- Quando il pannello si ricollega a Home Assistant, rilegge i timer in corso:
+  quelli partiti mentre era scollegato compaiono lo stesso.
+- In diagnostica, sotto "Stanza": con che nome il pannello si presenta ai
+  timer, oppure l'avviso "Scegli la stanza per i timer".
+- Serve `jarvis_voce` 0.1.8 lato server.
+
 ## v0.4.5
 
 Timer che suonano sul pannello, pulsante del microfono mai bloccato, tastiera

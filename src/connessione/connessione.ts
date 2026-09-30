@@ -10,7 +10,8 @@ import {
 } from "home-assistant-js-websocket";
 import { Assistente } from "../assistente/assistente";
 import { PausaMusica } from "../voce/pausa-musica";
-import { stanzaPannello } from "../voce/stanza-pannello";
+import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
+import { dispositivoPannello, proprietarioTimer } from "../timer/pannello";
 import { Voce } from "../voce/voce";
 import { Suoneria } from "../timer/suoneria";
 import { Timer } from "../timer/timer";
@@ -86,6 +87,8 @@ export class Connessione {
     },
     collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
     ascoltaConnessione: (f) => this.ascolta(f),
+    // i timer chiesti a voce o in chat sono di questo pannello (v0.4.6)
+    dispositivo: dispositivoPannello,
   });
   /** Voce "tocca per parlare" (F5): dopo l'assistente, di cui è una faccia. */
   readonly voce = new Voce({
@@ -95,19 +98,28 @@ export class Connessione {
   /** La musica della stanza si ferma mentre Jarvis ascolta e parla (v0.4.4). */
   readonly pausaMusica = new PausaMusica(
     this.voce,
-    (servizio, dati) => this.chiamaMusica(servizio, dati),
+    (servizio, dati) => this.chiamaServizio("jarvis_musica", servizio, dati),
     stanzaPannello,
   );
 
-  /** Timer di jarvis_voce: conto alla rovescia e suoneria (v0.4.5). */
-  readonly timer = new Timer(new Suoneria());
+  /** Timer di jarvis_voce: conto alla rovescia e suoneria, solo quelli di questo pannello (v0.4.6). */
+  readonly timer = new Timer(
+    new Suoneria(),
+    (servizio, dati) => this.chiamaServizio("jarvis_voce", servizio, dati),
+    proprietarioTimer,
+  );
 
   constructor() {
     window.addEventListener("online", this.suRetePresente);
+    // stanza cambiata = device_id cambiato: i timer "miei" sono altri
+    ascoltaStanzaPannello(() => {
+      if (this.info.stato === "connesso") void this.timer.rileggi("stanza cambiata");
+    });
   }
 
-  /** jarvis_musica.<servizio> con la risposta (stato vero di Spotify, vedi home-assistant/README.md). */
-  private async chiamaMusica(
+  /** <dominio>.<servizio> con la risposta: jarvis_musica (stato vero di Spotify) e jarvis_voce (timer). */
+  private async chiamaServizio(
+    dominio: string,
     servizio: string,
     dati: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
@@ -115,7 +127,7 @@ export class Connessione {
     if (!conn || !conn.connected) throw new Error("Home Assistant non collegato");
     const r = await conn.sendMessagePromise<{ response?: Record<string, unknown> }>({
       type: "call_service",
-      domain: "jarvis_musica",
+      domain: dominio,
       service: servizio,
       service_data: dati,
       return_response: true,
@@ -226,6 +238,8 @@ export class Connessione {
     this.segnaConnesso();
     // mentre il pannello era offline aree e dispositivi possono essere cambiati
     if (this.conn) void this.registri.carica(this.conn);
+    // gli eventi dei timer persi mentre si era scollegati: si rilegge l'elenco
+    void this.timer.rileggi("riconnessione");
   };
 
   /** Solo stato dell'interfaccia: NON tocca il segnale della foto completa. */

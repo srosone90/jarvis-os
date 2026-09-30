@@ -2,27 +2,38 @@ import type { Connection } from "home-assistant-js-websocket";
 import { descriviErrore, log } from "../diagnostica/log";
 
 /**
- * Timer di Jarvis (v0.4.5). Li gestisce il server (`jarvis_voce` 0.1.5, lato
- * HA): "metti un timer di 10 minuti per la pasta" crea il timer là, e HA manda
- * l'evento `jarvis_timer` a ogni cambio:
- *   data: {tipo: started|updated|cancelled|finished, id, nome, secondi_totali, secondi_rimasti}
- * Il pannello non decide niente: mostra il conto alla rovescia e, a `finished`,
- * suona e mostra "Timer … finito" finché qualcuno non tocca Stop (o 2 minuti).
- * Con più pannelli l'evento arriva a tutti: suonano tutti.
+ * Timer di Jarvis (v0.4.5, per pannello dalla v0.4.6). Li gestisce il server
+ * (`jarvis_voce` 0.1.8, lato HA): "metti un timer di 10 minuti per la pasta"
+ * crea il timer là, e HA manda l'evento `jarvis_timer` a ogni cambio:
+ *   data: {tipo: started|updated|cancelled|finished|fermato, id, nome,
+ *          secondi_totali, secondi_rimasti, pannello}
+ * `pannello` è il device_id a cui appartiene il timer (vedi pannello.ts): il
+ * pannello mostra e fa suonare SOLO i suoi. Senza `pannello` (server vecchio)
+ * il timer vale per tutti, come nella v0.4.5.
+ * Stop chiama `jarvis_voce.timer_ferma {id}`: il server manda `fermato` a tutti
+ * e ogni pannello che suona per quell'id si ferma.
+ * Alla (ri)connessione `jarvis_voce.timer_attivi` ridà i timer in corso: gli
+ * eventi persi mentre il pannello era scollegato non contano più.
  *
  * Il conto alla rovescia si calcola qui (scadenza = arrivo + secondi_rimasti),
  * ma la fine la decide solo `finished`: un timer arrivato a zero senza
  * `finished` resta "in scadenza" e poi sparisce, senza suonare (può essere
  * stato annullato mentre il pannello era scollegato).
  */
-export type TipoEventoTimer = "started" | "updated" | "cancelled" | "finished";
+export type TipoEventoTimer = "started" | "updated" | "cancelled" | "finished" | "fermato";
 
-export interface EventoTimer {
-  tipo: TipoEventoTimer;
+/** Un timer come lo descrive il server (evento o elenco di `timer_attivi`). */
+export interface DatiTimer {
   id: string;
   nome: string | null;
   secondiTotali: number | null;
   secondiRimasti: number | null;
+  /** device_id proprietario; null = server che non lo dice (vale per tutti). */
+  pannello: string | null;
+}
+
+export interface EventoTimer extends DatiTimer {
+  tipo: TipoEventoTimer;
 }
 
 export interface TimerAttivo {
@@ -45,25 +56,51 @@ export const OLTRE_LO_ZERO_MS = 60_000;
 export const SUONERIA_MASSIMA_MS = 120_000;
 export const EVENTO = "jarvis_timer";
 
-const TIPI: readonly TipoEventoTimer[] = ["started", "updated", "cancelled", "finished"];
+const TIPI: readonly TipoEventoTimer[] = ["started", "updated", "cancelled", "finished", "fermato"];
 
 const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-/** Legge i dati dell'evento; null se non è un evento di timer valido (lo si annota e basta). */
-export function leggiEvento(dati: unknown): EventoTimer | null {
+const testoPieno = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+
+/** Un timer dai dati del server; null se manca l'id. */
+export function leggiTimer(dati: unknown): DatiTimer | null {
   if (typeof dati !== "object" || dati === null) return null;
   const d = dati as Record<string, unknown>;
-  const tipo = TIPI.find((t) => t === d["tipo"]);
   const id = typeof d["id"] === "string" || typeof d["id"] === "number" ? String(d["id"]) : null;
-  if (!tipo || !id) return null;
-  const nome = typeof d["nome"] === "string" && d["nome"].trim() ? d["nome"].trim() : null;
+  if (!id) return null;
   return {
-    tipo,
     id,
-    nome,
+    nome: testoPieno(d["nome"]),
     secondiTotali: numero(d["secondi_totali"]),
     secondiRimasti: numero(d["secondi_rimasti"]),
+    pannello: testoPieno(d["pannello"]),
   };
+}
+
+/** Legge i dati dell'evento; null se non è un evento di timer valido (lo si annota e basta). */
+export function leggiEvento(dati: unknown): EventoTimer | null {
+  const timer = leggiTimer(dati);
+  const tipo = TIPI.find((t) => t === (dati as Record<string, unknown> | null)?.["tipo"]);
+  return timer && tipo ? { ...timer, tipo } : null;
+}
+
+/**
+ * Elenco dalla risposta di `jarvis_voce.timer_attivi`. La chiave esatta non è
+ * ancora scritta nel contratto: si accetta `timer`, `timers` o `attivi`, o la
+ * risposta che è già un elenco. null = forma sconosciuta (va nel log).
+ */
+export function leggiElencoAttivi(risposta: unknown): DatiTimer[] | null {
+  const r = risposta as Record<string, unknown> | null;
+  const elenco = Array.isArray(risposta)
+    ? risposta
+    : [r?.["timer"], r?.["timers"], r?.["attivi"]].find((v) => Array.isArray(v));
+  if (!Array.isArray(elenco)) return null;
+  return elenco.flatMap((t) => leggiTimer(t) ?? []);
+}
+
+/** Il timer appartiene a questo pannello? Senza `pannello` (server vecchio) sì. */
+export function eMio(t: DatiTimer, mio: string): boolean {
+  return t.pannello === null || t.pannello === mio;
 }
 
 /** Elenco dei timer attivi dopo un evento (funzione pura: mai modifica quello vecchio). */
@@ -73,7 +110,7 @@ export function applicaEventoTimer(
   adesso: number,
 ): TimerAttivo[] {
   const altri = attivi.filter((t) => t.id !== ev.id);
-  if (ev.tipo === "cancelled" || ev.tipo === "finished") return altri;
+  if (ev.tipo === "cancelled" || ev.tipo === "finished" || ev.tipo === "fermato") return altri;
   const vecchio = attivi.find((t) => t.id === ev.id);
   const rimasti = ev.secondiRimasti ?? ev.secondiTotali;
   // "updated" senza secondi (es. solo il nome cambiato): si tiene la scadenza di prima
@@ -101,6 +138,12 @@ export function titoloFinito(nome: string | null): string {
   return nome ? `Timer ${nome} finito` : "Timer finito";
 }
 
+/** jarvis_voce.<servizio> con la risposta (return_response). */
+export type ServiziTimer = (
+  servizio: "timer_attivi" | "timer_ferma",
+  dati: Record<string, unknown>,
+) => Promise<unknown>;
+
 /** Suoneria: la implementa l'audio del browser, qui solo quello che serve. */
 export interface Suona {
   avvia(): void;
@@ -114,9 +157,16 @@ export class Timer {
   private timerSuoneria: ReturnType<typeof setTimeout> | undefined;
   private timerPulizia: ReturnType<typeof setInterval> | undefined;
   private readonly ascoltatori = new Set<() => void>();
+  private readonly avvisato = new Set<string>();
 
+  /**
+   * `mio`: device_id con cui il server segna i timer di questo pannello
+   * (`jarvis_<stanza>`, o `jarvis_pannello` senza stanza).
+   */
   constructor(
     private readonly suoneria: Suona,
+    private readonly servizi: ServiziTimer,
+    private readonly mio: () => string,
     private readonly adesso: () => number = Date.now,
   ) {}
 
@@ -146,6 +196,48 @@ export class Timer {
     } catch (errore) {
       log.errore(`Impossibile ascoltare ${EVENTO}: ${descriviErrore(errore)}`);
     }
+    // prima l'iscrizione, poi l'elenco: niente buchi tra i due
+    await this.rileggi("connessione");
+  }
+
+  /**
+   * Rilegge dal server i timer in corso di questo pannello: alla connessione,
+   * a ogni riconnessione e quando cambia la stanza (cambia il device_id).
+   * I timer che stanno suonando restano: li ferma Stop o `fermato`.
+   */
+  async rileggi(motivo: string): Promise<void> {
+    let risposta: unknown;
+    try {
+      risposta = await this.servizi("timer_attivi", {});
+    } catch (errore) {
+      this.avvisaUnaVolta(
+        "rileggi",
+        `Timer: jarvis_voce.timer_attivi non riuscito (${descriviErrore(errore)}): restano quelli arrivati per evento`,
+      );
+      return;
+    }
+    const elenco = leggiElencoAttivi(risposta);
+    if (!elenco) {
+      this.avvisaUnaVolta(
+        "forma",
+        `Timer: risposta di timer_attivi non riconosciuta (${JSON.stringify(risposta)})`,
+      );
+      return;
+    }
+    const mio = this.mio();
+    const ora = this.adesso();
+    this.elenco = elenco
+      .filter((t) => eMio(t, mio))
+      .map((t) => ({
+        id: t.id,
+        nome: t.nome,
+        secondiTotali: t.secondiTotali,
+        scadenza: ora + (t.secondiRimasti ?? t.secondiTotali ?? 0) * 1000,
+      }))
+      .sort((a, b) => a.scadenza - b.scadenza);
+    log.info(`Timer riletti (${motivo}): ${this.elenco.length} di ${mio} su ${elenco.length} in casa`);
+    this.pulisciPoi();
+    this.notifica();
   }
 
   suEvento(dati: unknown): void {
@@ -156,6 +248,15 @@ export class Timer {
     }
     const nome = ev.nome ? `"${ev.nome}"` : ev.id;
     const quanto = ev.secondiRimasti !== null ? ` (${formattaRimasto(ev.secondiRimasti * 1000)})` : "";
+    if (ev.tipo === "fermato") {
+      this.suFermato(ev.id);
+      return;
+    }
+    const mio = this.mio();
+    if (!eMio(ev, mio)) {
+      log.info(`Timer ${nome}: ${ev.tipo} per ${ev.pannello ?? "?"}, non per questo pannello (${mio})`);
+      return;
+    }
     log.info(`Timer ${nome}: ${ev.tipo}${quanto}`);
     const vecchio = this.elenco.find((t) => t.id === ev.id);
     this.elenco = applicaEventoTimer(this.elenco, ev, this.adesso());
@@ -165,15 +266,50 @@ export class Timer {
     this.notifica();
   }
 
-  /** Tocco su Stop (e, con la v0.5.0, "stop"/"basta" a voce): ferma la suoneria per tutti i timer finiti. */
-  ferma(motivo = "Stop toccato"): void {
+  /**
+   * Tocco su Stop (e, con la v0.5.0, "stop"/"basta" a voce): ferma subito la
+   * suoneria qui e chiede al server `timer_ferma` per ogni timer, così si
+   * fermano anche gli altri pannelli che suonano per lo stesso.
+   */
+  ferma(motivo = "Stop toccato", avvisaGliAltri = true): void {
     if (this.finiti.length === 0) return;
+    const ids = this.finiti.map((f) => f.id);
     log.info(`Timer: suoneria ferma (${motivo})`);
     this.finiti = [];
     clearTimeout(this.timerSuoneria);
     this.timerSuoneria = undefined;
     this.suoneria.ferma();
     this.notifica();
+    if (!avvisaGliAltri) return;
+    for (const id of ids)
+      this.servizi("timer_ferma", { id }).catch((errore: unknown) => {
+        log.avviso(`Timer: jarvis_voce.timer_ferma ${id} non riuscito: ${descriviErrore(errore)}`);
+      });
+  }
+
+  /** `fermato`: Stop toccato su un pannello qualsiasi. Si ferma anche qui, se suona per quell'id. */
+  private suFermato(id: string): void {
+    const suonava = this.finiti.some((f) => f.id === id);
+    const attivo = this.elenco.some((t) => t.id === id);
+    if (!suonava && !attivo) return;
+    this.elenco = this.elenco.filter((t) => t.id !== id);
+    if (suonava) {
+      this.finiti = this.finiti.filter((f) => f.id !== id);
+      log.info(`Timer ${id}: fermato da un pannello`);
+      if (this.finiti.length === 0) {
+        clearTimeout(this.timerSuoneria);
+        this.timerSuoneria = undefined;
+        this.suoneria.ferma();
+      }
+    }
+    this.pulisciPoi();
+    this.notifica();
+  }
+
+  private avvisaUnaVolta(chiave: string, testo: string): void {
+    if (this.avvisato.has(chiave)) return;
+    this.avvisato.add(chiave);
+    log.avviso(testo);
   }
 
   private suona(f: TimerFinito): void {
@@ -182,7 +318,8 @@ export class Timer {
     // ogni timer finito riporta i 2 minuti da capo
     clearTimeout(this.timerSuoneria);
     this.timerSuoneria = setTimeout(
-      () => this.ferma(`nessuno l'ha fermata in ${SUONERIA_MASSIMA_MS / 60_000} minuti`),
+      // solo qui: gli altri pannelli hanno i loro 2 minuti
+      () => this.ferma(`nessuno l'ha fermata in ${SUONERIA_MASSIMA_MS / 60_000} minuti`, false),
       SUONERIA_MASSIMA_MS,
     );
   }
