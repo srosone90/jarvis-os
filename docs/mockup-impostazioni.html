@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Jarvis OS — mockup impostazioni del pannello (fase G)</title>
+<!--
+  Mockup statico: ?foglio=S1|S2|S3. Playwright ne fa le immagini (schermate/mockup/).
+  Contenuti: solo impostazioni che esistono già o sono decise (stanza, modalità, riposo,
+  origine veloce, audio sveglio, voce e «Jarvis», timer, aggiornamenti, diagnostica).
+-->
+<style>
+  :root { --accent:#5b8def; --bg:#0d0f13; --surface:#171a21; --surface-2:#1f232c; --text:#eef1f6; --muted:#9aa3b2; --warn:#f0a33a; --ok:#3ecf7a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:#05060a; color:var(--text); font-family:system-ui,Roboto,sans-serif; }
+  .foglio { padding:24px; display:flex; flex-direction:column; gap:16px; width:max-content; }
+  .foglio > h1 { margin:0; font-size:28px; }
+  .foglio > p { margin:0; color:var(--muted); font-size:17px; max-width:1760px; line-height:1.45; }
+  .riga { display:flex; gap:18px; align-items:flex-start; }
+  .cella { display:flex; flex-direction:column; gap:6px; }
+  .cella b { font-size:16px; } .cella small { color:var(--muted); font-size:14px; max-width:520px; line-height:1.35; }
+  .cornice { border:6px solid #000; border-radius:14px; overflow:hidden; }
+  .scala { transform-origin:0 0; }
+  .schermo { position:relative; overflow:hidden; background:var(--bg); }
+  .tablet { width:1024px; height:600px; } .telo { width:915px; height:412px; }
+  .icona { width:26px; height:26px; fill:currentColor; flex:none; }
+  /* comuni */
+  .testa { display:flex; align-items:center; gap:14px; padding:16px 22px; border-bottom:1px solid #20242d; }
+  .testa h2 { margin:0; font-size:24px; flex:1; }
+  .tondo { width:48px; height:48px; border-radius:50%; background:var(--surface-2); display:grid; place-items:center; }
+  .voce { display:flex; align-items:center; gap:14px; padding:14px 18px; border-bottom:1px solid #1c2029; font-size:19px; }
+  .voce .icona { color:var(--accent); }
+  .voce div { flex:1; } .voce small { display:block; color:var(--muted); font-size:15px; margin-top:3px; }
+  .val { color:var(--muted); font-size:17px; }
+  .inter { width:52px; height:30px; border-radius:15px; background:var(--accent); position:relative; flex:none; }
+  .inter::after { content:""; position:absolute; right:3px; top:3px; width:24px; height:24px; border-radius:50%; background:#fff; }
+  .inter.off { background:#3a404c; } .inter.off::after { right:auto; left:3px; }
+  .avviso { margin:12px 18px; padding:12px 16px; border-radius:12px; background:#2a1f0c; border:1px solid #6b4a14; color:#ffd9a0; font-size:16px; }
+  .pulsante { display:inline-block; padding:12px 20px; border-radius:12px; background:var(--accent); color:#0d0f13; font-weight:600; font-size:17px; }
+  .pulsante.sec { background:var(--surface-2); color:var(--text); font-weight:500; }
+  /* S1: elenco a sezioni */
+  .s1 { display:grid; grid-template-columns:300px 1fr; height:100%; }
+  .s1 nav { background:#10131a; border-right:1px solid #20242d; padding:10px 0; overflow:hidden; }
+  .s1 nav div { display:flex; gap:12px; align-items:center; padding:13px 20px; font-size:18px; color:#c9d0dc; }
+  .s1 nav div.sel { background:#1c2640; color:#fff; border-left:4px solid var(--accent); padding-left:16px; }
+  .s1 nav .icona { width:24px; height:24px; color:var(--muted); } .s1 nav .sel .icona { color:var(--accent); }
+  .s1 main { overflow:hidden; }
+  /* S2: schede */
+  .s2 .griglia { display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; padding:18px 22px; }
+  .scheda { background:var(--surface); border:1px solid #232834; border-radius:18px; padding:16px; display:flex; flex-direction:column; gap:8px; min-height:132px; }
+  .scheda .icona { width:34px; height:34px; color:var(--accent); }
+  .scheda b { font-size:19px; } .scheda span { color:var(--muted); font-size:15px; line-height:1.3; }
+  .scheda.att { border-color:#6b4a14; background:#1e170b; } .scheda.att .icona { color:var(--warn); }
+  /* S3: guidata */
+  .passi { display:flex; gap:8px; padding:14px 22px; }
+  .passi i { flex:1; height:6px; border-radius:3px; background:#2b303a; } .passi i.fatto { background:var(--accent); }
+  .domanda { padding:10px 40px; } .domanda h3 { font-size:32px; margin:6px 0 6px; font-weight:500; } .domanda p { color:var(--muted); font-size:18px; margin:0 0 20px; }
+  .scelte { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px; }
+  .scelta { padding:22px; border-radius:18px; background:var(--surface); border:2px solid #232834; font-size:22px; display:flex; gap:12px; align-items:center; }
+  .scelta.sel { border-color:var(--accent); background:#18223a; }
+  .fondo { position:absolute; left:40px; right:40px; bottom:24px; display:flex; justify-content:space-between; }
+</style>
+</head>
+<body><div id="radice"></div>
+<script>
+const P = {
+  stanza:"M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z",
+  vista:"M3,11H11V3H3M3,21H11V13H3M13,21H21V13H13M13,3V11H21V3",
+  riposo:"M17.75,4.09L15.22,6.03L16.13,9.09L13.5,7.28L10.87,9.09L11.78,6.03L9.25,4.09L12.44,4L13.5,1L14.56,4L17.75,4.09M18.97,15.95C19.8,15.87 20.69,17.05 20.16,17.8C19.84,18.25 19.5,18.67 19.08,19.07C15.17,23 8.84,23 4.94,19.07C1.03,15.17 1.03,8.83 4.94,4.93C5.34,4.53 5.76,4.17 6.21,3.85C6.96,3.32 8.14,4.21 8.06,5.04C7.79,7.9 8.75,10.87 10.95,13.06C13.14,15.26 16.1,16.22 18.97,15.95Z",
+  mic:"M12,2A3,3 0 0,1 15,5V11A3,3 0 0,1 12,14A3,3 0 0,1 9,11V5A3,3 0 0,1 12,2M19,11C19,14.53 16.39,17.44 13,17.93V21H11V17.93C7.61,17.44 5,14.53 5,11H7A5,5 0 0,0 12,16A5,5 0 0,0 17,11H19Z",
+  timer:"M12,20A7,7 0 0,1 5,13A7,7 0 0,1 12,6A7,7 0 0,1 19,13A7,7 0 0,1 12,20M19.03,7.39L20.45,5.97C20,5.46 19.55,5 19.04,4.56L17.62,6C16.07,4.74 14.12,4 12,4A9,9 0 0,0 3,13A9,9 0 0,0 12,22C17,22 21,17.97 21,13C21,10.88 20.26,8.93 19.03,7.39M11,14H13V8H11M15,1H9V3H15V1Z",
+  audio:"M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.84 14,18.7V20.77C18,19.86 21,16.28 21,12C21,7.72 18,4.14 14,3.23M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16C15.5,15.29 16.5,13.76 16.5,12M3,9V15H7L12,20V4L7,9H3Z",
+  rete:"M12,21L15.6,16.2C14.6,15.45 13.35,15 12,15C10.65,15 9.4,15.45 8.4,16.2L12,21M12,3C7.95,3 4.21,4.34 1.2,6.6L3,9C5.5,7.12 8.62,6 12,6C15.38,6 18.5,7.12 21,9L22.8,6.6C19.79,4.34 16.05,3 12,3M12,9C9.3,9 6.81,9.89 4.8,11.4L6.6,13.8C8.1,12.67 9.97,12 12,12C14.03,12 15.9,12.67 17.4,13.8L19.2,11.4C17.19,9.89 14.7,9 12,9Z",
+  agg:"M21,10.12H14.22L16.96,7.3C14.23,4.6 9.81,4.5 7.08,7.2C4.35,9.91 4.35,14.28 7.08,17C9.81,19.7 14.23,19.7 16.96,17C18.32,15.65 19,14.08 19,12.1H21C21,14.08 20.12,16.65 18.36,18.39C14.85,21.87 9.15,21.87 5.64,18.39C2.14,14.92 2.11,9.28 5.62,5.81C9.13,2.34 14.76,2.34 18.27,5.81L21,3V10.12Z",
+  diag:"M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z",
+  chiudi:"M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z",
+  indietro:"M20,11V13H8L13.5,18.5L12.08,19.92L4.16,12L12.08,4.08L13.5,5.5L8,11H20Z",
+};
+const ic = (p) => `<svg class="icona" viewBox="0 0 24 24"><path d="${P[p]}"/></svg>`;
+const SEZ = [
+  ["stanza","Stanza e nome","Cucina · jarvis_cucina"],
+  ["vista","Vista","parte in: Riposo con la sfera"],
+  ["riposo","Riposo e notte","dopo 2 min · notte 23:00–7:00"],
+  ["mic","Voce e «Jarvis»","sempre in ascolto · pronuncia: 2 persone"],
+  ["timer","Timer","suoneria · 2 minuti"],
+  ["audio","Audio","audio sveglio acceso · volume bip"],
+  ["rete","Collegamento","veloce · riserva pronta"],
+  ["agg","Aggiornamenti","0.4.6 · al riavvio delle 04:00"],
+  ["diag","Diagnostica","log, latenza, versione sul server"],
+];
+const inter = (on) => `<span class="inter ${on ? "" : "off"}"></span>`;
+function dettaglioVoce(comp) {
+  const r = (i,t,s,v) => `<div class="voce">${ic(i)}<div>${t}${s ? `<small>${s}</small>` : ""}</div>${v}</div>`;
+  return [
+    r("mic","«Jarvis» sempre in ascolto","la parola vale anche dentro la frase («buongiorno Jarvis»)",inter(true)),
+    r("mic","Insegna a Jarvis la tua pronuncia","2 persone registrate · 61 esempi",`<span class="pulsante sec">Apri</span>`),
+    r("mic","Sensibilità","più alta = risponde anche da lontano, più falsi allarmi",`<span class="val">Media</span>`),
+    comp ? "" : r("audio","Bip di apertura e chiusura","",inter(true)),
+    comp ? "" : r("diag","Misure della parola","serie, falsi positivi, «Copia i risultati»",`<span class="pulsante sec">Apri</span>`),
+  ].join("");
+}
+
+/* ---------------- S1 ---------------- */
+function s1(dim, pag) {
+  const tel = dim === "telo";
+  const nav = SEZ.map(([i,t], k) => `<div class="${(pag === "voce" ? k === 3 : k === 0) ? "sel" : ""}">${ic(i)}${t}</div>`).join("");
+  let main = "";
+  if (pag === "voce") main = `<div class="testa"><h2>Voce e «Jarvis»</h2><span class="tondo">${ic("chiudi")}</span></div>${dettaglioVoce(tel)}`;
+  else main = `<div class="testa"><h2>Stanza e nome</h2><span class="tondo">${ic("chiudi")}</span></div>
+    <div class="voce">${ic("stanza")}<div>Stanza di questo pannello<small>serve a timer, musica e «spegni la TV» di questa stanza</small></div><span class="pulsante sec">Cucina ▾</span></div>
+    <div class="voce">${ic("stanza")}<div>Nome per i timer<small>chi è questo pannello per Home Assistant</small></div><span class="val">jarvis_cucina</span></div>
+    <div class="voce">${ic("vista")}<div>Tipo di dispositivo<small>tablet a muro, telefono-hub, telefono personale</small></div><span class="val">Tablet a muro</span></div>
+    ${tel ? "" : `<div class="avviso">Le impostazioni valgono solo per questo dispositivo. Quelle della casa (stanze, dispositivi) si cambiano in Home Assistant.</div>`}`;
+  return `<div class="schermo ${dim}"><div class="s1" style="${tel ? "grid-template-columns:250px 1fr" : ""}"><nav style="${tel ? "padding:0" : ""}">${tel ? nav.replace(/padding:13px/g,"") : nav}</nav><main>${main}</main></div></div>`
+    .replace(tel ? /<div class="(sel)?">/g : /$^/, (m) => m.replace("<div", `<div style="padding:7px 16px;font-size:16px"`));
+}
+
+/* ---------------- S2 ---------------- */
+function s2(dim, pag) {
+  const tel = dim === "telo";
+  if (pag === "voce")
+    return `<div class="schermo ${dim}"><div class="testa"><span class="tondo">${ic("indietro")}</span><h2>Voce e «Jarvis»</h2></div>${dettaglioVoce(tel)}</div>`;
+  const schede = SEZ.map(([i,t,s], k) => `<div class="scheda ${k === 1 && false ? "att" : ""}" style="${tel ? "min-height:88px;padding:10px 12px;gap:4px" : ""}">${ic(i)}<b style="${tel ? "font-size:16px" : ""}">${t}</b>${tel ? "" : `<span>${s}</span>`}</div>`).join("");
+  return `<div class="schermo ${dim} s2"><div class="testa" style="${tel ? "padding:8px 18px" : ""}"><h2>Impostazioni del pannello</h2><span class="val">Cucina · 0.4.6</span><span class="tondo">${ic("chiudi")}</span></div>
+    <div class="griglia" style="${tel ? "grid-template-columns:repeat(5,1fr);gap:10px;padding:12px 18px" : ""}">${schede}</div></div>`;
+}
+
+/* ---------------- S3 ---------------- */
+function s3(dim, pag) {
+  const tel = dim === "telo";
+  if (pag === "voce") {
+    // passo 3 di 5 della procedura guidata
+    return `<div class="schermo ${dim}"><div class="passi"><i class="fatto"></i><i class="fatto"></i><i class="fatto"></i><i></i><i></i></div>
+      <div class="domanda" style="${tel ? "padding:0 30px" : ""}"><h3 style="${tel ? "font-size:26px;margin:0 0 4px" : ""}">Vuoi parlare con Jarvis senza toccare?</h3><p style="${tel ? "margin-bottom:12px;font-size:16px" : ""}">Con «Jarvis» sempre in ascolto il microfono resta aperto; l'indicatore si vede sempre. Puoi cambiarlo quando vuoi.</p>
+      <div class="scelte" style="${tel ? "grid-template-columns:repeat(3,1fr);gap:10px" : ""}"><div class="scelta sel" style="${tel ? "font-size:18px;padding:14px" : ""}">${ic("mic")}Sì, sempre in ascolto</div><div class="scelta" style="${tel ? "font-size:18px;padding:14px" : ""}">${ic("mic")}Solo tocca per parlare</div><div class="scelta" style="${tel ? "font-size:18px;padding:14px" : ""}">${ic("mic")}Decido dopo</div></div></div>
+      <div class="fondo" style="${tel ? "bottom:14px" : ""}"><span class="pulsante sec">Indietro</span><span class="pulsante">Avanti: insegna la pronuncia</span></div></div>`;
+  }
+  // primo passo, per una casa nuova
+  const stanze = ["Cucina","Soggiorno","Camera da letto","Veranda","Bagno","Studio"];
+  return `<div class="schermo ${dim}"><div class="passi"><i class="fatto"></i><i></i><i></i><i></i><i></i></div>
+    <div class="domanda" style="${tel ? "padding:0 30px" : ""}"><h3 style="${tel ? "font-size:26px;margin:0 0 4px" : ""}">In che stanza sta questo pannello?</h3><p style="${tel ? "margin-bottom:12px;font-size:16px" : ""}">Le stanze arrivano da Home Assistant. Serve a timer, musica e comandi «di questa stanza».</p>
+    <div class="scelte" style="${tel ? "grid-template-columns:repeat(3,1fr);gap:10px" : ""}">${stanze.map((s,k) => `<div class="scelta ${k ? "" : "sel"}" style="${tel ? "font-size:18px;padding:12px" : ""}">${ic("stanza")}${s}</div>`).join("")}</div></div>
+    <div class="fondo" style="${tel ? "bottom:14px" : ""}"><span class="pulsante sec">Salta</span><span class="pulsante">Avanti</span></div></div>`;
+}
+
+function cella(t, n, html, sc) {
+  const tel = html.includes("telo"); const w = (tel ? 915 : 1024) * sc, h = (tel ? 412 : 600) * sc;
+  return `<div class="cella"><b>${t}</b><div class="cornice" style="width:${w+12}px;height:${h+12}px"><div class="scala" style="transform:scale(${sc})">${html}</div></div>${n ? `<small>${n}</small>` : ""}</div>`;
+}
+function foglio(titolo, descr, f, n1, n2) {
+  const s = 0.55, st = 0.6;
+  return `<div class="foglio"><h1>${titolo}</h1><p>${descr}</p>
+    <div class="riga">${cella("Tablet · principale", n1, f("tablet","home"), s)}${cella("Tablet · dettaglio «Voce e Jarvis»", n2, f("tablet","voce"), s)}</div>
+    <div class="riga">${cella("Telefono orizzontale · principale", "", f("telo","home"), st)}${cella("Telefono orizzontale · dettaglio", "", f("telo","voce"), st)}</div></div>`;
+}
+const q = new URLSearchParams(location.search).get("foglio") ?? "S1";
+document.getElementById("radice").innerHTML = {
+  S1: () => foglio("Impostazioni — S1: elenco a sezioni", "Come le impostazioni di Android: sezioni a sinistra, contenuto a destra. Tutto in vista, si trova subito cosa cambiare. La diagnostica di oggi diventa una sezione.", s1, "a sinistra sempre tutte le sezioni", "stesso schema per ogni sezione"),
+  S2: () => foglio("Impostazioni — S2: schede grandi", "Una griglia di schede da toccare, ognuna apre la sua pagina. Più adatta al dito e a chi la usa di rado; un tocco in più per arrivare.", s2, "ogni scheda dice lo stato in breve", "si torna indietro con la freccia o con Indietro di Android"),
+  S3: () => foglio("Impostazioni — S3: procedura guidata al primo avvio", "Pensata per le altre case: al primo avvio poche domande, una per schermata (stanza, vista, voce, pronuncia, prova). Dopo, le impostazioni restano come S1 o S2.", s3, "passo 1 di 5, per una casa nuova", "passo 3 di 5"),
+}[q]();
+</script></body></html>
