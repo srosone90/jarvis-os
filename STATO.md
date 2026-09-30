@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.5 pubblicata (timer, pulsante mai bloccato, tastiera, audio sveglio); sha256 sotto appena la release è verificata._
+_Ultimo aggiornamento: 30/09/2026 — v0.4.5 pubblicata e verificata (timer, pulsante mai bloccato, tastiera, audio sveglio)._
 
 ## Adesso
 
@@ -43,7 +43,7 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.5 pubblicata (timer, pulsante mai blo
 |---|---|
 | Versione | **v0.4.5**: timer che suonano, pulsante mai bloccato, tastiera della chat, audio sveglio |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.5 |
-| sha256 dello zip | _in arrivo: lo scrivo qui appena scaricato e verificato_ |
+| sha256 dello zip | `fc96409024f1cefc301aa937141cf0c256f6859013c452922141a60154ce2edb` (6,8 MB, service worker 0.4.5, verificati) |
 | Precedente | v0.4.4, sha256 `e79a64fa…8b`, installata il 30/09 |
 
 ## Da installare lato server: v0.4.5
