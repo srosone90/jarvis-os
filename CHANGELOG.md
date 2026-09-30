@@ -1,5 +1,23 @@
 # Changelog
 
+## v0.4.2
+
+Link veloce automatico, con il link di sempre come riserva.
+
+- Si continua ad aprire solo `https://casa.tail8392c1.ts.net/local/jarvis/index.html`.
+  All'avvio il pannello prova per 1,5 s l'indirizzo veloce
+  (`https://jarvis-rosone.duckdns.org:8443`) e, se risponde, ci passa da solo
+  con la stessa pagina. Se non risponde resta dov'è e funziona come prima:
+  niente attese, niente pagina bianca.
+- Lo stesso per la pagina di prova "Ehi Jarvis", che ora si apre veloce anche
+  dal link di sempre.
+- Sull'indirizzo veloce il login si fa una volta ("Accedi").
+- Un solo passaggio per sessione, niente giri avanti e indietro.
+- Se sull'indirizzo veloce Home Assistant manca da 30 s e il link di riserva
+  risponde, il banner propone "Torna al link di riserva".
+- Ogni indirizzo ha la sua cache offline.
+- Diagnostica: nuova riga "Origine in uso" (veloce / di riserva), con il motivo.
+
 ## v0.4.1
 
 Prova di fattibilità di "Ehi Jarvis" (non è ancora la funzione).

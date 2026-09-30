@@ -1,5 +1,6 @@
-import { css, html, type TemplateResult } from "lit";
+import { css, html, nothing, type TemplateResult } from "lit";
 import { SOGLIA_OFFLINE_MS } from "../connessione/connessione";
+import { ascoltaOrigine, statoOrigine, tornaAllaRiserva } from "../pwa/origine";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 
 const TESTO_STATO = {
@@ -55,16 +56,46 @@ export class JarvisConnessione extends RiquadroSicuro {
         font-size: 16px;
         text-align: center;
       }
+      .ritorno {
+        margin-top: 8px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 8px 12px;
+      }
+      .ritorno button {
+        min-height: 48px;
+        padding: 0 16px;
+        border-radius: 12px;
+        border: 1px solid var(--avviso);
+        background: var(--sfondo);
+        color: var(--testo);
+        font: inherit;
+        cursor: pointer;
+      }
     `,
   ];
 
   static override properties = { parte: { type: String } };
   declare parte: "pallino" | "banner";
   private readonly stato = new OsservaConnessione(this);
+  private smettiOrigine: (() => void) | null = null;
 
   constructor() {
     super();
     this.parte = "pallino";
+  }
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    this.smettiOrigine = ascoltaOrigine(() => this.requestUpdate());
+  }
+
+  override disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this.smettiOrigine?.();
+    this.smettiOrigine = null;
   }
 
   protected disegna(): TemplateResult {
@@ -77,6 +108,14 @@ export class JarvisConnessione extends RiquadroSicuro {
           : SOGLIA_OFFLINE_MS / 1000;
       return html`<div class="banner" data-test="banner" role="alert">
         Home Assistant non raggiungibile da ${secondi} s · valori non aggiornati · riprovo da solo
+        ${
+          statoOrigine().riservaDisponibile
+            ? html`<div class="ritorno" data-test="proposta-riserva">
+                <span>Il link di riserva risponde (più lento).</span>
+                <button @click=${() => tornaAllaRiserva()}>Torna al link di riserva</button>
+              </div>`
+            : nothing
+        }
       </div>`;
     }
     const classe = info.stato === "connesso" ? "" : offline ? "offline" : "attesa";

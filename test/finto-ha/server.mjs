@@ -26,6 +26,10 @@
  *                                (nessuna parola), &tts=streaming (risposta locale: run-end
  *                                solo dopo che l'audio è stato scaricato), &continua=N (le
  *                                prossime N risposte chiedono un seguito)
+ *   /__prova/veloce?stato=       su | giu | lenta: l'"origine veloce" delle prove, cioè le
+ *                                richieste arrivate come 127.0.0.1 (l'origine di riserva è
+ *                                localhost). giu = connessione chiusa (app Tailscale spenta),
+ *                                lenta = 3 s di attesa su ogni richiesta HTTP
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -168,6 +172,7 @@ function reset() {
     latenza: 0,
     tokenValidi: true,
     nuovaVersione: false,
+    veloce: "su",
     registri: registriIniziali(),
     rifiuta: new Set(), // "dominio.servizio" che HA rifiuta
     muti: new Set(), // entity_id che non cambiano stato dopo un comando
@@ -189,6 +194,9 @@ function reset() {
     richiesteAssistente: [],
     disiscrizioniPipeline: 0,
     generazioneToken: 1,
+    // Come HA vero: ogni login crea il suo refresh token, e restano validi tutti
+    // (un login per origine: riserva e veloce convivono)
+    generazioniValide: new Set(),
     info: { connessioni: 0, login: 0, rinnovi: 0, richieste: {} },
   };
 }
@@ -558,6 +566,10 @@ function json(res, codice, corpo) {
   res.end(JSON.stringify(corpo));
 }
 
+/** Le due origini delle prove: localhost = riserva, 127.0.0.1 = veloce. */
+const RISERVA = `http://localhost:${PORTA}`;
+const daVeloce = (req) => (req.headers.host ?? "").startsWith("127.0.0.1");
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
@@ -582,7 +594,10 @@ const server = createServer(async (req, res) => {
       for (const c of clienti) c.ws.terminate();
     } else if (comando === "accendi") stato.acceso = true;
     else if (comando === "latenza") stato.latenza = Number(url.searchParams.get("ms") ?? 0);
-    else if (comando === "rifiuta") stato.rifiuta.add(url.searchParams.get("servizio"));
+    else if (comando === "veloce") {
+      stato.veloce = url.searchParams.get("stato") ?? "su";
+      if (stato.veloce === "giu") for (const c of clienti) if (c.veloce) c.ws.terminate();
+    } else if (comando === "rifiuta") stato.rifiuta.add(url.searchParams.get("servizio"));
     else if (comando === "muto") stato.muti.add(url.searchParams.get("entity_id"));
     else if (comando === "assistente") {
       const q = url.searchParams;
@@ -623,6 +638,7 @@ const server = createServer(async (req, res) => {
       trasmettiEntita({ r: [id] });
     } else if (comando === "revoca") {
       stato.tokenValidi = false;
+      stato.generazioniValide.clear();
       for (const c of clienti) c.ws.terminate();
     } else if (comando === "nuova-versione") stato.nuovaVersione = true;
     else if (comando === "reset") {
@@ -632,6 +648,11 @@ const server = createServer(async (req, res) => {
     return json(res, 200, { ok: true });
   }
 
+  // Origine veloce delle prove (127.0.0.1): può sparire o rallentare
+  if (daVeloce(req)) {
+    if (stato.veloce === "giu") return req.socket.destroy();
+    if (stato.veloce === "lenta") await new Promise((r) => setTimeout(r, 3000));
+  }
   await ritardo();
 
   // Audio della TTS: come HA, senza login (il token nell'URL basta)
@@ -669,6 +690,7 @@ const server = createServer(async (req, res) => {
     if (tipo === "authorization_code") {
       stato.tokenValidi = true;
       stato.generazioneToken++;
+      stato.generazioniValide.add(stato.generazioneToken);
       return json(res, 200, {
         access_token: `accesso-${stato.generazioneToken}`,
         token_type: "Bearer",
@@ -678,9 +700,11 @@ const server = createServer(async (req, res) => {
     }
     if (tipo === "refresh_token") {
       stato.info.rinnovi++;
-      if (!stato.tokenValidi) return json(res, 400, { error: "invalid_grant" });
+      const n = Number(/name="refresh_token"\r\n\r\nrinnovo-(\d+)/.exec(corpo)?.[1]);
+      if (!stato.tokenValidi || !stato.generazioniValide.has(n))
+        return json(res, 400, { error: "invalid_grant" });
       return json(res, 200, {
-        access_token: `accesso-${stato.generazioneToken}`,
+        access_token: `accesso-${n}`,
         token_type: "Bearer",
         expires_in: 1800,
       });
@@ -702,10 +726,13 @@ const server = createServer(async (req, res) => {
       res.writeHead(404);
       return res.end("non trovato");
     }
-    // Come HA: i file di /local/ hanno una cache HTTP di un mese
+    // Come HA: i file di /local/ hanno una cache HTTP di un mese. Come l'nginx
+    // dell'origine veloce: CORS permesso solo all'origine di riserva.
     res.writeHead(200, {
       "content-type": TIPI[extname(file)] ?? "application/octet-stream",
       "cache-control": "public, max-age=2678400",
+      ...(req.headers.origin === RISERVA ? { "access-control-allow-origin": RISERVA } : {}),
+      vary: "Origin",
     });
     const contenuto = readFileSync(file);
     if (rel === "sw.js" && stato.nuovaVersione) return res.end(`${contenuto}\n// versione nuova\n`);
@@ -719,15 +746,16 @@ const server = createServer(async (req, res) => {
 const wss = new WebSocketServer({ noServer: true });
 
 server.on("upgrade", (req, socket, testa) => {
-  if (!req.url.startsWith("/api/websocket") || !stato.acceso) {
+  if (!req.url.startsWith("/api/websocket") || !stato.acceso || (daVeloce(req) && stato.veloce === "giu")) {
     socket.destroy();
     return;
   }
-  wss.handleUpgrade(req, socket, testa, (ws) => gestisci(ws));
+  wss.handleUpgrade(req, socket, testa, (ws) => gestisci(ws, daVeloce(req)));
 });
 
-function gestisci(ws) {
+function gestisci(ws, veloce) {
   const cliente = {
+    veloce,
     ws,
     autenticato: false,
     abbonamentiEventi: new Map(),
@@ -758,7 +786,8 @@ function gestisci(ws) {
     await ritardo();
     if (!cliente.autenticato) {
       if (msg.type !== "auth") return;
-      const valido = stato.tokenValidi && msg.access_token === `accesso-${stato.generazioneToken}`;
+      const n = Number(/^accesso-(\d+)$/.exec(String(msg.access_token))?.[1]);
+      const valido = stato.tokenValidi && stato.generazioniValide.has(n);
       if (!valido) {
         await invia(cliente, { type: "auth_invalid", message: "Invalid access token" });
         ws.close();

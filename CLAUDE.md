@@ -30,7 +30,8 @@ Tre indirizzi, stessa istanza:
 |---|---|
 | `http://192.168.1.250:8123` | LAN, ~20 ms |
 | `http://casa-veloce.tail8392c1.ts.net:8123` (`100.113.206.56`) | Tailscale, veloce, HTTP |
-| `https://casa.tail8392c1.ts.net` | Tailscale **HTTPS**, certificato valido; lenta solo l'**apertura** di una connessione (proxy dentro proot) |
+| `https://casa.tail8392c1.ts.net` | Tailscale **HTTPS**, certificato valido. **Origine di riserva**: lentissima sui dati (~30 KB/s, misurato il 30/09), ma sempre su |
+| `https://jarvis-rosone.duckdns.org:8443` | **Origine veloce** (dal 30/09): nginx nativo in Termux + DuckDNS + Let's Encrypt, sull'app Tailscale di Android. 14 MB in ~1 s; sparisce se l'app Tailscale si spegne |
 
 Misure dal vivo sull'HTTPS (29/09, 6 connessioni WebSocket dal browser):
 **apertura di una connessione nuova 665–905 ms** (handshake TLS nel proxy),
@@ -43,6 +44,41 @@ apertura della libreria è 10 s, ampio).
 Il microfono funziona solo in HTTPS, quindi il tablet usa
 `https://casa.tail8392c1.ts.net/local/jarvis/index.html`. Da qui discendono il
 bundle di pochi file e la cache completa nel service worker.
+
+**Due origini (v0.4.2).** Il 30/09 la sessione server ha misurato il link https
+sui dati: ~30 KB/s (1,3 MB in 36 s; il wasm da 14 MB non finisce in 100 s), e
+l'app Tailscale di Android non può rilasciare certificati (ACME disattivato,
+issue tailscale #18245). Ha quindi creato l'origine veloce con nginx (HTTP/2,
+WebSocket, `proxy_buffering off`, CORS su `/local/jarvis/*` solo per
+`https://casa.tail8392c1.ts.net`). **Decisione di Salvatore: si apre sempre e
+solo il link vecchio**, niente link nuovi da ricordare. Quindi:
+
+- all'avvio, **solo se** la pagina viene dalla riserva, `src/pwa/origine.ts`
+  chiede `sw.js` (c'è sempre nello zip, accanto alla pagina) all'origine veloce,
+  `cache: 'no-store'`, `mode: 'cors'`, con 1,5 s di tempo; se risponde `ok` →
+  `location.replace()` alla stessa pagina (percorso, parametri, frammento). La
+  prova parte in parallelo all'avvio: niente attesa, mai pagina bianca;
+- vale per il pannello e per `prova-ehi-jarvis.html`;
+- **al massimo un passaggio per sessione** (`sessionStorage` della riserva);
+  la veloce non rimanda mai alla riserva da sola. Se sulla veloce HA manca da
+  30 s (non per un login da fare) e la riserva risponde (`no-cors`: la riserva
+  non manda CORS), il banner propone "Torna al link di riserva", che apre la
+  riserva con `?origine=riserva` (tolto appena arrivati): lì non si riparte;
+- tornando dal login (`?auth_callback`) la veloce non si prova: il codice del
+  login vale solo sull'origine dove è stato fatto;
+- ogni origine ha **il suo login** (la prima volta sulla veloce si tocca
+  "Accedi"), il suo service worker e la sua cache;
+- diagnostica: riga "Origine in uso" (veloce / di riserva / altra + motivo);
+  nella prova "Ehi Jarvis" la riga "Indirizzo" dei risultati;
+- origini in `ORIGINI` di `src/configurazione.ts`: **costante ora, preferenza
+  nella fase G** (multi-casa). Le prove le sostituiscono con
+  `window.__JARVIS_ORIGINI__` (localhost = riserva, 127.0.0.1 = veloce, stesso
+  finto HA: `/__prova/veloce?stato=su|giu|lenta`).
+
+Effetto da sapere: se il pannello è **installato come app** dalla riserva,
+dopo il passaggio Chrome può mostrare in alto una barra sottile con
+l'indirizzo, perché la veloce è fuori dall'app installata. In un browser kiosk
+non succede.
 
 **Come HA serve `/local/`** (verificato nel codice di HA,
 `components/http/static.py`): niente indice di cartella, quindi `/local/jarvis/`
@@ -94,6 +130,7 @@ In casa **non ci sono luci smart**.
 | `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
 | `docs/proposta-multicasa.md` | Proposta per le altre case: HACS, stima, esigenze da servizio, cosa progettare subito nella fase G |
 | `docs/mockup-f5.html` | Mockup della voce (F5) |
+| `test/e2e/origine.spec.ts`, `test/unit/origine.test.ts` | Origine veloce e di riserva: passaggio, niente giri, timeout, offline, login, ritorno proposto |
 | `test/e2e/prova-ehi-jarvis.spec.ts` | Pagina della prova: si apre col service worker installato, modello, frame, privacy, serie |
 | `test/unit/parola.test.ts` | Memoria circolare; rilevatore coi modelli veri |
 | `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, offline |
@@ -758,6 +795,12 @@ se ne scrive una nuova che annulla la precedente.
   tutti i dispositivi, la modalità predefinita salvata sul dispositivo e il
   ritorno automatico all'Hub dopo ~90 s. Dettagli nella sezione 5. Annulla
   l'ordine F3 → F4 → F5 → F6 → Hub scritto poche ore prima.
+- **2026-09-30** — **Si apre sempre e solo il link vecchio**
+  (`https://casa.tail8392c1.ts.net`), che passa da solo all'origine veloce
+  (`https://jarvis-rosone.duckdns.org:8443`) quando risponde, con ripiego
+  obbligatorio sulla riserva: l'app Tailscale di Android può spegnersi (è
+  successo la notte del 30/09 alle 02:19) ed è l'unico pezzo fuori dal
+  guardiano. Dettagli nella sezione 2, "Due origini".
 
 ## 7. Convenzioni
 
@@ -894,6 +937,11 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **Il finto HA accettava un solo login alla volta.** Valeva solo l'ultimo
+  token rilasciato: con due origini il login sulla veloce "scollegava" la
+  riserva ("HA non riconosce più questo pannello"). HA vero tiene validi tutti i
+  refresh token; ora anche il finto. Un finto più severo del vero nasconde
+  scenari reali quanto uno più permissivo.
 - **Una prova può dare per buono un difetto.** Quella del condizionatore
   controllava "Ultimo comando: Ventola" all'avvio: era lo stato assunto da HA,
   mai inviato, e la prova lo certificava. Il finto HA scriveva ogni stato con

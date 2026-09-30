@@ -13,6 +13,7 @@ orizzontale acceso 24/7.
 | F4 — assistente testuale (Gemini) | **v0.3.2** |
 | F5 — voce "tocca per parlare" | **v0.4.0** |
 | Prova "Ehi Jarvis" (pagina separata, `prova-ehi-jarvis.html`) | **v0.4.1**, in attesa delle misure sul telefono |
+| Origine veloce con ripiego sul link di riserva | **v0.4.2** |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la prova "Ehi Jarvis" |
 | Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
@@ -32,6 +33,26 @@ orizzontale acceso 24/7.
 Non serve configurare niente in HA: l'app sta sulla stessa origine, quindi niente
 CORS, e usa il login OAuth standard. Il microfono (dalla F5) funziona solo
 sull'indirizzo **HTTPS**.
+
+**Due indirizzi, uno da ricordare.** Si apre sempre
+`https://casa.tail8392c1.ts.net/local/jarvis/index.html` (origine di riserva:
+sempre su, ma sui dati va a ~30 KB/s). All'avvio il pannello prova per 1,5 s
+l'origine veloce `https://jarvis-rosone.duckdns.org:8443` (nginx + DuckDNS +
+Let's Encrypt sull'app Tailscale del telefono server) e, se risponde, ci passa
+da solo con la stessa pagina. Se non risponde resta sul link di riserva e
+funziona come sempre. Sulla veloce il login va fatto una volta ("Accedi"). Se lì
+Home Assistant manca da 30 s e la riserva risponde, il banner propone "Torna al
+link di riserva". Al massimo un passaggio per sessione, quindi niente giri
+avanti e indietro. Serve che nginx risponda su `/local/jarvis/*` con
+`Access-Control-Allow-Origin: https://casa.tail8392c1.ts.net`. La diagnostica
+dice quale origine è in uso e perché. Le origini, per ora, stanno in
+`src/configurazione.ts`.
+
+**Prova "Ehi Jarvis"**: `…/local/jarvis/prova-ehi-jarvis.html`, anche lei passa
+da sola all'origine veloce. Se sul telefono c'era un pannello più vecchio della
+v0.4.1, prima apri il pannello, tieni premuto l'orologio 3 s e tocca "Aggiorna
+ora". Altrimenti il vecchio service worker risponde col pannello al posto della
+pagina di prova.
 
 **Aggiornare**: si scompatta il nuovo zip sopra il vecchio. Il pannello scarica la
 versione nuova da solo, entro 6 ore o alla prima ricarica, e la applica alla

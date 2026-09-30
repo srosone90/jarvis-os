@@ -72,3 +72,22 @@ export const PREFERENZE: Preferenze = {
   },
   nascoste: [],
 };
+
+/**
+ * Le due strade verso la STESSA Home Assistant (CLAUDE.md, "Due origini").
+ *  - riserva: il link che si ricorda e si apre sempre (tailscale serve, lento sui
+ *    dati: ~30 KB/s), ma che funziona sempre;
+ *  - veloce: nginx + DuckDNS + Let's Encrypt sull'app Tailscale di Android
+ *    (14 MB in meno di 1 s), che però sparisce se l'app Tailscale si spegne.
+ * All'avvio dalla riserva si prova la veloce e, se risponde, ci si passa.
+ * Costante per ora: nella fase G diventa una preferenza (requisito multi-casa).
+ */
+export interface Origini {
+  riserva: string;
+  veloce: string;
+}
+
+export const ORIGINI: Origini = {
+  riserva: "https://casa.tail8392c1.ts.net",
+  veloce: "https://jarvis-rosone.duckdns.org:8443",
+};

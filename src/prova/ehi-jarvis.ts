@@ -15,8 +15,12 @@ import urlMel from "../../modelli/openwakeword/melspectrogram.onnx?url";
 import { descriviErrore } from "../diagnostica/log";
 import { MemoriaCircolare } from "../parola/memoria";
 import { CAMPIONI_FRAME, RilevatoreOpenWakeWord, type DescrizioneModello } from "../parola/rilevatore";
+import { passaAllOrigineVeloce, statoOrigine } from "../pwa/origine";
 import { Bip } from "../voce/audio";
 import { Microfono } from "../voce/microfono";
+
+// Come il pannello: dal link di riserva (lento sui dati) si passa alla veloce se risponde.
+passaAllOrigineVeloce();
 
 /** Il modello di questa prova. Sostituibile: la pagina usa solo questi dati. */
 const MODELLO: DescrizioneModello = {
@@ -448,6 +452,12 @@ void leggiBatteria();
 setInterval(() => void leggiBatteria(), BATTERIA_OGNI_MS);
 
 // --- risultati da copiare ------------------------------------------------------------
+function testoOrigine(): string {
+  const { uso, motivo } = statoOrigine();
+  const nome = { veloce: "origine veloce", riserva: "origine di riserva", altra: "altra origine" }[uso];
+  return motivo ? `${nome}, ${motivo}` : nome;
+}
+
 function aggiornaRisultati(): void {
   const s = statistiche();
   const durata = avviatoAlle ? (Date.now() - avviatoAlle) / 60_000 : 0;
@@ -455,6 +465,7 @@ function aggiornaRisultati(): void {
   const righe = [
     `PROVA «${MODELLO.parola}» — ${new Date().toLocaleString("it-IT")}`,
     `Modello: ${MODELLO.id} (${MODELLO.licenza}), caricato in ${Math.round(msCaricamento)} ms`,
+    `Indirizzo: ${location.origin} (${testoOrigine()})`,
     `Dispositivo: ${navigator.userAgent}`,
     `Core: ${navigator.hardwareConcurrency}, memoria: ${nav.deviceMemory ?? "?"} GB, microfono a ${frequenza} Hz`,
     `Ascolto: ${numero(durata, 1)} min, frame ${frameTotali}, scartati ${Math.round(frameScartati)}`,

@@ -3,6 +3,7 @@ import { dimenticaLogin, origineHA } from "../connessione/autenticazione";
 import { connessione } from "../connessione/connessione";
 import { log, type VoceLog } from "../diagnostica/log";
 import { statoAggiornamento, applicaAggiornamento } from "../pwa/aggiornamenti";
+import { statoOrigine } from "../pwa/origine";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 
 /**
@@ -157,6 +158,8 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         <dd data-test="versione">${__VERSIONE__}</dd>
         <dt>Indirizzo</dt>
         <dd data-test="origine">${origineHA()}</dd>
+        <dt>Origine in uso</dt>
+        <dd data-test="origine-in-uso">${testoOrigine()}</dd>
         <dt>Stato</dt>
         <dd data-test="diag-stato">${info.stato}</dd>
         <dt>Latenza WebSocket</dt>
@@ -190,4 +193,10 @@ export class JarvisDiagnostica extends RiquadroSicuro {
     `;
   }
 }
+function testoOrigine(): string {
+  const { uso, motivo } = statoOrigine();
+  const nome = { veloce: "veloce", riserva: "di riserva", altra: "altra" }[uso];
+  return motivo ? `${nome} · ${motivo}` : nome;
+}
+
 customElements.define("jarvis-diagnostica", JarvisDiagnostica);
