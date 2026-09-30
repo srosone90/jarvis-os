@@ -18,8 +18,12 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.6 pubblicata e verificata (timer solo
   - **Scelte di Salvatore sul gruppo 1**: riposo = C (sfera), Hub = H1
     (sfera al centro), riposo dopo 2 minuti senza tocchi, "Timer finito" come
     riquadro al centro sopra il riposo.
-  - Poi: impostazioni del pannello (fase G), schermate e navigazione,
-    musica.
+  - **Gruppo 2, impostazioni**: scelta S1 (elenco a sezioni) + procedura
+    guidata al primo avvio; si aprono tenendo premuto l'orologio; nessun PIN.
+  - **Gruppo 3, navigazione**: scelta N2 (colonna laterale); schermate
+    tenute: Stanza, Meteo, Clima, Timer, Scene (senza routine), Spesa,
+    Avvisi. Ordine dopo la G: navigazione + Stanza + Meteo, poi Musica.
+  - **Gruppo 4, musica**: in preparazione.
 - **Prossima release (dopo i mockup, piccola)**: slug della stanza come il
   tuo (NFKD); oggi differiamo solo su simboli rari, per esempio "Stanza ½" →
   pannello `stanza`, server `stanza_1_2`. E il campo `in_pausa` di

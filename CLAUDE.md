@@ -1192,6 +1192,26 @@ se ne scrive una nuova che annulla la precedente.
     resto si abbassa senza accendersi; di notte in rosso scuro;
   - vincolo invariato: il riposo cambia solo la vista. WebSocket, timer, voce,
     musica e «Jarvis» restano accesi.
+- **2026-09-30** — **Mockup gruppo 2, impostazioni** (`docs/mockup-impostazioni.html`):
+  **S1, elenco a sezioni** (sezioni a sinistra, contenuto a destra) per l'uso
+  di tutti i giorni, più la **procedura guidata S3 al primo avvio** di una casa
+  nuova (stanza, vista, voce, pronuncia, prova). Si aprono **tenendo premuto
+  l'orologio 3 s**, come oggi la diagnostica, che ne diventa una sezione.
+  **Nessun PIN**: si cambia solo questo dispositivo; il login a HA resta
+  protetto.
+- **2026-09-30** — **Mockup gruppo 3, navigazione e schermate**
+  (`docs/mockup-navigazione.html`):
+  - **N2, colonna laterale**: Casa, Musica, Meteo, Timer, Altro, e in fondo
+    l'Hub. La barra «Chiedi a Jarvis» resta;
+  - schermate tenute: Stanza, Meteo, Clima (consumi solo se c'è un sensore),
+    Timer (sveglie e promemoria quando il server le avrà), Scene (senza
+    creazione di routine dal pannello), Lista della spesa, Avvisi ed eventi.
+    Musica nel gruppo 4; la Diagnostica è una sezione delle impostazioni;
+  - in tutte: tocco su un riquadro → la sua schermata, «Jarvis, apri…»,
+    Indietro di Android, `#nome` nell'indirizzo, massimo 2 livelli, ritorno al
+    riposo dopo ~90 s;
+  - ordine dopo la G: **navigazione + Stanza + Meteo**, poi Musica (fase M),
+    poi le altre.
 
 ## 7. Convenzioni
 
