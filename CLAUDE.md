@@ -114,6 +114,8 @@ In casa **non ci sono luci smart**.
 | `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
+| `src/timer/` | Timer di `jarvis_voce` (v0.4.5): `timer.ts` (evento `jarvis_timer` → timer attivi e finiti, logica pura + classe), `suoneria.ts` (WebAudio, niente file) |
+| `src/voce/audio-sveglio.ts` | Rumore a -80 dB in loop per tenere sveglio l'Echo in Bluetooth (v0.4.5) |
 | `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
 | `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
 | `scripts/riferimento-verificatore.py`, `test/unit/dati/verificatore-sklearn.json` | Riferimento scikit-learn per il test del verificatore |
@@ -139,10 +141,12 @@ In casa **non ci sono luci smart**.
 | `test/e2e/origine.spec.ts`, `test/unit/origine.test.ts` | Origine veloce e di riserva: passaggio, niente giri, timeout, offline, login, ritorno proposto |
 | `test/e2e/prova-ehi-jarvis.spec.ts` | Pagina della prova: si apre col service worker installato, modello, frame, privacy, serie |
 | `test/unit/parola.test.ts` | Memoria circolare; rilevatore coi modelli veri |
-| `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, offline |
+| `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, stream STT caduto, annulla mentre pensa, offline |
+| `test/e2e/timer.spec.ts`, `test/unit/timer.test.ts` | Timer: conto alla rovescia, suoneria e Stop, sopra la chat, dopo un riavvio di HA, due pannelli; lettura degli eventi, 2 minuti, timer a zero senza `finished` |
+| `test/e2e/audio-sveglio.spec.ts` | Audio sveglio: -80 dB in loop con la voce che funziona, spento dalla diagnostica anche dopo una ricarica, sospeso dal sistema → log e ripresa |
 | `docs/mockup-f4.html` | Mockup della chat (F4), variante A approvata |
-| `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica |
-| `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline, e con la chat aperta + tastiera simulata): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
+| `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica; tastiera (tocco fuori, dopo l'invio) e "Indietro" di Android |
+| `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline, con la chat aperta + tastiera simulata, con cinque timer e "Timer finito"): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
 | `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (sul push del branch principale, se la versione è nuova) |
 
 ## 4. Architettura prevista dell'app (dal prompt, decisa)
@@ -831,6 +835,90 @@ la versione nuova restava in attesa per giorni, e il pannello ci ricadeva. Non
 
 Controprova: senza l'applicazione all'avvio la prova e2e cade.
 
+### Timer che suonano sul pannello (v0.4.5, 30/09)
+
+I timer li gestisce il server (`jarvis_voce` 0.1.5, lato HA): "metti un timer
+di 10 minuti per la pasta" lo crea là, e HA manda l'evento `jarvis_timer` con
+`data: {tipo: started|updated|cancelled|finished, id, nome, secondi_totali,
+secondi_rimasti}`. Il pannello (`src/timer/`) non decide niente:
+
+- `subscribe_events` su `jarvis_timer` a ogni connessione nuova. La libreria
+  rinnova da sola l'iscrizione dopo le riconnessioni: c'è una prova e2e dopo
+  un riavvio di HA. Con più pannelli l'evento arriva a tutti, e suonano tutti.
+- **Conto alla rovescia** sotto l'orologio: scadenza = arrivo +
+  `secondi_rimasti`, ridisegno ogni secondo solo se ci sono timer. La **fine
+  la decide solo `finished`**: un timer a zero senza `finished` sparisce dopo
+  60 s senza suonare, perché può essere stato annullato mentre il pannello era
+  scollegato. Dopo una riconnessione non si possono rileggere i timer attivi:
+  domanda aperta alla sessione server.
+- Sul tablet la colonna di sinistra non scorre: con timer attivi i prossimi
+  giorni del meteo lasciano il posto ai timer, e se ne vedono al massimo 3
+  (oltre, due più "+N"). Sui telefoni tutti, la pagina scorre.
+- **`finished`**: suoneria WebAudio (tre note ripetute ogni 1,6 s, niente file,
+  funziona anche offline) e overlay "Timer [nome] finito" sopra tutto
+  (z-index 40, sopra chat e diagnostica), con uno Stop grande. Si ferma con
+  Stop o da sola dopo `SUONERIA_MASSIMA_MS` (2 minuti, che ripartono a ogni
+  timer finito). Lo stop a voce ("stop", "basta") arriva con la v0.5.0,
+  quando il microfono è sempre in ascolto.
+- **Autoplay**: Chrome non fa suonare una pagina mai toccata. Il contesto
+  audio si prepara al primo tocco. Se al momento della suoneria è bloccato,
+  va nel log una volta e suona al primo tocco; l'overlay si vede comunque.
+- La **ricarica notturna** delle 04:00 aspetta se c'è un timer in corso o che
+  suona: la finestra dura un'ora.
+- Stop su un pannello ferma solo quello: gli altri suonano fino al loro Stop
+  o ai 2 minuti.
+
+### Pulsante del microfono mai bloccato (v0.4.5, 30/09)
+
+La sessione server ha visto il pulsante restare bloccato. Causa trovata nel
+codice: in "pensa" il pulsante era disabilitato e `ferma()` non faceva niente,
+fino ai 60 s dell'assistente; "apertura" non aveva limiti. Ora:
+
+- **"pensa"**: il pulsante è "Annulla la domanda", e il tocco chiude la
+  pipeline (errore `annullata`, "Domanda annullata.", con Riprova). Limite
+  `PENSA_MASSIMO_MS` = 30 s (errore `tempo`). Se il testo della risposta è già
+  arrivato e manca solo l'audio, resta la risposta scritta, senza errore.
+- **"apertura"**: limite `APERTURA_MASSIMA_MS` = 10 s (getUserMedia che non
+  risponde), con il messaggio "Il microfono non si è aperto". Il limite lascia
+  il tempo di toccare "Consenti" la prima volta.
+- `stt-stream-failed` (lo stream audio verso l'STT si interrompe) vale come
+  `stt-no-text-recognized`: "Non ho capito, puoi ripetere?". Era un errore
+  generico.
+- "ascolto" (20 s) e "risponde" (90 s o durata + 10 s) avevano già i loro
+  limiti; WebSocket caduto = errore "connessione", già c'era.
+
+### Tastiera della chat (v0.4.5, 30/09)
+
+- Un tocco ovunque fuori dal campo (anche fuori dalla chat, sul tablet) chiude
+  solo la tastiera: `blur()` su `pointerdown` in cattura. Su Android un tocco
+  che fa scorrere i messaggi manda solo `pointerdown`, senza il clic che
+  sposterebbe il focus: per questo la prova e2e manda proprio quello (col
+  mouse del desktop il focus si sposta da solo, e la prova non distingueva).
+- "Indietro" di Android: la chat aperta ha una sua voce nella cronologia
+  (`pushState`), quindi Indietro chiude la chat invece di uscire dall'app. La
+  tastiera la chiude Android da solo col primo Indietro. Chiusa con la X o da
+  sola, la voce si toglie (`history.back()`, ignorando quel `popstate`).
+- Dopo l'invio, sul tablet (`SCHERMATA_UNICA`, ora in `base.ts`) il campo
+  perde il focus, così si vede la risposta; sul telefono resta per il seguito.
+
+### Audio sveglio per l'Echo in Bluetooth (v0.4.5, 30/09)
+
+Con il tablet collegato all'Echo Pop in Bluetooth, dopo un po' di silenzio
+l'Echo annuncia "In riproduzione da Tab90" sopra l'inizio della risposta.
+`src/voce/audio-sveglio.ts` fa suonare di continuo un rumore bianco a -80 dB
+(ampiezza 1e-4, buffer di 2 s in loop), che tiene aperto il collegamento.
+
+- Acceso di serie, spegnibile in diagnostica ("Audio sveglio", in
+  `localStorage` alla chiave `jarvis-audio-sveglio`, "0" = spento). Decisione
+  di Salvatore del 30/09.
+- Ha un `AudioContext` suo: non tocca il microfono né l'`<audio>` della
+  risposta. C'è una prova e2e con la voce e l'audio sveglio acceso.
+- Parte subito se il browser lo permette, altrimenti al primo tocco. Se il
+  sistema lo sospende (chiamata, altra app), `statechange` lo scrive nel log e
+  riprende al tocco dopo.
+- Da verificare sul tablet vero: che l'Echo smetta davvero di annunciarlo, e
+  che non cambi il comportamento con la musica di Spotify.
+
 ### Musica: jarvis_musica (lato HA, 30/09) e fase M
 
 **Scoperta della sessione server, verificata nel codice di HA 2026.9.3**
@@ -1042,6 +1130,17 @@ se ne scrive una nuova che annulla la precedente.
   peso sul Redmi. Nuove schermate e navigazione: tutte disegnate ora a livello
   di mockup, implementate per fasi dopo la G: prima navigazione, Stanza e
   Meteo, poi Musica, poi il resto.
+- **2026-09-30** — **«Jarvis» è sempre in ascolto** (v0.5.0), con una memoria
+  circolare di circa 1 s, così la parola vale anche dentro la frase
+  ("buongiorno Jarvis", "c'è un po' freddo qui, non trovi Jarvis"). In
+  modalità pannello il microfono resta aperto, con l'indicatore visibile.
+  Ricordato da Salvatore: era già la decisione presa per la voce.
+- **2026-09-30** — **Audio sveglio per il Bluetooth: acceso di serie,
+  spegnibile** dalla diagnostica (v0.4.5).
+- **2026-09-30** — Ordine: **v0.4.5** (timer, pulsante mai bloccato, tastiera,
+  audio sveglio) → **mockup** (G, schermo a riposo/AOD con i timer, Hub) →
+  **v0.5.0** («Jarvis» sempre in ascolto). Vincolo per lo schermo a riposo:
+  non ferma nessun processo (timer, voce, musica).
 
 ## 7. Convenzioni
 
@@ -1194,6 +1293,15 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **Il riquadro può stare al suo posto mentre il contenuto esce.** Con tre timer
+  sotto l'orologio, sul tablet le previsioni finivano sopra le scene e la prova
+  di layout era verde: misurava `.info`, che per la griglia non cresceva. Ora
+  misura i figli di `.info`, e con quel controllo la prova cade. Visto solo
+  guardando lo screenshot.
+- **Una prova del focus col mouse non dice niente sul tablet.** Il clic del
+  mouse sposta il focus da solo: la prova "tocco fuori chiude la tastiera"
+  passava anche senza il codice. Su Android il tocco che fa scorrere manda
+  solo `pointerdown`, ed è quello che la prova deve mandare. Controprova fatta.
 - **Prima di allargare una tolleranza, misura chi dei due sbaglia.** Il
   verificatore differiva da scikit-learn di 1,6e-5 (test a 1e-5). Misurando il
   gradiente nei due punti, era il mio a fermarsi prima (7e-8 contro 9e-9): si

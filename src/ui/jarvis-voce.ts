@@ -1,4 +1,4 @@
-import { mdiClose, mdiMicrophone, mdiStop } from "@mdi/js";
+import { mdiClose, mdiStop } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
 import { connessione } from "../connessione/connessione";
 import { icona, RiquadroSicuro, stileBase } from "./base";
@@ -61,9 +61,6 @@ export class JarvisVoce extends RiquadroSicuro {
         place-items: center;
         cursor: pointer;
         touch-action: manipulation;
-      }
-      button[disabled] {
-        cursor: default;
       }
       button.fase-pensa,
       button.fase-risponde,
@@ -185,9 +182,9 @@ export class JarvisVoce extends RiquadroSicuro {
                   : lenta
                     ? "Ci sto mettendo più del solito…"
                     : "Sto pensando…",
-                "",
-                "Sto pensando",
-                mdiMicrophone,
+                "Tocca per annullare",
+                "Annulla la domanda",
+                mdiClose,
               ]
             : fase === "risponde"
               ? [
@@ -211,7 +208,6 @@ export class JarvisVoce extends RiquadroSicuro {
         <button
           class="fase-${fase}"
           aria-label=${etichetta}
-          ?disabled=${fase === "pensa"}
           data-test="voce-pulsante"
           @click=${() => v.ferma()}
         >

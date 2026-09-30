@@ -137,7 +137,8 @@ function leggiUltimaRicarica(): string | null {
   }
 }
 
-export function avviaRicaricaNotturna(): void {
+/** `occupato`: un timer in corso o che suona. La ricarica lo perderebbe: si aspetta (la finestra dura un'ora). */
+export function avviaRicaricaNotturna(occupato: () => boolean = () => false): void {
   const segna = (): void => {
     ultimaInterazione = Date.now();
   };
@@ -146,6 +147,10 @@ export function avviaRicaricaNotturna(): void {
   setInterval(() => {
     const adesso = new Date();
     if (!deveRicaricare(adesso, ultimaInterazione, leggiUltimaRicarica())) return;
+    if (occupato()) {
+      log.info("Ricarica notturna rimandata: c'è un timer in corso");
+      return;
+    }
     try {
       localStorage.setItem(CHIAVE_ULTIMA_RICARICA, giornoDi(adesso));
     } catch (errore) {

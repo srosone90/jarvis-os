@@ -28,6 +28,8 @@ export async function info(request: APIRequestContext): Promise<{
   richiesteTts: string[];
   disiscrizioniPipeline: number;
   pipelineAperte: number;
+  /** Iscrizioni a jarvis_timer (una per pannello collegato). */
+  iscrittiTimer: number;
 }> {
   return (await request.get(`${HA}/__prova/info`)).json();
 }

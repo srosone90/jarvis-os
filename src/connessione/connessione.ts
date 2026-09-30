@@ -12,6 +12,8 @@ import { Assistente } from "../assistente/assistente";
 import { PausaMusica } from "../voce/pausa-musica";
 import { stanzaPannello } from "../voce/stanza-pannello";
 import { Voce } from "../voce/voce";
+import { Suoneria } from "../timer/suoneria";
+import { Timer } from "../timer/timer";
 import { Comandi } from "../comandi/comandi";
 import { descriviErrore, log } from "../diagnostica/log";
 import { Registri } from "../registri/registri";
@@ -97,6 +99,9 @@ export class Connessione {
     stanzaPannello,
   );
 
+  /** Timer di jarvis_voce: conto alla rovescia e suoneria (v0.4.5). */
+  readonly timer = new Timer(new Suoneria());
+
   constructor() {
     window.addEventListener("online", this.suRetePresente);
   }
@@ -159,6 +164,7 @@ export class Connessione {
         await conn.subscribeMessage<AggiornamentoEntita>(this.suEntita, { type: "subscribe_entities" });
         this.segnaConnesso();
         void this.registri.collega(conn);
+        void this.timer.collega(conn);
         this.avviaPing();
         return;
       } catch (errore) {

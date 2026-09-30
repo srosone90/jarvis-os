@@ -23,7 +23,8 @@ export type CausaErrore =
   | "tempo"
   | "connessione"
   | "offline"
-  | "nonSentito";
+  | "nonSentito"
+  | "annullata";
 
 export interface MessaggioErrore {
   causa: CausaErrore;
@@ -105,10 +106,18 @@ function messaggioBase(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
     case "nonSentito":
       return {
         causa: "nonSentito",
-        titolo: "Non ho sentito niente.",
+        titolo: "Non ho capito, puoi ripetere?",
         spiegazione: "Tocca il microfono e parla dopo il bip, un po' più vicino.",
         pulsante: "Parla di nuovo",
         azione: "parla",
+      };
+    case "annullata":
+      return {
+        causa: "annullata",
+        titolo: "Domanda annullata.",
+        spiegazione: "L'hai fermata tu. Se era un comando, guarda le card: potrebbe essere già partito.",
+        pulsante: "Riprova",
+        azione: "rimanda",
       };
     case "connessione":
       return {
@@ -123,7 +132,7 @@ function messaggioBase(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
       return {
         causa: "tempo",
         titolo: "Jarvis non ha risposto in tempo.",
-        spiegazione: `Gemini ci ha messo più di un minuto. ${ANCORA_QUI}`,
+        spiegazione: `Gemini ci ha messo troppo. ${ANCORA_QUI}`,
         pulsante: "Riprova",
         azione: "rimanda",
       };

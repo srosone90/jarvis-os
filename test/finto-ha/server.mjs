@@ -22,8 +22,8 @@
  *   /__prova/assistente?modo=    come risponde Gemini (assist_pipeline/run):
  *                                normale | lenta (&ms=10000) | errore | quota | occupato
  *                                | cade | azione | lunga
- *                                voce: &trascrizione=… (cosa "sente" l'STT), &stt=silenzio|manuale
- *                                (nessuna parola), &tts=streaming (risposta locale: run-end
+ *                                voce: &trascrizione=… (cosa "sente" l'STT), &stt=silenzio|manuale|guasto
+ *                                (nessuna parola / fine solo col tocco / stt-stream-failed), &tts=streaming (risposta locale: run-end
  *                                solo dopo che l'audio è stato scaricato), &continua=N (le
  *                                prossime N risposte chiedono un seguito)
  *   /__prova/veloce?stato=       su | giu | lenta: l'"origine veloce" delle prove, cioè le
@@ -34,6 +34,8 @@
  *                                nello zip non c'è (es. parola.json di una casa)
  *   /__prova/musica              {stato, stanza, volume, titolo} | null: jarvis_musica (lo stato
  *                                vero di Spotify); null = componente non installato
+ *   /__prova/timer               {tipo, id, nome, secondi_totali, secondi_rimasti}: evento
+ *                                jarvis_timer (come lo manda jarvis_voce 0.1.5 lato server)
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -567,6 +569,11 @@ async function voceAssistente(cliente, id, conversationId, sampleRate) {
   cliente.gestori.delete(gestore);
   if (!vivo()) return;
   if (perche === "vad") await evento("stt-vad-end", { timestamp: 600 });
+  if (a.stt === "guasto") {
+    // lo stream audio verso l'STT si interrompe (visto sul server il 30/09)
+    await evento("error", { code: "stt-stream-failed", message: "Speech-to-text failed" });
+    return evento("run-end", null);
+  }
   if (a.stt === "silenzio" || registro.byte === 0) {
     await evento("error", { code: "stt-no-text-recognized", message: "No text recognized" });
     return evento("run-end", null);
@@ -626,6 +633,10 @@ const server = createServer(async (req, res) => {
         clienti: clienti.size,
         acceso: stato.acceso,
         musica: stato.musica,
+        iscrittiTimer: [...clienti].reduce(
+          (n, c) => n + [...c.abbonamentiEventi.values()].filter((t) => t === "jarvis_timer").length,
+          0,
+        ),
       });
     if (comando === "spegni") {
       stato.acceso = false;
@@ -685,6 +696,8 @@ const server = createServer(async (req, res) => {
       stato.nuovaVersione = true;
       stato.versioneServer = url.searchParams.get("versione");
     } else if (comando === "musica") stato.musica = JSON.parse((await leggiCorpo(req)) || "null");
+    // evento jarvis_timer di jarvis_voce: {tipo, id, nome, secondi_totali, secondi_rimasti}
+    else if (comando === "timer") trasmettiEvento("jarvis_timer", JSON.parse(await leggiCorpo(req)));
     else if (comando === "reset") {
       for (const c of clienti) c.ws.terminate();
       reset();

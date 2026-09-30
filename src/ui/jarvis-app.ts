@@ -1,10 +1,10 @@
 import { mdiExitRun, mdiHomeImportOutline, mdiMicrophone, mdiWeatherNight } from "@mdi/js";
-import { css, html, LitElement, nothing, type TemplateResult } from "lit";
+import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from "lit";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { PREFERENZE } from "../configurazione";
 import { connessione } from "../connessione/connessione";
 import { costruisciStanze } from "../registri/modello";
-import { icona, OsservaConnessione } from "./base";
+import { icona, OsservaConnessione, SCHERMATA_UNICA } from "./base";
 import "./jarvis-avvisi";
 import "./jarvis-orologio";
 import "./jarvis-meteo";
@@ -14,6 +14,7 @@ import "./jarvis-accesso";
 import "./jarvis-diagnostica";
 import "./jarvis-chat";
 import "./jarvis-voce-riquadro";
+import "./jarvis-timer";
 
 /** Ridisegna quando i registri di HA cambiano (stanze o dispositivi aggiunti/tolti). */
 class OsservaRegistri implements ReactiveController {
@@ -30,12 +31,10 @@ class OsservaRegistri implements ReactiveController {
   }
 }
 
-/**
- * Schermata unica (solo il tablet): il banner offline va al posto della barra
- * dell'assistente; altrimenti (pagina che scorre) va in cima.
- * Deve restare uguale alla media query "TABLET" qui sotto.
+/*
+ * Schermata unica (SCHERMATA_UNICA, in base.ts): il banner offline va al posto
+ * della barra dell'assistente; altrimenti (pagina che scorre) va in cima.
  */
-const SCHERMATA_UNICA = "(min-width: 900px) and (min-height: 560px)";
 
 /** Ridisegna quando la finestra passa da schermata unica a pagina che scorre (e viceversa). */
 class OsservaSchermata implements ReactiveController {
@@ -69,6 +68,35 @@ class OsservaVoce implements ReactiveController {
     this.smetti = null;
   }
 }
+
+/**
+ * Ridisegna quando un timer finisce o la suoneria si ferma (overlay "Timer …
+ * finito"), e quando compare il primo timer o sparisce l'ultimo (sul tablet
+ * prendono il posto dei prossimi giorni del meteo).
+ */
+class OsservaTimer implements ReactiveController {
+  private smetti: (() => void) | null = null;
+  private prima = "";
+  constructor(private readonly host: ReactiveControllerHost) {
+    host.addController(this);
+  }
+  hostConnected(): void {
+    this.smetti = connessione.timer.ascolta(() => {
+      // il conto alla rovescia lo ridisegna jarvis-timer: qui solo l'overlay e il posto dei timer
+      const t = connessione.timer;
+      const ora = `${t.suonano.length}/${t.attivi.length > 0}`;
+      if (ora !== this.prima) this.host.requestUpdate();
+      this.prima = ora;
+    });
+  }
+  hostDisconnected(): void {
+    this.smetti?.();
+    this.smetti = null;
+  }
+}
+
+/** Sul tablet la colonna a sinistra non scorre: al massimo tanti timer in vista, poi "+N". */
+const TIMER_SUL_TABLET = 3;
 
 /** Scene decise il 26/09 (CLAUDE.md): arrivano con la F3, qui solo il posto. */
 const SCENE = [
@@ -374,6 +402,13 @@ export class JarvisApp extends LitElement {
   `;
 
   static override properties = { diagnostica: { state: true }, chat: { state: true } };
+  /**
+   * Tasto "Indietro" di Android (v0.4.5): la chat aperta ha la sua voce nella
+   * cronologia, così Indietro chiude la chat invece di uscire dall'app. La
+   * tastiera, se aperta, la chiude Android da solo col primo Indietro.
+   */
+  private voceCronologia = false;
+  private ignoraIndietro = false;
   declare diagnostica: boolean;
   declare chat: boolean;
   private readonly connessione = new OsservaConnessione(this);
@@ -386,11 +421,21 @@ export class JarvisApp extends LitElement {
     new OsservaRegistri(this);
     // la voce decide se mostrare il riquadro piccolo
     new OsservaVoce(this);
+    new OsservaTimer(this);
     this.addEventListener("chiudi-chat", () => {
       this.chat = false;
     });
     this.addEventListener("apri-chat", () => {
       this.chat = true;
+    });
+    window.addEventListener("popstate", () => {
+      if (this.ignoraIndietro) {
+        this.ignoraIndietro = false;
+        return;
+      }
+      if (!this.voceCronologia) return;
+      this.voceCronologia = false;
+      this.chat = false;
     });
     this.addEventListener("apri-diagnostica", () => {
       this.diagnostica = true;
@@ -398,6 +443,19 @@ export class JarvisApp extends LitElement {
     this.addEventListener("chiudi-diagnostica", () => {
       this.diagnostica = false;
     });
+  }
+
+  protected override updated(cambiati: PropertyValues<this>): void {
+    if (!cambiati.has("chat")) return;
+    if (this.chat && !this.voceCronologia) {
+      history.pushState({ jarvis: "chat" }, "");
+      this.voceCronologia = true;
+    } else if (!this.chat && this.voceCronologia) {
+      // chiusa col tasto o da sola: si toglie la sua voce, senza richiuderla col popstate
+      this.voceCronologia = false;
+      this.ignoraIndietro = true;
+      history.back();
+    }
   }
 
   protected override render(): TemplateResult {
@@ -414,6 +472,11 @@ export class JarvisApp extends LitElement {
     const sovrapposti = html`
       ${loginRichiesto ? html`<jarvis-accesso></jarvis-accesso>` : nothing}
       ${this.diagnostica ? html`<jarvis-diagnostica tabindex="-1"></jarvis-diagnostica>` : nothing}
+      ${
+        connessione.timer.suonano.length > 0
+          ? html`<jarvis-timer-finito data-test="overlay-timer"></jarvis-timer-finito>`
+          : nothing
+      }
     `;
     const chatAperta = this.chat && !loginRichiesto;
     // riquadro piccolo della voce: solo a chat chiusa (a chat aperta la voce sta nella chat)
@@ -435,7 +498,11 @@ export class JarvisApp extends LitElement {
       </div>
       <section class="info">
         <jarvis-orologio></jarvis-orologio>
-        <jarvis-meteo .nonAggiornato=${offline}></jarvis-meteo>
+        <jarvis-timer .massimo=${this.schermata.unica ? TIMER_SUL_TABLET : Infinity}></jarvis-timer>
+        <jarvis-meteo
+          .nonAggiornato=${offline}
+          .senzaGiorni=${this.schermata.unica && connessione.timer.attivi.length > 0}
+        ></jarvis-meteo>
       </section>
       <div class="scene" role="group" aria-label="Scene, in arrivo" data-test="zona-scene">
         ${SCENE.map(

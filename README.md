@@ -15,6 +15,7 @@ orizzontale acceso 24/7.
 | Prova "Ehi Jarvis" (pagina separata, `prova-ehi-jarvis.html`) | **v0.4.3**: con il verificatore della vostra pronuncia, in attesa delle misure sul telefono |
 | Origine veloce con ripiego sul link di riserva | **v0.4.2** |
 | Musica in pausa mentre Jarvis ascolta e parla; mai più una versione vecchia | **v0.4.4** |
+| Timer che suonano, pulsante del microfono mai bloccato, tastiera della chat, audio sveglio per il Bluetooth | **v0.4.5** |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la prova "Ehi Jarvis" |
 | Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
@@ -97,6 +98,20 @@ esempio Cucina). Da lì in poi, quando parli con Jarvis, la musica di quella
 stanza (o di "Tutta la casa") si ferma e poi riparte da sola allo stesso volume.
 Senza stanza la musica non si tocca. Serve `jarvis_musica` installato in Home
 Assistant (vedi `home-assistant/README.md`).
+
+**Timer (v0.4.5)**. I timer creati a voce li gestisce `jarvis_voce` sul
+server, che manda l'evento `jarvis_timer`. Il pannello li mostra sotto
+l'orologio col conto alla rovescia. Quando uno finisce, suona a ripetizione e
+mostra "Timer … finito" con un grande Stop; dopo 2 minuti si ferma da solo.
+Chrome non fa suonare una pagina mai toccata: se il pannello è stato appena
+aperto e nessuno l'ha toccato, suona al primo tocco (l'avviso compare
+comunque).
+
+**Audio sveglio (v0.4.5)**. Se il tablet esce da un Echo in Bluetooth, il
+pannello fa suonare di continuo un rumore che non si sente (-80 dB). Così
+l'Echo non si addormenta e non annuncia "In riproduzione da…" prima di ogni
+risposta. È acceso di serie; si spegne in diagnostica, alla voce "Audio
+sveglio".
 
 **Aggiornare**: si scompatta il nuovo zip sopra il vecchio. Il pannello scarica la
 versione nuova da solo, entro 6 ore o alla prima ricarica, e la applica alla

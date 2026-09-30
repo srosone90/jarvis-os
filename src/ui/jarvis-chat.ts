@@ -3,7 +3,7 @@ import { css, html, nothing, type PropertyValues, type TemplateResult } from "li
 import type { Azione, Turno } from "../assistente/eventi";
 import { messaggioErrore } from "../assistente/messaggi";
 import { connessione } from "../connessione/connessione";
-import { icona, OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
+import { icona, OsservaConnessione, RiquadroSicuro, SCHERMATA_UNICA, stileBase } from "./base";
 import { statoInItaliano } from "./card-base";
 import "./jarvis-voce";
 
@@ -22,6 +22,8 @@ export const CHIUSURA_AUTOMATICA_MS = 60_000;
  *    da rimandare con un tocco.
  *  - La tastiera virtuale non deve coprire il campo: con `visualViewport` si
  *    misura quanta parte dello schermo copre e la chat si accorcia di tanto.
+ *  - Tastiera (v0.4.5): un tocco fuori dal campo la chiude (solo lei, la chat
+ *    resta); sul tablet si chiude anche dopo l'invio, per vedere la risposta.
  */
 export class JarvisChat extends RiquadroSicuro {
   static override styles = [
@@ -294,6 +296,7 @@ export class JarvisChat extends RiquadroSicuro {
     this.addEventListener("keydown", this.tocco);
     window.visualViewport?.addEventListener("resize", this.suTastiera);
     window.visualViewport?.addEventListener("scroll", this.suTastiera);
+    document.addEventListener("pointerdown", this.toccoFuori, { capture: true, passive: true });
     this.suTastiera();
     this.armaChiusura();
   }
@@ -309,6 +312,7 @@ export class JarvisChat extends RiquadroSicuro {
     this.removeEventListener("keydown", this.tocco);
     window.visualViewport?.removeEventListener("resize", this.suTastiera);
     window.visualViewport?.removeEventListener("scroll", this.suTastiera);
+    document.removeEventListener("pointerdown", this.toccoFuori, true);
     clearTimeout(this.timerChiusura);
   }
 
@@ -346,6 +350,18 @@ export class JarvisChat extends RiquadroSicuro {
 
   private readonly tocco = (): void => this.armaChiusura();
 
+  private get campoTesto(): HTMLInputElement | null {
+    return this.shadowRoot?.querySelector("input") ?? null;
+  }
+
+  /** Tocco ovunque fuori dal campo (anche fuori dalla chat, sul tablet): si chiude solo la tastiera. */
+  private readonly toccoFuori = (e: PointerEvent): void => {
+    const campo = this.campoTesto;
+    if (!campo || this.shadowRoot?.activeElement !== campo) return;
+    if (e.composedPath().includes(campo)) return;
+    campo.blur();
+  };
+
   private armaChiusura(): void {
     clearTimeout(this.timerChiusura);
     this.timerChiusura = setTimeout(() => {
@@ -372,7 +388,10 @@ export class JarvisChat extends RiquadroSicuro {
 
   private invia(e: Event): void {
     e.preventDefault();
-    if (this.assistente.chiedi(this.bozza)) this.bozza = "";
+    if (!this.assistente.chiedi(this.bozza)) return;
+    this.bozza = "";
+    // sul tablet la tastiera coprirebbe la risposta; sul telefono resta per il seguito
+    if (window.matchMedia(SCHERMATA_UNICA).matches) this.campoTesto?.blur();
   }
 
   private etichetta(a: Azione): TemplateResult {

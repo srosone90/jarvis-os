@@ -211,9 +211,44 @@ test("non ho sentito niente: messaggio e 'Parla di nuovo' riapre il microfono", 
   await apriChat(page);
   await page.getByRole("button", { name: "Parla", exact: true }).click();
   const errore = page.getByTestId("errore-assistente");
-  await expect(errore).toContainText("Non ho sentito niente.");
+  await expect(errore).toContainText("Non ho capito, puoi ripetere?");
   await comando(request, "assistente?stt=normale");
   await errore.getByRole("button", { name: "Parla di nuovo" }).click();
+  await expect(page.getByTestId("risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
+});
+
+test("stream audio caduto (stt-stream-failed): 'Non ho capito, puoi ripetere?' e si riparla", async ({
+  page,
+  request,
+}) => {
+  await comando(request, "assistente?stt=guasto");
+  await accedi(page);
+  await apriChat(page);
+  await page.getByRole("button", { name: "Parla", exact: true }).click();
+  const errore = page.getByTestId("errore-assistente");
+  await expect(errore).toContainText("Non ho capito, puoi ripetere?");
+  await expect(page.getByText(/stt-stream|failed/)).toHaveCount(0);
+  await comando(request, "assistente?stt=normale");
+  await errore.getByRole("button", { name: "Parla di nuovo" }).click();
+  await expect(page.getByTestId("risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
+});
+
+test("mentre pensa il pulsante non è bloccato: il tocco annulla, la pipeline si chiude, si riparla", async ({
+  page,
+  request,
+}) => {
+  await comando(request, "assistente?modo=lenta&ms=20000");
+  await accedi(page);
+  await apriChat(page);
+  await page.getByRole("button", { name: "Parla", exact: true }).click();
+  await expect(voce(page)).toContainText("Sto pensando…");
+  const pulsante = page.getByRole("button", { name: "Annulla la domanda" });
+  await expect(pulsante).toBeEnabled();
+  await pulsante.click();
+  await expect(page.getByTestId("errore-assistente")).toContainText("Domanda annullata.");
+  await expect.poll(async () => (await info(request)).pipelineAperte).toBe(0);
+  await comando(request, "assistente?modo=normale");
+  await page.getByTestId("errore-assistente").getByRole("button", { name: "Riprova" }).click();
   await expect(page.getByTestId("risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
 });
 

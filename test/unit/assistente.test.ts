@@ -14,6 +14,9 @@ import {
   type EventoPipeline,
 } from "../../src/assistente/eventi";
 import { causaDaDettaglio, messaggioErrore } from "../../src/assistente/messaggi";
+import type { Bip, Riproduttore } from "../../src/voce/audio";
+import type { Microfono } from "../../src/voce/microfono";
+import { APERTURA_MASSIMA_MS, PENSA_MASSIMO_MS, Voce } from "../../src/voce/voce";
 
 /** Risposta di HA come in intent-end (IntentResponse.as_dict, HA 2026.9.3). */
 const uscita = (speech: string, tipo = "action_done", conv = "conv-1") => ({
@@ -438,6 +441,17 @@ describe("voce: eventi della pipeline stt→tts", () => {
     expect(t.errore?.tipo).toBe("nonSentito");
     expect(messaggioErrore(t.errore ?? { tipo: "agente", dettaglio: "" }, true).azione).toBe("parla");
   });
+
+  it("stream audio caduto (stt-stream-failed) → 'Non ho capito, puoi ripetere?', non un errore tecnico", () => {
+    const t = applicaEvento(nuovoTurno(1, "", true), {
+      type: "error",
+      data: { code: "stt-stream-failed", message: "Speech-to-text failed" },
+    });
+    expect(t.errore?.tipo).toBe("nonSentito");
+    const m = messaggioErrore(t.errore ?? { tipo: "agente", dettaglio: "" }, true);
+    expect(m.titolo).toBe("Non ho capito, puoi ripetere?");
+    expect(m.azione).toBe("parla");
+  });
 });
 
 describe("voce: invio dell'audio", () => {
@@ -493,5 +507,109 @@ describe("voce: invio dell'audio", () => {
     expect(f.assistente.rimanda(id)).toBe(false);
     f.assistente.scarta(id);
     expect(f.assistente.turni).toHaveLength(0);
+  });
+});
+
+/**
+ * Il pulsante del microfono non resta mai bloccato (sessione server, 30/09):
+ * limiti di tempo in "apertura" e "pensa", e "ferma" che annulla mentre pensa.
+ */
+describe("voce: pulsante mai bloccato", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Microfono finto: si apre quando lo dice la prova (o mai). */
+  function vocePer(f: ReturnType<typeof connessioneFinta>, apriSubito = true) {
+    let attivo = false;
+    const microfono = {
+      get attivo() {
+        return attivo;
+      },
+      avvia: () =>
+        apriSubito
+          ? ((attivo = true), Promise.resolve(16000))
+          : new Promise<number>(() => {
+              /* getUserMedia che non risponde mai */
+            }),
+      ferma: () => {
+        attivo = false;
+      },
+    } as unknown as Microfono;
+    const riproduttore = {
+      riproduci: () => Promise.resolve("finito"),
+      ferma: () => undefined,
+    } as unknown as Riproduttore;
+    const bip = { suona: () => undefined } as unknown as Bip;
+    return new Voce({ assistente: f.assistente, collegato: () => true, microfono, riproduttore, bip });
+  }
+
+  /** Tocco, HA dà l'id, sente la frase: la voce passa a "pensa". */
+  async function finoAPensa(f: ReturnType<typeof connessioneFinta>, v: Voce) {
+    await v.parla("chat");
+    await Promise.resolve();
+    f.ultima().callback({ type: "run-start", data: { runner_data: { stt_binary_handler_id: 1 } } });
+    f.ultima().callback({ type: "stt-end", data: { stt_output: { text: "che ore sono?" } } });
+    expect(v.fase).toBe("pensa");
+  }
+
+  it("il microfono che non si apre: dopo il limite, messaggio e pulsante di nuovo attivo", async () => {
+    const f = connessioneFinta();
+    const v = vocePer(f, false);
+    void v.parla("chat");
+    expect(v.fase).toBe("apertura");
+    vi.advanceTimersByTime(APERTURA_MASSIMA_MS + 1);
+    expect(v.fase).toBe("errore");
+    expect(v.erroreMicrofono?.problema).toBe("altro");
+    // nessuna domanda partita
+    expect(f.sottoscrizioni).toHaveLength(0);
+  });
+
+  it("nessuna risposta mentre pensa: dopo il limite, errore 'tempo', pipeline chiusa, si può riparlare", async () => {
+    const f = connessioneFinta();
+    const v = vocePer(f);
+    await finoAPensa(f, v);
+    vi.advanceTimersByTime(PENSA_MASSIMO_MS + 1);
+    expect(v.fase).toBe("errore");
+    expect(v.turno?.errore?.tipo).toBe("tempo");
+    expect(f.assistente.occupato).toBe(false);
+    await Promise.resolve();
+    expect(f.ultima().disiscritta).toBe(true);
+    // un evento in ritardo di HA non riapre niente
+    f.sottoscrizioni[0]?.callback({ type: "intent-end", data: uscita("Sono le 18.") });
+    expect(v.turno?.fase).toBe("errore");
+  });
+
+  it("'ferma' mentre pensa annulla la domanda (prima il tocco non faceva niente per 60 s)", async () => {
+    const f = connessioneFinta();
+    const v = vocePer(f);
+    await finoAPensa(f, v);
+    v.ferma();
+    expect(v.turno?.errore?.tipo).toBe("annullata");
+    expect(messaggioErrore(v.turno?.errore ?? { tipo: "agente", dettaglio: "" }).titolo).toBe(
+      "Domanda annullata.",
+    );
+    expect(f.assistente.occupato).toBe(false);
+    // il pulsante è di nuovo buono: una domanda nuova parte
+    v.ferma();
+    expect(v.fase).toBe("spenta");
+    await v.parla("chat");
+    expect(f.sottoscrizioni).toHaveLength(2);
+  });
+
+  it("risposta scritta arrivata ma l'audio no: al limite resta la risposta, senza errore", async () => {
+    const f = connessioneFinta();
+    const v = vocePer(f);
+    await finoAPensa(f, v);
+    f.ultima().callback({ type: "intent-end", data: uscita("Sono le 18.") });
+    expect(v.fase).toBe("pensa");
+    vi.advanceTimersByTime(PENSA_MASSIMO_MS + 1);
+    expect(v.fase).toBe("spenta");
+    expect(v.turno?.fase).toBe("fatto");
+    expect(v.turno?.risposta).toBe("Sono le 18.");
+    expect(f.assistente.occupato).toBe(false);
   });
 });

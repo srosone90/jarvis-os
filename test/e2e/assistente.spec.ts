@@ -205,3 +205,68 @@ test("la chat si chiude da sola dopo 60 s senza tocchi; riaperta entro 5 minuti 
   await apriChat(page);
   await expect(risposte(page)).toHaveCount(0);
 });
+
+// --- tastiera della chat (v0.4.5, richiesta della sessione server del 30/09) ---
+
+test("tastiera: un tocco fuori dal campo la chiude, la chat resta aperta", async ({ page }) => {
+  await accedi(page);
+  await apriChat(page);
+  const campo = page.getByRole("textbox", { name: "Domanda per Jarvis" });
+  await expect(campo).toBeFocused();
+  // Tocco di Android che fa scorrere i messaggi: arriva solo pointerdown, senza
+  // il clic che sposterebbe il focus (col mouse del desktop la tastiera si
+  // chiuderebbe da sola e la prova non direbbe niente).
+  const tocca = (testId: string) =>
+    page.getByTestId(testId).dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
+  await tocca("messaggi");
+  await expect(campo).not.toBeFocused();
+  await expect(campo).toBeVisible();
+  // tocco fuori dalla chat (sul tablet: l'orologio a sinistra)
+  await campo.click();
+  await expect(campo).toBeFocused();
+  await tocca("ora");
+  await expect(campo).not.toBeFocused();
+  await expect(campo).toBeVisible();
+  // il tocco sul campo stesso non la chiude
+  await campo.click();
+  await campo.dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
+  await expect(campo).toBeFocused();
+});
+
+test("tastiera: sul tablet si chiude dopo l'invio; sul telefono resta per il seguito", async ({ page }) => {
+  await accedi(page);
+  await apriChat(page);
+  const campo = page.getByRole("textbox", { name: "Domanda per Jarvis" });
+  await chiedi(page, "che temperatura c'è in camera?");
+  await expect(page.getByTestId("risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
+  await expect(campo).not.toBeFocused();
+
+  await page.setViewportSize({ width: 412, height: 915 });
+  await campo.click();
+  await chiedi(page, "e in soggiorno?");
+  await expect(page.getByTestId("risposta")).toHaveCount(2);
+  await expect(campo).toBeFocused();
+});
+
+test("Indietro di Android chiude la chat, non l'app; chiusa col tasto non resta niente da togliere", async ({
+  page,
+}) => {
+  await accedi(page);
+  const prima = await page.evaluate(() => history.length);
+  await apriChat(page);
+  await page.goBack();
+  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Chiedi a Jarvis…" })).toBeVisible();
+  expect(page.url()).toContain("/local/jarvis/index.html");
+
+  // chiusa con la X: la sua voce nella cronologia sparisce, Indietro non la riapre
+  await apriChat(page);
+  await page.getByRole("button", { name: "Chiudi" }).click();
+  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => history.state as unknown)).toBeNull();
+  expect(await page.evaluate(() => history.length)).toBe(prima + 1);
+  // riaperta: Indietro la richiude ancora
+  await apriChat(page);
+  await page.goBack();
+  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toHaveCount(0);
+});

@@ -5,6 +5,7 @@ import { log, type VoceLog } from "../diagnostica/log";
 import { statoAggiornamento, applicaAggiornamento, versioneSulServer } from "../pwa/aggiornamenti";
 import { statoOrigine } from "../pwa/origine";
 import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
+import { audioSveglio, type StatoAudioSveglio } from "../voce/audio-sveglio";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 
 /**
@@ -101,6 +102,19 @@ export class JarvisDiagnostica extends RiquadroSicuro {
           grid-template-columns: max-content minmax(0, 1fr);
         }
       }
+      .interruttore {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 48px;
+        cursor: pointer;
+      }
+      .interruttore input {
+        flex: none;
+        width: 24px;
+        height: 24px;
+        accent-color: var(--accento);
+      }
       select {
         min-height: 48px;
         max-width: 100%;
@@ -167,6 +181,32 @@ export class JarvisDiagnostica extends RiquadroSicuro {
     </select>`;
   }
 
+  /** Rumore a -80 dB per l'Echo in Bluetooth: acceso di serie (v0.4.5). */
+  private sceltaAudioSveglio(): TemplateResult {
+    const testo: Record<StatoAudioSveglio, string> = {
+      attivo: "attivo",
+      "attesa-tocco": "parte al primo tocco",
+      sospeso: "sospeso dal sistema, riprende al tocco",
+      spento: "spento",
+      "non-disponibile": "non disponibile su questo browser",
+    };
+    return html`<label class="interruttore">
+      <input
+        type="checkbox"
+        data-test="audio-sveglio"
+        .checked=${audioSveglio.attivo}
+        @change=${(e: Event) => {
+          audioSveglio.imposta((e.target as HTMLInputElement).checked);
+          this.requestUpdate();
+        }}
+      />
+      <span
+        >Tiene sveglio l'altoparlante Bluetooth ·
+        <span data-test="stato-audio-sveglio">${testo[audioSveglio.stato]}</span></span
+      >
+    </label>`;
+  }
+
   protected disegna(): TemplateResult {
     const info = this.stato.info;
     const agg = statoAggiornamento();
@@ -205,6 +245,8 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         <dd data-test="origine-in-uso">${testoOrigine()}</dd>
         <dt>Stanza</dt>
         <dd>${this.sceltaStanza()}</dd>
+        <dt>Audio sveglio</dt>
+        <dd>${this.sceltaAudioSveglio()}</dd>
         <dt>Stato</dt>
         <dd data-test="diag-stato">${info.stato}</dd>
         <dt>Latenza WebSocket</dt>

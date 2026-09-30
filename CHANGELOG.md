@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.4.5
+
+Timer che suonano sul pannello, pulsante del microfono mai bloccato, tastiera
+della chat più comoda, Echo in Bluetooth sempre sveglio.
+
+- **Timer**: quelli creati a voce ("metti un timer di 10 minuti per la pasta")
+  compaiono sotto l'orologio col conto alla rovescia. Quando finiscono il
+  pannello suona a ripetizione e mostra "Timer pasta finito" con un grande
+  tasto Stop. Si ferma con Stop o da sola dopo 2 minuti. Con più pannelli
+  suonano tutti. Servono i timer di `jarvis_voce` (lato server, evento
+  `jarvis_timer`).
+- Sul tablet, con timer attivi, le previsioni dei prossimi giorni lasciano il
+  posto ai timer; se sono più di tre compare "+N".
+- La ricarica di sicurezza delle 04:00 aspetta se c'è un timer in corso.
+- **Pulsante del microfono**: mentre Jarvis pensa ora si può toccare per
+  annullare la domanda (prima restava bloccato fino a un minuto). Se la
+  risposta non arriva entro 30 s, o il microfono non si apre entro 10 s, il
+  pulsante torna attivo con un messaggio.
+- Quando lo stream audio verso il riconoscimento si interrompe, Jarvis dice
+  "Non ho capito, puoi ripetere?" invece di un errore generico. Lo stesso
+  messaggio vale quando non riconosce nessuna parola.
+- **Tastiera della chat**: un tocco fuori dal campo chiude la tastiera, e la
+  chat resta aperta. "Indietro" di Android chiude prima la tastiera, poi la
+  chat, e non esce più dall'app. Sul tablet, dopo l'invio la tastiera si
+  chiude e si vede la risposta.
+- **Audio sveglio**: il pannello fa suonare di continuo un rumore che non si
+  sente (-80 dB), così l'Echo in Bluetooth non annuncia più "In riproduzione
+  da…" prima di ogni risposta. È acceso di serie e si spegne in diagnostica
+  ("Audio sveglio"). Se il sistema lo sospende, lo scrive nel log.
+
 ## v0.4.4
 
 Musica in pausa mentre Jarvis ascolta e parla, e il pannello non torna più a

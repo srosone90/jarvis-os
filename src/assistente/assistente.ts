@@ -1,5 +1,12 @@
 import { descriviErrore, log } from "../diagnostica/log";
-import { applicaEvento, inCorso, nuovoTurno, type EventoPipeline, type Turno } from "./eventi";
+import {
+  applicaEvento,
+  inCorso,
+  nuovoTurno,
+  type EventoPipeline,
+  type TipoErrore,
+  type Turno,
+} from "./eventi";
 
 /**
  * Motore della conversazione con l'assistente (Gemini, dentro la pipeline Assist
@@ -156,6 +163,28 @@ export class Assistente {
     this.notifica();
   }
 
+  /**
+   * Chiude il turno in corso da qui, senza aspettare HA: tocco su "ferma"
+   * mentre Jarvis pensa, o un limite di tempo della voce. Il pulsante del
+   * microfono non deve mai restare bloccato (sessione server, 30/09).
+   */
+  interrompi(turnoId: number, tipo: "annullata" | "tempo" | "nonSentito", dettaglio: string): void {
+    const esecuzione = this.esecuzione;
+    if (esecuzione?.turnoId !== turnoId || esecuzione.chiusa) return;
+    log.avviso(`Assistente: ${dettaglio}`);
+    const t = this.turno(turnoId);
+    if (t?.fase === "fatto") {
+      // risposta scritta già arrivata, manca solo l'audio: la si tiene così,
+      // senza audio (niente più da aspettare), invece di trasformarla in errore
+      this.sostituisci({ ...t, audioPronto: true, urlAudio: null, concluso: true });
+      this.ultimaAttivita = this.adesso();
+      this.concludi(esecuzione);
+      this.notifica();
+      return;
+    }
+    this.chiudiConErrore(esecuzione, tipo, dettaglio);
+  }
+
   turno(id: number): Turno | undefined {
     return this.elenco.find((t) => t.id === id);
   }
@@ -307,7 +336,7 @@ export class Assistente {
 
   private chiudiConErrore(
     esecuzione: Esecuzione,
-    tipo: "agente" | "connessione" | "tempo",
+    tipo: TipoErrore,
     dettaglio: string,
     disiscrivi = true,
   ): void {

@@ -116,8 +116,14 @@ export class JarvisMeteo extends RiquadroSicuro {
     `,
   ];
 
-  static override properties = { nonAggiornato: { type: Boolean }, previsione: { state: true } };
+  static override properties = {
+    nonAggiornato: { type: Boolean },
+    senzaGiorni: { type: Boolean },
+    previsione: { state: true },
+  };
   declare nonAggiornato: boolean;
+  /** Sul tablet con timer attivi: i prossimi giorni lasciano il posto ai timer (v0.4.5). */
+  declare senzaGiorni: boolean;
   declare previsione: PrevisioneGiorno[] | null;
 
   private smettiPrevisione: (() => Promise<void>) | null = null;
@@ -128,6 +134,7 @@ export class JarvisMeteo extends RiquadroSicuro {
   constructor() {
     super();
     this.nonAggiornato = false;
+    this.senzaGiorni = false;
     this.previsione = null;
     new OsservaEntita(this, () => [PREFERENZE.meteo]);
   }
@@ -186,7 +193,7 @@ export class JarvisMeteo extends RiquadroSicuro {
         </div>
       </div>
       ${
-        prossimi.length
+        prossimi.length && !this.senzaGiorni
           ? html`<div class="prev" data-test="previsione">
               ${prossimi.map(
                 (g) =>

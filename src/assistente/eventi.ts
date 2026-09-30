@@ -26,7 +26,8 @@ export type TipoErrore =
   | "connessione" // HA perso a metà: non si sa cosa è stato eseguito
   | "tempo" // nessuna risposta entro il tempo massimo
   | "offline" // HA non collegato: la domanda non è mai partita
-  | "nonSentito"; // voce: HA non ha riconosciuto nessuna parola
+  | "nonSentito" // voce: HA non ha riconosciuto nessuna parola (o lo stream audio è caduto)
+  | "annullata"; // voce: fermata dall'utente mentre Jarvis pensava
 
 export interface Turno {
   id: number;
@@ -128,6 +129,18 @@ function conNome(nomi: string[], nome: string | null): string[] {
   return nome && !nomi.includes(nome) ? [...nomi, nome] : nomi;
 }
 
+/**
+ * Codici dell'evento `error` di HA (assist_pipeline/pipeline.py). Quelli dello
+ * STT sono entrambi "non ho capito": `stt-stream-failed` arriva quando lo
+ * stream audio si interrompe (sessione server, 30/09) e per chi parla è la
+ * stessa cosa di una frase non riconosciuta.
+ */
+function tipoDaCodice(codice: string | null): TipoErrore {
+  if (codice === "timeout") return "tempo";
+  if (codice === "stt-no-text-recognized" || codice === "stt-stream-failed") return "nonSentito";
+  return "agente";
+}
+
 /** Applica un evento al turno. Ritorna un turno nuovo (mai modifica quello vecchio). */
 export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
   if (t.concluso) return t;
@@ -218,12 +231,7 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
         fase: "errore",
         concluso: true,
         errore: {
-          tipo:
-            dati.code === "timeout"
-              ? "tempo"
-              : dati.code === "stt-no-text-recognized"
-                ? "nonSentito"
-                : "agente",
+          tipo: tipoDaCodice(testo(dati.code)),
           dettaglio: `${testo(dati.code) ?? "errore"}: ${testo(dati.message) ?? ""}`.trim(),
         },
       };

@@ -22,6 +22,19 @@ export type DoveVoce = "chat" | "riquadro";
 
 /** Rete di sicurezza: HA chiude l'ascolto al massimo dopo 15 s (vad.py); noi dopo 20. */
 export const ASCOLTO_MASSIMO_MS = 20_000;
+/**
+ * Il pulsante del microfono non resta mai bloccato (sessione server, 30/09):
+ * ogni fase "di attesa" ha un limite, e scaduto quello si torna attivi con un
+ * messaggio umano. Apertura: getUserMedia può non rispondere mai (microfono
+ * conteso), ma lascia il tempo di toccare "Consenti" la prima volta.
+ */
+export const APERTURA_MASSIMA_MS = 10_000;
+/**
+ * Pensa: da fine parlato all'audio della risposta. Più corto dei 60 s della
+ * chat: a voce nessuno aspetta un minuto davanti al pannello, e intanto il
+ * tocco su "ferma" annulla subito.
+ */
+export const PENSA_MASSIMO_MS = 30_000;
 /** Il riquadro resta in vista così a lungo dopo la risposta, poi sparisce. */
 export const RIQUADRO_DOPO_MS = 6_000;
 /** Audio tenuto da parte prima che HA dia l'id: al massimo ~10 s. */
@@ -47,6 +60,8 @@ export class Voce {
   private coda: ArrayBuffer[] = [];
   private timerAscolto: ReturnType<typeof setTimeout> | undefined;
   private timerRiquadro: ReturnType<typeof setTimeout> | undefined;
+  /** Limite di "apertura" e "pensa": si riarma a ogni cambio di fase. */
+  private timerFase: ReturnType<typeof setTimeout> | undefined;
   private readonly microfono: Microfono;
   private readonly riproduttore: Riproduttore;
   private readonly bip: Bip;
@@ -157,6 +172,10 @@ export class Voce {
         this.microfono.ferma();
         this.imposta("spenta");
         break;
+      case "pensa":
+        // prima il tocco qui non faceva niente fino a 60 s: pulsante bloccato
+        this.interrompi("annullata", "domanda annullata dall'utente");
+        break;
       case "ascolto":
         // HA riceve la fine dell'audio e risponde a quello che ha sentito
         this.chiudiMicrofono();
@@ -264,8 +283,43 @@ export class Voce {
   }
 
   private imposta(fase: FaseVoce): void {
+    if (fase !== this.statoFase) {
+      clearTimeout(this.timerFase);
+      this.timerFase = undefined;
+      if (fase === "apertura") {
+        const sessione = this.sessione;
+        this.timerFase = setTimeout(() => this.aperturaScaduta(sessione), APERTURA_MASSIMA_MS);
+      } else if (fase === "pensa")
+        this.timerFase = setTimeout(
+          () => this.interrompi("tempo", `nessuna risposta a voce entro ${PENSA_MASSIMO_MS / 1000} s`),
+          PENSA_MASSIMO_MS,
+        );
+    }
     this.statoFase = fase;
     this.notifica();
+  }
+
+  /** Il microfono non si è aperto in tempo: si lascia perdere e il pulsante torna attivo. */
+  private aperturaScaduta(sessione: number): void {
+    if (sessione !== this.sessione || this.statoFase !== "apertura") return;
+    log.avviso(`Voce: il microfono non si è aperto entro ${APERTURA_MASSIMA_MS / 1000} s`);
+    this.sessione += 1;
+    this.microfono.ferma();
+    this.problemaMic = messaggioMicrofono("altro");
+    this.imposta("errore");
+  }
+
+  /**
+   * Chiude la domanda in corso da qui ("ferma" o tempo scaduto). Se il testo
+   * della risposta è già arrivato e manca solo l'audio, resta la risposta
+   * scritta: la voce si chiude senza errore.
+   */
+  private interrompi(tipo: "annullata" | "tempo", dettaglio: string): void {
+    const id = this.idTurno;
+    if (id === null || this.statoFase !== "pensa") return;
+    this.sessione += 1;
+    this.dip.assistente.interrompi(id, tipo, dettaglio);
+    if (this.turno?.fase !== "errore") this.finito();
   }
 
   private notifica(): void {

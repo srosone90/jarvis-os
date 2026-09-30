@@ -10,6 +10,13 @@ import {
 import { connessione, SOGLIA_OFFLINE_MS, type InfoConnessione } from "../connessione/connessione";
 import { descriviErrore, log } from "../diagnostica/log";
 
+/**
+ * Schermata unica (solo il tablet): tutto in vista, niente da scorrere. Usata
+ * dal layout (jarvis-app) e dalla chat (tastiera che si chiude dopo l'invio).
+ * Deve restare uguale alla media query "TABLET" di jarvis-app.
+ */
+export const SCHERMATA_UNICA = "(min-width: 900px) and (min-height: 560px)";
+
 /** Icona SVG da un path di @mdi/js. */
 export function icona(percorso: string, etichetta?: string): TemplateResult {
   return html`<svg

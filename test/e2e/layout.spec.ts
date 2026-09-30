@@ -55,7 +55,7 @@ function misura(page: Page): Promise<Misura> {
     const nomeStanza = (s: Element) => s.shadowRoot?.querySelector("h2")?.textContent ?? "?";
     const principali = [
       ...app.querySelectorAll(
-        ".stato jarvis-connessione, .info, [data-test=zona-scene], .barra .chiedi, .barra .mic, .barra .posto-banner, jarvis-stanza",
+        ".stato jarvis-connessione, .info > *, [data-test=zona-scene], .barra .chiedi, .barra .mic, .barra .posto-banner, jarvis-stanza",
       ),
     ]
       .filter(visibile)
@@ -334,5 +334,50 @@ for (const v of MISURE) {
     q.push(...g2.spezzate.map((t) => `parola spezzata: ${t}`));
     expect(q, "barra della voce").toEqual([]);
     await page.getByRole("button", { name: "Ferma l'ascolto" }).click();
+  });
+}
+
+/** Tre timer (uno col nome lungo, uno senza nome) e poi "Timer … finito", a ogni misura. */
+for (const v of MISURE) {
+  test(`layout ${v.nome} con i timer: conto alla rovescia sotto l'orologio e "Timer finito"`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await accedi(page);
+    await page.getByTestId("card-media").locator("button.principale").click();
+    await expect(page.getByRole("button", { name: "Volume su" })).toBeVisible();
+    const timer = [
+      { id: "t1", nome: "pasta", secondi_totali: 600, secondi_rimasti: 540 },
+      { id: "t2", nome: "uova sode per l'insalata di stasera", secondi_totali: 5400, secondi_rimasti: 3725 },
+      { id: "t3", nome: null, secondi_totali: 90, secondi_rimasti: 45 },
+      { id: "t4", nome: "pane", secondi_totali: 3600, secondi_rimasti: 3000 },
+      { id: "t5", nome: "bucato", secondi_totali: 7200, secondi_rimasti: 7000 },
+    ];
+    for (const t of timer) await comando(request, "timer", { tipo: "started", ...t });
+    // sul tablet la colonna non scorre: due timer più "+3"; altrove tutti e cinque
+    await expect(page.getByTestId("timer")).toHaveCount(v.unica ? 2 : 5);
+    if (v.unica) await expect(page.getByTestId("timer-altri")).toHaveText("+3");
+    await page.screenshot({ path: `schermate/layout/timer-${v.nome}.png`, fullPage: true });
+    expect(controlla(await misura(page), v.width, v.height, v.unica), "timer attivi").toEqual([]);
+
+    await comando(request, "timer", { tipo: "finished", ...timer[0], secondi_rimasti: 0 });
+    await comando(request, "timer", { tipo: "finished", ...timer[1], secondi_rimasti: 0 });
+    const overlay = page.getByTestId("timer-finito");
+    await expect(overlay).toContainText("Timer pasta finito");
+    await page.screenshot({ path: `schermate/layout/timer-finito-${v.nome}.png` });
+    const schermo = { nome: "schermo", x: 0, y: 0, r: v.width, b: v.height };
+    const stop = await rettangolo(page, ["jarvis-app", "jarvis-timer-finito", "button"]);
+    const titolo = await rettangolo(page, ["jarvis-app", "jarvis-timer-finito", "h2"]);
+    const q: string[] = [];
+    if (!stop || !dentro(stop, schermo)) q.push("Stop fuori dallo schermo");
+    if (!titolo || !dentro(titolo, schermo)) q.push("titolo fuori dallo schermo");
+    if (stop && titolo && siIntersecano(stop, titolo)) q.push("Stop sopra il titolo");
+    const g = await misura(page);
+    q.push(...g.tagliati.map((t) => `testo tagliato: ${t}`));
+    q.push(...g.spezzate.map((t) => `parola spezzata: ${t}`));
+    expect(q, "timer finito").toEqual([]);
+    await page.getByTestId("timer-stop").click();
+    await expect(overlay).toHaveCount(0);
   });
 }
