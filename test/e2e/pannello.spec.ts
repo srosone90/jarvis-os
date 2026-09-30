@@ -304,3 +304,42 @@ async function sbordati(page: import("@playwright/test").Page): Promise<string[]
     return fuori;
   });
 }
+
+test("mai su una versione vecchia: all'avvio, prima di qualsiasi tocco, la versione in attesa si applica", async ({
+  page,
+  request,
+}) => {
+  await accedi(page);
+  await aspettaServiceWorker(page);
+  await comando(request, "nuova-versione?versione=9.9.9");
+  // riapertura del pannello (come il tablet che si riavvia): nessuno tocca niente
+  await page.reload();
+  // la pagina si ricarica da sola: le letture durante la navigazione si ritentano
+  const leggi = <T>(f: () => Promise<T> | T, riserva: T) => page.evaluate(f).catch(() => riserva);
+  await expect
+    .poll(() => leggi(() => localStorage.getItem("jarvis-log") ?? "", ""), { timeout: 20_000 })
+    .toContain("la applico subito, nessuno ha ancora toccato il pannello");
+  await expect
+    .poll(
+      () =>
+        leggi(async () => {
+          const reg = await navigator.serviceWorker.getRegistration();
+          return reg?.waiting === null && navigator.serviceWorker.controller !== null;
+        }, false),
+      { timeout: 20_000 },
+    )
+    .toBe(true);
+  await expect(pallino(page)).toHaveAttribute("data-stato", "connesso");
+  // una volta sola: niente giri di ricariche
+  const ricariche = await page.evaluate(
+    () => (localStorage.getItem("jarvis-log") ?? "").split("la applico subito").length - 1,
+  );
+  await page.waitForTimeout(3000);
+  expect(
+    await page.evaluate(
+      () => (localStorage.getItem("jarvis-log") ?? "").split("la applico subito").length - 1,
+    ),
+  ).toBe(ricariche);
+  await apriDiagnostica(page);
+  await expect(page.getByTestId("versione-server")).toHaveText("9.9.9");
+});

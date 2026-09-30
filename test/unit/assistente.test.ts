@@ -105,6 +105,20 @@ describe("eventi della pipeline → turno", () => {
       data: { chat_log_delta: { tool_calls: [{ tool_name: "HassTurnOff", tool_args: {} }] } },
     });
     expect(t.strumentiChiamati).toBe(true);
+    // i nomi degli strumenti, senza doppioni (servono a capire se era un comando sulla musica)
+    expect(t.strumenti).toEqual(["HassTurnOff"]);
+    const musica = applicaEvento(t, {
+      type: "intent-progress",
+      data: {
+        chat_log_delta: {
+          tool_calls: [
+            { tool_name: "script__jarvis_musica_controllo", tool_args: { azione: "pausa" } },
+            { tool_name: "HassTurnOff", tool_args: {} },
+          ],
+        },
+      },
+    });
+    expect(musica.strumenti).toEqual(["HassTurnOff", "script__jarvis_musica_controllo"]);
     t = applicaEvento(t, {
       type: "intent-progress",
       data: {

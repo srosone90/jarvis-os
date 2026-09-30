@@ -38,6 +38,11 @@ export interface Turno {
   errore: { tipo: TipoErrore; dettaglio: string } | null;
   /** Gemini ha chiamato almeno uno strumento: un comando potrebbe essere partito. */
   strumentiChiamati: boolean;
+  /**
+   * Nomi degli strumenti chiamati (`tool_name`). Gli script esposti ad Assist
+   * si chiamano `script__<nome>` (helpers/llm.py, ActionTool di HA 2026.9.3).
+   */
+  strumenti: string[];
   /** Arrivato un evento finale: la sottoscrizione si può chiudere. */
   concluso: boolean;
   conversationId: string | null;
@@ -73,6 +78,7 @@ export function nuovoTurno(id: number, domanda: string, voce = false): Turno {
     azioni: [],
     errore: null,
     strumentiChiamati: false,
+    strumenti: [],
     concluso: false,
     conversationId: null,
   };
@@ -118,6 +124,10 @@ export function azioniDaRisultato(risultato: unknown): Azione[] {
   return [...leggi(dati.success, true), ...leggi(dati.failed, false)];
 }
 
+function conNome(nomi: string[], nome: string | null): string[] {
+  return nome && !nomi.includes(nome) ? [...nomi, nome] : nomi;
+}
+
 /** Applica un evento al turno. Ritorna un turno nuovo (mai modifica quello vecchio). */
 export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
   if (t.concluso) return t;
@@ -155,10 +165,18 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
         return {
           ...t,
           strumentiChiamati: true,
+          strumenti: conNome(t.strumenti, testo(delta.tool_name)),
           azioni: [...t.azioni, ...azioniDaRisultato(delta.tool_result)],
         };
       if (Array.isArray(delta.tool_calls) && delta.tool_calls.length > 0)
-        return { ...t, strumentiChiamati: true };
+        return {
+          ...t,
+          strumentiChiamati: true,
+          strumenti: delta.tool_calls.reduce<string[]>(
+            (nomi, c) => conNome(nomi, testo(oggetto(c)?.tool_name)),
+            t.strumenti,
+          ),
+        };
       const pezzo = testo(delta.content);
       if (pezzo) return { ...t, fase: "scrive", risposta: t.risposta + pezzo };
       return t;

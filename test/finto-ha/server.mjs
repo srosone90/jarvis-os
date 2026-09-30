@@ -32,6 +32,8 @@
  *                                lenta = 3 s di attesa su ogni richiesta HTTP
  *   /__prova/file                {nome, contenuto, tipo?}: un file in /local/jarvis/ che
  *                                nello zip non c'è (es. parola.json di una casa)
+ *   /__prova/musica              {stato, stanza, volume, titolo} | null: jarvis_musica (lo stato
+ *                                vero di Spotify); null = componente non installato
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -176,6 +178,8 @@ function reset() {
     nuovaVersione: false,
     veloce: "su",
     fileVirtuali: new Map(), // nome → {contenuto, tipo}
+    versioneServer: null, // nuova-versione?versione=x.y.z: VERSIONE diversa in sw.js
+    musica: null, // jarvis_musica: {stato, stanza, volume, titolo}; null = non installato
     registri: registriIniziali(),
     rifiuta: new Set(), // "dominio.servizio" che HA rifiuta
     muti: new Set(), // entity_id che non cambiano stato dopo un comando
@@ -374,6 +378,35 @@ async function rispondiAssistente(cliente, id, conversationId, testoDomanda, voc
     return evento("run-end", null);
   }
   await evento("intent-progress", { chat_log_delta: { role: "assistant" } });
+  if (modo === "musica") {
+    // "metti in pausa la musica": Gemini usa lo script di jarvis_musica
+    await evento("intent-progress", {
+      chat_log_delta: {
+        tool_calls: [
+          {
+            tool_name: "script__jarvis_musica_controllo",
+            tool_args: { azione: "pausa" },
+            id: "m1",
+            external: false,
+          },
+        ],
+      },
+    });
+    if (stato.musica) stato.musica.stato = "in_pausa";
+    stato.chiamate.push({ servizio: "jarvis_musica.controllo", dati: { azione: "pausa" }, da: "assistente" });
+    await pausa(200);
+    await evento("intent-progress", {
+      chat_log_delta: {
+        role: "tool_result",
+        agent_id: "conversation.google_ai_conversation",
+        tool_call_id: "m1",
+        tool_name: "script__jarvis_musica_controllo",
+        tool_result: { esito: "ok", stato: "in_pausa" },
+        created: new Date().toISOString(),
+      },
+    });
+    await evento("intent-progress", { chat_log_delta: { role: "assistant" } });
+  }
   if (modo === "azione") {
     await evento("intent-progress", {
       chat_log_delta: {
@@ -406,6 +439,7 @@ async function rispondiAssistente(cliente, id, conversationId, testoDomanda, voc
     normale: ["In camera ci sono ", "25,1°, ", "con umidità al 43%."],
     lenta: ["Scusa l'attesa: ", "in soggiorno ci sono 25,7°."],
     azione: ["Fatto, ", "ho spento la TV del salotto."],
+    musica: ["Fatto, ", "musica in pausa."],
     cade: ["Sto controllando ", "la TV…"],
     lunga: [
       "Ecco il riepilogo della casa. ",
@@ -591,6 +625,7 @@ const server = createServer(async (req, res) => {
         pipelineAperte: [...clienti].reduce((n, c) => n + c.pipeline.size, 0),
         clienti: clienti.size,
         acceso: stato.acceso,
+        musica: stato.musica,
       });
     if (comando === "spegni") {
       stato.acceso = false;
@@ -646,7 +681,10 @@ const server = createServer(async (req, res) => {
       stato.tokenValidi = false;
       stato.generazioniValide.clear();
       for (const c of clienti) c.ws.terminate();
-    } else if (comando === "nuova-versione") stato.nuovaVersione = true;
+    } else if (comando === "nuova-versione") {
+      stato.nuovaVersione = true;
+      stato.versioneServer = url.searchParams.get("versione");
+    } else if (comando === "musica") stato.musica = JSON.parse((await leggiCorpo(req)) || "null");
     else if (comando === "reset") {
       for (const c of clienti) c.ws.terminate();
       reset();
@@ -747,7 +785,12 @@ const server = createServer(async (req, res) => {
       vary: "Origin",
     });
     const contenuto = readFileSync(file);
-    if (rel === "sw.js" && stato.nuovaVersione) return res.end(`${contenuto}\n// versione nuova\n`);
+    if (rel === "sw.js" && stato.nuovaVersione) {
+      const testo = stato.versioneServer
+        ? String(contenuto).replace(/const VERSIONE = "[^"]+"/, `const VERSIONE = "${stato.versioneServer}"`)
+        : String(contenuto);
+      return res.end(`${testo}\n// versione nuova\n`);
+    }
     return res.end(contenuto);
   }
 
@@ -856,6 +899,39 @@ function gestisci(ws, veloce) {
             success: false,
             error: { code: "home_assistant_error", message: "Il dispositivo non risponde" },
           });
+        if (msg.domain === "jarvis_musica") {
+          // come il componente vero: stato letto da Spotify, comandi confermati
+          const m = stato.musica;
+          if (!m)
+            return invia(cliente, {
+              id,
+              type: "result",
+              success: false,
+              error: { code: "service_not_found", message: `Service ${chiave} not found.` },
+            });
+          if (msg.service === "controllo") {
+            if (dati.azione === "pausa") m.stato = "in_pausa";
+            if (dati.azione === "riprendi") {
+              m.stato = "in_riproduzione";
+              // l'Echo cambia il volume da solo (30 → 40, visto il 30/09)
+              if (m.volumeDopoRipresa !== undefined) m.volume = m.volumeDopoRipresa;
+            }
+            if (dati.azione === "volume") m.volume = dati.livello;
+          }
+          const response = {
+            esito: "ok",
+            stato: m.stato,
+            stanza: m.stanza,
+            volume: m.volume,
+            titolo: m.titolo,
+          };
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: true,
+            result: { context: { id: "ctx" }, response },
+          });
+        }
         eseguiServizio(msg.domain, msg.service, dati);
         return invia(cliente, { id, type: "result", success: true, result: { context: { id: "ctx" } } });
       }

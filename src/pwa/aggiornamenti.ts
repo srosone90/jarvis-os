@@ -7,9 +7,63 @@ import { deveRicaricare, giornoDi } from "./ricarica-notturna";
  * Una versione nuova si scarica in silenzio ma NON si attiva a sorpresa mentre
  * qualcuno usa il pannello: si applica con la ricarica notturna delle 04:00 (o
  * a mano dalla diagnostica, "Aggiorna ora").
+ *
+ * Eccezione (v0.4.4), perché il pannello non torni MAI a una versione vecchia:
+ * all'AVVIO, finché nessuno ha toccato lo schermo (al massimo 2 minuti), una
+ * versione nuova in attesa si applica subito. Il 30/09 il tablet si è riaperto
+ * su una versione vecchia: con due origini, quella su cui non si resta aveva un
+ * aggiornamento in attesa che la ricarica delle 04:00 (fatta sull'altra
+ * origine) non applicava mai. Protezione contro i giri: al massimo una volta al
+ * minuto per sessione.
  */
 let registrazione: ServiceWorkerRegistration | null = null;
 const INTERVALLO_CONTROLLO_MS = 6 * 60 * 60_000;
+/** Finestra dell'avvio in cui una versione in attesa si applica da sola (se nessuno tocca). */
+export const FINESTRA_AVVIO_MS = 2 * 60_000;
+const CHIAVE_APPLICATA_ALL_AVVIO = "jarvis-aggiornata-all-avvio";
+const avviatoAlle = Date.now();
+let toccato = false;
+for (const evento of ["pointerdown", "keydown"])
+  document.addEventListener(evento, () => (toccato = true), { passive: true, once: true, capture: true });
+
+let versioneServer: string | null = null;
+/** Versione dell'app sul server (letta da sw.js), per la diagnostica. */
+export function versioneSulServer(): string | null {
+  return versioneServer;
+}
+
+async function leggiVersioneServer(): Promise<void> {
+  try {
+    const r = await fetch("./sw.js", { cache: "no-store" });
+    const trovata = /const VERSIONE = "([^"]+)"/.exec(await r.text())?.[1] ?? null;
+    if (trovata && trovata !== versioneServer && trovata !== __VERSIONE__)
+      log.info(`Sul server c'è la versione ${trovata} (qui gira la ${__VERSIONE__})`);
+    versioneServer = trovata;
+  } catch (errore) {
+    log.avviso(`Versione sul server non leggibile: ${descriviErrore(errore)}`);
+  }
+}
+
+/** All'avvio e senza tocchi: la versione in attesa si applica subito. */
+function applicaSeAllAvvio(motivo: string): void {
+  if (!registrazione?.waiting) return;
+  if (toccato || Date.now() - avviatoAlle > FINESTRA_AVVIO_MS) return;
+  try {
+    const ultima = Number(sessionStorage.getItem(CHIAVE_APPLICATA_ALL_AVVIO) ?? 0);
+    if (Date.now() - ultima < 60_000) {
+      log.avviso(
+        "Versione in attesa non applicata all'avvio: già fatto meno di un minuto fa (evito un giro)",
+      );
+      return;
+    }
+    sessionStorage.setItem(CHIAVE_APPLICATA_ALL_AVVIO, String(Date.now()));
+  } catch (errore) {
+    log.avviso(`Versione in attesa non applicata all'avvio: ${descriviErrore(errore)}`);
+    return;
+  }
+  log.info(`Versione nuova ${motivo}: la applico subito, nessuno ha ancora toccato il pannello`);
+  applicaAggiornamento();
+}
 
 export type StatoAggiornamento = "nessuno" | "in-download" | "pronto" | "non-supportato";
 
@@ -37,14 +91,19 @@ export async function registraServiceWorker(): Promise<void> {
     registrazione.addEventListener("updatefound", () => {
       const nuovo = registrazione?.installing;
       nuovo?.addEventListener("statechange", () => {
-        if (nuovo.state === "installed" && navigator.serviceWorker.controller)
-          log.info("Nuova versione dell'app scaricata: si applica alle 04:00");
+        if (nuovo.state !== "installed" || !navigator.serviceWorker.controller) return;
+        log.info("Nuova versione dell'app scaricata: si applica alle 04:00");
+        void leggiVersioneServer();
+        applicaSeAllAvvio("scaricata all'avvio");
       });
     });
+    applicaSeAllAvvio("già in attesa all'avvio");
+    void leggiVersioneServer();
     setInterval(() => {
       registrazione?.update().catch((errore: unknown) => {
         log.avviso(`Controllo aggiornamenti fallito: ${descriviErrore(errore)}`);
       });
+      void leggiVersioneServer();
     }, INTERVALLO_CONTROLLO_MS);
   } catch (errore) {
     log.errore(`Registrazione del service worker fallita: ${descriviErrore(errore)}`);

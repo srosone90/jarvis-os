@@ -14,6 +14,7 @@ orizzontale acceso 24/7.
 | F5 — voce "tocca per parlare" | **v0.4.0** |
 | Prova "Ehi Jarvis" (pagina separata, `prova-ehi-jarvis.html`) | **v0.4.3**: con il verificatore della vostra pronuncia, in attesa delle misure sul telefono |
 | Origine veloce con ripiego sul link di riserva | **v0.4.2** |
+| Musica in pausa mentre Jarvis ascolta e parla; mai più una versione vecchia | **v0.4.4** |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Dopo la prova "Ehi Jarvis" |
 | Modalità Hub — telefoni-pannello solo vocali, passaggio Hub ↔ completo | Dopo la G |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
@@ -90,10 +91,19 @@ release:
 Tutte le chiavi sono facoltative. Se il file è scritto male la pagina lo dice
 nel registro e usa i valori predefiniti.
 
+**Musica in pausa durante la voce (v0.4.4)**. Su ogni pannello, una volta:
+tieni premuto l'orologio 3 s e in "Stanza" scegli dove sta il pannello (per
+esempio Cucina). Da lì in poi, quando parli con Jarvis, la musica di quella
+stanza (o di "Tutta la casa") si ferma e poi riparte da sola allo stesso volume.
+Senza stanza la musica non si tocca. Serve `jarvis_musica` installato in Home
+Assistant (vedi `home-assistant/README.md`).
+
 **Aggiornare**: si scompatta il nuovo zip sopra il vecchio. Il pannello scarica la
 versione nuova da solo, entro 6 ore o alla prima ricarica, e la applica alla
 ricarica delle 04:00. Si può anche applicare subito dalla diagnostica, tenendo
-premuto l'orologio 3 s e poi "Aggiorna ora".
+premuto l'orologio 3 s e poi "Aggiorna ora". Dalla v0.4.4, se all'apertura c'è
+già una versione nuova scaricata e nessuno ha toccato lo schermo, si applica
+subito. La diagnostica dice la versione in uso e quella sul server.
 
 ## Sviluppo
 

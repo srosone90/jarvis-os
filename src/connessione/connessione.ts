@@ -9,6 +9,8 @@ import {
   type HaWebSocket,
 } from "home-assistant-js-websocket";
 import { Assistente } from "../assistente/assistente";
+import { PausaMusica } from "../voce/pausa-musica";
+import { stanzaPannello } from "../voce/stanza-pannello";
 import { Voce } from "../voce/voce";
 import { Comandi } from "../comandi/comandi";
 import { descriviErrore, log } from "../diagnostica/log";
@@ -88,9 +90,32 @@ export class Connessione {
     assistente: this.assistente,
     collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
   });
+  /** La musica della stanza si ferma mentre Jarvis ascolta e parla (v0.4.4). */
+  readonly pausaMusica = new PausaMusica(
+    this.voce,
+    (servizio, dati) => this.chiamaMusica(servizio, dati),
+    stanzaPannello,
+  );
 
   constructor() {
     window.addEventListener("online", this.suRetePresente);
+  }
+
+  /** jarvis_musica.<servizio> con la risposta (stato vero di Spotify, vedi home-assistant/README.md). */
+  private async chiamaMusica(
+    servizio: string,
+    dati: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const conn = this.conn;
+    if (!conn || !conn.connected) throw new Error("Home Assistant non collegato");
+    const r = await conn.sendMessagePromise<{ response?: Record<string, unknown> }>({
+      type: "call_service",
+      domain: "jarvis_musica",
+      service: servizio,
+      service_data: dati,
+      return_response: true,
+    });
+    return r.response ?? {};
   }
 
   get stato(): InfoConnessione {

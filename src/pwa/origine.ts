@@ -164,6 +164,7 @@ export function passaAllOrigineVeloce(): void {
     if (esito === null) {
       segnaPassaggio();
       log.info(`Origine veloce raggiungibile: passo a ${o.veloce}`);
+      await attivaVersioneInAttesa();
       location.replace(indirizzoSu(o.veloce, new URL(location.href)));
       return;
     }
@@ -171,6 +172,23 @@ export function passaAllOrigineVeloce(): void {
     log.avviso(`Resto sull'origine di riserva: ${motivo}`);
     notifica();
   })();
+}
+
+/**
+ * Prima di lasciare la riserva: se lì c'è una versione nuova in attesa la si
+ * attiva, tanto la pagina se ne va. Altrimenti, restando sempre sulla veloce,
+ * la riserva teneva per giorni la versione vecchia e il pannello ci ricadeva
+ * (30/09).
+ */
+async function attivaVersioneInAttesa(): Promise<void> {
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (!reg?.waiting) return;
+    reg.waiting.postMessage({ tipo: "attiva-subito" });
+    log.info("Versione nuova in attesa sulla riserva: attivata prima del passaggio");
+  } catch (errore) {
+    log.avviso(`Versione in attesa sulla riserva non attivata: ${descriviErrore(errore)}`);
+  }
 }
 
 /**

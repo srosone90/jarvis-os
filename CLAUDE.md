@@ -777,6 +777,60 @@ sempre**, anche quando esisterà la parola di attivazione.
   (`CONVERSATION_TIMEOUT` in `helpers/chat_session.py`): oltre, anche mandando
   il vecchio `conversation_id`, riparte da zero con un id nuovo.
 
+### Pausa della musica durante la voce (v0.4.4, 30/09)
+
+Richiesta della sessione server dopo la prova con l'Echo in Bluetooth
+(`src/voce/pausa-musica.ts`). Osserva le fasi della `Voce`, quindi vale per
+tutte le sue facce (tocca per parlare, "Jarvis", Hub).
+
+- **Inizio** (da `spenta`/`errore` a un'altra fase): IN PARALLELO all'ascolto,
+  `jarvis_musica.stato`. Se `in_riproduzione` nella stanza del pannello, o in
+  una di `STANZE_OVUNQUE` ("tutta la casa"), si chiama `controllo pausa` e ci
+  si ricorda il volume.
+- **Fine** (a `spenta`/`errore`, dopo `ATTESA_RIPRESA_MS` = 1,5 s, così il
+  seguito come un Echo e le domande di fila restano nello stesso gruppo): si
+  riprende SOLO se l'abbiamo fermata noi, e si rimette il volume. L'Echo lo
+  cambia da solo, 30→40 visto il 30/09.
+- **Niente ripresa** se un turno ha usato uno strumento `jarvis_musica…`. I
+  nomi arrivano da `chat_log_delta` (`tool_calls[].tool_name` e
+  `tool_result.tool_name`): gli script esposti si chiamano `script__<nome>`,
+  `ActionTool` in `helpers/llm.py` di HA 2026.9.3. Il turno li tiene in
+  `strumenti`.
+- La voce finita prima che Spotify risponda: non si ferma niente dopo.
+- Errori (componente assente, Spotify giù): solo nel log, una volta; la voce
+  non aspetta mai.
+- **Stanza del pannello**: impostazione del dispositivo (`localStorage`,
+  `src/voce/stanza-pannello.ts`), scelta in diagnostica tra le aree di HA.
+  Senza stanza non si tocca niente. Con l'Hub e la fase G diventa una
+  preferenza del dispositivo.
+- Chiamate con `call_service` + `return_response: true`, cioè lo stato vero di
+  Spotify, non il media_player di HA.
+- Prove: 9 unitarie (ogni regola, orologio finto) e 7 e2e contro il finto
+  `jarvis_musica`. Controprova: con la pausa scollegata cade la prova
+  principale (build riuscito).
+
+### Mai su una versione vecchia (v0.4.4, 30/09)
+
+Il 30/09 il tablet si è riaperto su una versione senza la voce. Causa
+probabile, legata alle due origini: la ricarica delle 04:00 applica la versione
+in attesa solo sull'origine dove si trova la pagina (la veloce). Sulla riserva
+la versione nuova restava in attesa per giorni, e il pannello ci ricadeva. Non
+è verificabile da qui sul tablet vero. Rimedi (`src/pwa/aggiornamenti.ts`,
+`src/pwa/origine.ts`):
+
+- **all'avvio, finché nessuno tocca lo schermo** (al massimo 2 minuti), una
+  versione in attesa, già presente o scaricata in quel momento, si applica
+  subito. Protezione contro i giri: al massimo una volta al minuto per
+  sessione (`sessionStorage`). Dopo il primo tocco vale la regola di sempre
+  (04:00 o "Aggiorna ora"). Le due prove esistenti "non a sorpresa" restano
+  verdi: in entrambe qualcuno ha già toccato;
+- **prima di passare alla veloce**, la riserva attiva la sua versione in
+  attesa (`attiva-subito`): la pagina se ne va comunque;
+- **diagnostica**: "Sul server", cioè `VERSIONE` letta da `sw.js` con
+  `no-store`, accanto a versione e origine in uso.
+
+Controprova: senza l'applicazione all'avvio la prova e2e cade.
+
 ### Musica: jarvis_musica (lato HA, 30/09) e fase M
 
 **Scoperta della sessione server, verificata nel codice di HA 2026.9.3**
@@ -1161,6 +1215,12 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   stanze stanno in `packages/jarvis_musica_stanze.yaml`, creato una volta da
   `esempi/`. Regola per tutto ciò che è configurazione di una casa (anche la
   multi-casa).
+- **Un `reset` del finto HA a metà prova cancella anche i login**: il pannello
+  resta senza accesso e il pulsante non si attiva. Una situazione nuova = una
+  prova nuova.
+- **Una controprova che toglie l'unico uso di un import non compila** (tipi
+  "non usato"): il build fallisce e la prova gira sul `dist/` vecchio. Si rompe
+  in modo che compili (es. `() => (x() ? null : null)`) e si guarda BUILD OK.
 - **Una libreria che non segnala gli errori va controllata dal risultato.**
   spotifyaio 2.0.2 lascia passare in silenzio quasi tutti i rifiuti di Spotify:
   fidarsi di "`start_playback` non ha sollevato" avrebbe fatto dire a Gemini

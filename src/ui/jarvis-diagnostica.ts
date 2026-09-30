@@ -2,8 +2,9 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { dimenticaLogin, origineHA } from "../connessione/autenticazione";
 import { connessione } from "../connessione/connessione";
 import { log, type VoceLog } from "../diagnostica/log";
-import { statoAggiornamento, applicaAggiornamento } from "../pwa/aggiornamenti";
+import { statoAggiornamento, applicaAggiornamento, versioneSulServer } from "../pwa/aggiornamenti";
 import { statoOrigine } from "../pwa/origine";
+import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
 
 /**
@@ -18,7 +19,8 @@ export class JarvisDiagnostica extends RiquadroSicuro {
         position: fixed;
         inset: 0;
         overflow: auto;
-        background: color-mix(in srgb, var(--sfondo) 94%, transparent);
+        /* pieno: sul telefono il pannello sotto si leggeva tra le righe */
+        background: var(--sfondo);
         z-index: 30;
         display: flex;
         flex-direction: column;
@@ -27,6 +29,7 @@ export class JarvisDiagnostica extends RiquadroSicuro {
       }
       header {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         justify-content: space-between;
         gap: 12px;
@@ -89,6 +92,26 @@ export class JarvisDiagnostica extends RiquadroSicuro {
       .avviso {
         color: var(--avviso);
       }
+      /* telefono: due colonne (etichetta, valore); con quattro sbordava a 360 px */
+      @media (max-width: 699px) {
+        :host {
+          padding: 16px;
+        }
+        dl {
+          grid-template-columns: max-content minmax(0, 1fr);
+        }
+      }
+      select {
+        min-height: 48px;
+        max-width: 100%;
+        border-radius: 12px;
+        border: 1px solid #343a46;
+        background: var(--superficie);
+        color: var(--testo);
+        font: inherit;
+        font-size: 15px;
+        padding: 0 12px;
+      }
     `,
   ];
 
@@ -126,6 +149,24 @@ export class JarvisDiagnostica extends RiquadroSicuro {
     location.reload();
   }
 
+  /** Serve alla pausa della musica durante la voce: senza stanza la musica non si tocca. */
+  private sceltaStanza(): TemplateResult {
+    const attuale = stanzaPannello();
+    const aree = [...connessione.registri.aree.map((a) => a.name)].sort((a, b) => a.localeCompare(b, "it"));
+    if (attuale && !aree.includes(attuale)) aree.unshift(attuale);
+    return html`<select
+      data-test="stanza-pannello"
+      aria-label="Stanza di questo pannello"
+      @change=${(e: Event) => {
+        impostaStanzaPannello((e.target as HTMLSelectElement).value || null);
+        this.requestUpdate();
+      }}
+    >
+      <option value="" ?selected=${!attuale}>Nessuna (la musica non si tocca)</option>
+      ${aree.map((a) => html`<option value=${a} ?selected=${a === attuale}>${a}</option>`)}
+    </select>`;
+  }
+
   protected disegna(): TemplateResult {
     const info = this.stato.info;
     const agg = statoAggiornamento();
@@ -156,10 +197,14 @@ export class JarvisDiagnostica extends RiquadroSicuro {
       <dl data-test="diagnostica">
         <dt>Versione</dt>
         <dd data-test="versione">${__VERSIONE__}</dd>
+        <dt>Sul server</dt>
+        <dd data-test="versione-server">${versioneSulServer() ?? "—"}</dd>
         <dt>Indirizzo</dt>
         <dd data-test="origine">${origineHA()}</dd>
         <dt>Origine in uso</dt>
         <dd data-test="origine-in-uso">${testoOrigine()}</dd>
+        <dt>Stanza</dt>
+        <dd>${this.sceltaStanza()}</dd>
         <dt>Stato</dt>
         <dd data-test="diag-stato">${info.stato}</dd>
         <dt>Latenza WebSocket</dt>

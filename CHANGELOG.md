@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.4.4
+
+Musica in pausa mentre Jarvis ascolta e parla, e il pannello non torna più a
+una versione vecchia.
+
+- Quando parli con Jarvis, la musica di Spotify della stanza del pannello si
+  mette in pausa subito, e riparte allo stesso volume appena Jarvis ha finito.
+  Vale anche con un errore, o se Jarvis non ha capito. Con più domande di fila
+  riparte solo dopo l'ultima.
+- Non riparte se l'avevi già messa in pausa tu, né se hai chiesto proprio a
+  Jarvis di fermarla ("metti in pausa la musica").
+- Nuova impostazione nella diagnostica: "Stanza" di questo pannello. Senza
+  stanza il pannello non tocca mai la musica. La musica su "Tutta la casa" si
+  ferma da qualunque pannello che ha una stanza.
+- Se la musica non risponde, la voce funziona lo stesso; l'errore va solo nel
+  log.
+- All'apertura, se c'è una versione nuova già scaricata e nessuno ha ancora
+  toccato lo schermo, si applica subito. Prima di passare al link veloce, il
+  link di sempre applica la sua versione in attesa. Così il pannello non si
+  riapre più su una versione vecchia.
+- Diagnostica: nuova riga "Sul server" con la versione presente sul server. Sul
+  telefono ora si legge bene: due colonne e sfondo pieno.
+
 ## v0.4.3
 
 "Ehi Jarvis": il telefono impara la vostra pronuncia (solo nella pagina di
