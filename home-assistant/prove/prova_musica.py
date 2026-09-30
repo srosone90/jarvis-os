@@ -104,20 +104,26 @@ MILES = artista("miles", "Miles Davis")
 KIND = album("kindofblue", "Kind of Blue", MILES)
 SO_WHAT = brano("sowhat", "So What", MILES, KIND)
 QUEEN = artista("queen", "Queen")
+FREDDIE = artista("4M1Fp", "Freddie Mercury")
 OPERA = album("opera", "A Night at the Opera", QUEEN)
 BOHEMIAN = brano("bohemian", "Bohemian Rhapsody", QUEEN, OPERA)
+LOVE = brano("love", "Love of My Life", QUEEN, OPERA)
 JAZZ_EDITORIALE = playlist("37i9dQZF1DXjazz", "Jazz Classics", di_spotify=True)
 JAZZ_SERA = playlist("jazzsera", "Jazz per la sera", di_spotify=False)
 
 CATALOGO = {
-    "artist": [MILES, QUEEN],
-    "track": [SO_WHAT, BOHEMIAN],
+    "artist": [MILES, QUEEN, FREDDIE],
+    "track": [SO_WHAT, BOHEMIAN, LOVE],
     "album": [KIND, OPERA],
     "playlist": [JAZZ_EDITORIALE, JAZZ_SERA],
 }
+# Come Spotify vero il 30/09 sull'Echo: cercando l'artista "Queen" il primo
+# risultato era Freddie Mercury
+ORDINE_SPOTIFY = {"queen": {"artist": [FREDDIE, QUEEN]}}
 # Contenuti che Spotify "accetta" in silenzio senza farli partire
 NON_PARTONO = {JAZZ_EDITORIALE["uri"]}
 
+# Al posto di packages/jarvis_musica_stanze.yaml (quello vero sta in esempi/)
 STANZE_PROVA = """jarvis_musica:
   predefinita: Camera da letto
   stanze:
@@ -144,6 +150,8 @@ class SpotifyFinto:
         self.avvii: list[dict[str, Any]] = []
         self.errore: dict[str, Exception] = {}  # metodo → eccezione da sollevare
         self.nessuno_parte = False
+        self.comandi: list[tuple[Any, ...]] = []
+        self.ignora_comandi = False  # comando accettato ma mai eseguito
 
     def _forse_errore(self, metodo: str) -> None:
         if metodo in self.errore:
@@ -162,6 +170,9 @@ class SpotifyFinto:
         cercate = _parole(query)
         risposta: dict[str, Any] = {}
         for tipo in types:
+            if (forzati := ORDINE_SPOTIFY.get(query.lower(), {}).get(str(tipo))) is not None:
+                risposta[f"{tipo}s"] = {"items": forzati[:limit]}
+                continue
             trovati = []
             for voce in CATALOGO[str(tipo)]:
                 testo = voce["name"] + " " + " ".join(a["name"] for a in voce.get("artists", []))
@@ -174,6 +185,10 @@ class SpotifyFinto:
                              uris: list[str] | None = None, **_: Any) -> None:
         self._forse_errore("start_playback")
         self.avvii.append({"device_id": device_id, "context_uri": context_uri, "uris": uris})
+        if not context_uri and not uris:  # "riprendi", come il media_player di HA
+            if self.stato and not self.nessuno_parte:
+                self.stato["is_playing"] = True
+            return
         uri = context_uri or (uris or [None])[0]
         if self.nessuno_parte or uri in NON_PARTONO:
             return  # come l'API: nessun errore, ma non suona niente
@@ -188,6 +203,38 @@ class SpotifyFinto:
                       "currently_playing_type": "track"}
 
 
+    # --- comandi sulla riproduzione in corso (come l'API: nessuna conferma) ---
+    def _comando(self, nome: str, *argomenti: Any) -> bool:
+        self._forse_errore(nome)
+        self.comandi.append((nome, *argomenti))
+        return self.stato is not None and not self.ignora_comandi
+
+    async def pause_playback(self, device_id: str | None = None) -> None:
+        if self._comando("pause_playback", device_id):
+            self.stato["is_playing"] = False
+
+    async def next_track(self, device_id: str | None = None) -> None:
+        if self._comando("next_track", device_id):
+            brani = CATALOGO["track"]
+            attuale = next(i for i, b in enumerate(brani) if b["uri"] == self.stato["item"]["uri"])
+            self.stato["item"] = brani[(attuale + 1) % len(brani)]
+
+    async def previous_track(self, device_id: str | None = None) -> None:
+        if self._comando("previous_track", device_id):
+            brani = CATALOGO["track"]
+            attuale = next(i for i, b in enumerate(brani) if b["uri"] == self.stato["item"]["uri"])
+            self.stato["item"] = brani[(attuale - 1) % len(brani)]
+
+    async def set_volume(self, volume: int, device_id: str | None = None) -> None:
+        if self._comando("set_volume", volume, device_id):
+            self.stato["device"]["volume_percent"] = volume
+
+    async def transfer_playback(self, device_id: str) -> None:
+        if self._comando("transfer_playback", device_id):
+            disp = next(d for d in self.dispositivi if d["id"] == device_id)
+            self.stato["device"] = {**disp, "is_active": True, "volume_percent": 40}
+
+
 def richiesta_finta() -> RequestInfo:
     return RequestInfo(URL("https://accounts.spotify.com/api/token"), "POST",
                        CIMultiDictProxy(CIMultiDict()), URL("https://accounts.spotify.com/api/token"))
@@ -200,10 +247,9 @@ def prepara_cartella() -> Path:
     (cartella / "custom_components").mkdir()
     shutil.copytree(COMPONENTE, cartella / "custom_components" / "jarvis_musica")
     (cartella / "packages").mkdir()
-    testo = PACCHETTO.read_text()
-    inizio = testo.index("jarvis_musica:\n")
-    fine = testo.index("\nscript:")
-    (cartella / "packages" / "jarvis_musica.yaml").write_text(testo[:inizio] + STANZE_PROVA + testo[fine:])
+    # il pacchetto degli script così com'è, più il file delle stanze di questa "casa"
+    shutil.copy(PACCHETTO, cartella / "packages" / "jarvis_musica.yaml")
+    (cartella / "packages" / "jarvis_musica_stanze.yaml").write_text(STANZE_PROVA)
     (cartella / "configuration.yaml").write_text(
         "homeassistant:\n  name: Prova musica\n  time_zone: Europe/Rome\n"
         "  packages: !include_dir_named packages\n"
@@ -227,7 +273,8 @@ def collega_spotify(hass: HomeAssistant, client: SpotifyFinto) -> tuple[ConfigEn
     """Una config entry Spotify "caricata" con il client finto (come fa l'integrazione)."""
     aggiornamenti: list[int] = []
 
-    async def async_request_refresh() -> None:
+    async def async_refresh() -> None:
+        # come HA dopo un comando Spotify: aggiornamento immediato e atteso
         aggiornamenti.append(1)
 
     voce = ConfigEntry(
@@ -236,7 +283,7 @@ def collega_spotify(hass: HomeAssistant, client: SpotifyFinto) -> tuple[ConfigEn
         version=1,
     )
     voce.runtime_data = SimpleNamespace(
-        coordinator=SimpleNamespace(client=client, async_request_refresh=async_request_refresh)
+        coordinator=SimpleNamespace(client=client, async_refresh=async_refresh)
     )
     hass.config_entries._entries[voce.entry_id] = voce  # noqa: SLF001 (solo nella prova)
     return voce, aggiornamenti
@@ -263,9 +310,21 @@ async def prova() -> int:
                 "jarvis_musica", "riproduci", dati, blocking=True, return_response=True
             )
 
+        async def controllo(**dati: Any) -> dict[str, Any]:
+            return await hass.services.async_call(
+                "jarvis_musica", "controllo", dati, blocking=True, return_response=True
+            )
+
+        async def stato() -> dict[str, Any]:
+            return await hass.services.async_call("jarvis_musica", "stato", {}, blocking=True, return_response=True)
+
         print("\n1. Il componente parte e il servizio c'è")
         verifica(hass.services.has_service("jarvis_musica", "riproduci"), "servizio jarvis_musica.riproduci")
         verifica(hass.services.has_service("script", "jarvis_musica"), "script.jarvis_musica dal pacchetto")
+        verifica(all(hass.services.has_service("jarvis_musica", n) for n in ("controllo", "stato"))
+                 and hass.services.has_service("script", "jarvis_musica_controllo")
+                 and hass.services.has_service("script", "jarvis_musica_stato"),
+                 "servizi e script di controllo e stato")
 
         print("\n2. Artista in una stanza, dal silenzio")
         r = await riproduci(cosa="Miles Davis", tipo="artista", dove="nella camera da letto")
@@ -276,7 +335,11 @@ async def prova() -> int:
                  "risposta con stanza e dispositivo", r)
         verifica(r.get("messaggio") == "In riproduzione Miles Davis su Echo Pop Camera.",
                  "messaggio breve per Gemini", r.get("messaggio"))
-        verifica(aggiornamenti == [1], "chiede subito l'aggiornamento del media_player Spotify", aggiornamenti)
+        verifica(aggiornamenti == [1], "aggiorna subito il media_player Spotify (async_refresh, come HA)",
+                 aggiornamenti)
+        tempi = r.get("tempi_ms", {})
+        verifica(set(tempi) == {"ricerca", "avvio", "totale"} and tempi["totale"] >= tempi["avvio"],
+                 "nella risposta i tempi misurati (ricerca, avvio, totale)", tempi)
 
         print("\n3. Brano in automatico; la stanza usa il primo dispositivo che Spotify vede")
         client.stato = None
@@ -301,6 +364,59 @@ async def prova() -> int:
         client.stato = None
         r = await riproduci(cosa="Queen", tipo="artista", dove="")
         verifica(r.get("stanza") == "Camera da letto", "niente in riproduzione → stanza predefinita", r)
+
+        print("\n5b. Il nome esatto vince sull'ordine di Spotify (Queen, non Freddie Mercury)")
+        r = await riproduci(cosa="Queen", tipo="artista", dove="camera da letto")
+        verifica(r.get("uri") == "spotify:artist:queen", "tipo artista: Queen", r)
+        r = await riproduci(cosa="queen", dove="camera da letto")
+        verifica(r.get("uri") == "spotify:artist:queen", "tipo auto, minuscolo: Queen", r)
+
+        print("\n5c. Comandi e «cosa suona» letti da Spotify, non dal media_player di HA")
+        client.stato = None
+        await riproduci(cosa="Bohemian Rhapsody", tipo="brano", dove="camera da letto")
+        r = await stato()
+        verifica(r.get("stato") == "in_riproduzione"
+                 and r.get("messaggio") == "In riproduzione «Bohemian Rhapsody» di Queen su Echo Pop Camera "
+                 "(Camera da letto), volume 40%.",
+                 "stato subito dopo l'avvio: suona, con titolo, stanza e volume", r)
+        prima_agg = len(aggiornamenti)
+        r = await controllo(azione="pausa")
+        verifica(r.get("esito") == "ok" and r.get("stato") == "in_pausa", "pausa confermata", r)
+        verifica(len(aggiornamenti) == prima_agg + 1, "dopo il comando aggiorna subito il media_player", aggiornamenti)
+        r = await controllo(azione="pausa")
+        verifica(r.get("messaggio") == "Era già in pausa.", "pausa due volte: lo dice", r)
+        r = await controllo(azione="riprendi")
+        verifica(r.get("stato") == "in_riproduzione" and client.avvii[-1]["uris"] is None,
+                 "riprendi (come il media_player di HA: start_playback senza contenuto)", r)
+        r = await controllo(azione="successivo")
+        verifica(r.get("titolo") == "Love of My Life", "successivo", r)
+        r = await controllo(azione="precedente")
+        verifica(r.get("titolo") == "Bohemian Rhapsody", "precedente", r)
+        r = await controllo(azione="volume", livello=25)
+        verifica(r.get("volume") == 25, "volume a 25", r)
+        r = await controllo(azione="alza")
+        verifica(r.get("volume") == 35, "alza di 10", r)
+        r = await controllo(azione="abbassa")
+        verifica(r.get("volume") == 25, "abbassa di 10", r)
+        r = await controllo(azione="volume")
+        verifica(r.get("codice") == "livello_mancante", "volume senza livello: chiede quanto", r)
+        r = await controllo(azione="sposta", dove="soggiorno")
+        verifica(r.get("dispositivo") == "TV Samsung" and r.get("stanza") == "Soggiorno"
+                 and client.comandi[-1] == ("transfer_playback", "dev-tv"),
+                 "sposta in soggiorno (primo dispositivo visibile della stanza)", r)
+        r = await controllo(azione="sposta", dove="garage")
+        verifica(r.get("codice") == "stanza_sconosciuta", "sposta in una stanza sconosciuta", r)
+        client.ignora_comandi = True
+        r = await controllo(azione="pausa")
+        verifica(r.get("codice") == "comando_non_confermato",
+                 "comando accettato ma mai eseguito: lo dice, non finge", r)
+        client.ignora_comandi = False
+        client.stato = None
+        r = await stato()
+        verifica(r.get("stato") == "niente" and r.get("messaggio") == "Su Spotify non sta suonando niente.",
+                 "stato senza musica", r)
+        r = await controllo(azione="pausa")
+        verifica(r.get("codice") == "niente_in_riproduzione", "pausa senza musica: errore chiaro", r)
 
         print("\n6. Errori chiari, con un codice stabile")
         r = await riproduci(cosa="jazz", dove="camera")
@@ -361,6 +477,20 @@ async def prova() -> int:
         )
         verifica(r.get("esito") == "errore" and r.get("codice") == "stanza_sconosciuta",
                  "script: l'errore arriva a Gemini come dato, non come eccezione", r)
+
+        await riproduci(cosa="Miles Davis", tipo="artista", dove="camera da letto")
+        r = await hass.services.async_call("script", "jarvis_musica_stato", {}, blocking=True, return_response=True)
+        verifica(r.get("stato") == "in_riproduzione" and r.get("titolo") == "So What", "script dello stato", r)
+        r = await hass.services.async_call("script", "jarvis_musica_controllo", {"azione": "volume", "livello": 60},
+                                           blocking=True, return_response=True)
+        verifica(r.get("volume") == 60, "script dei comandi con livello", r)
+        r = await hass.services.async_call("script", "jarvis_musica_controllo", {"azione": "pausa"},
+                                           blocking=True, return_response=True)
+        verifica(r.get("stato") == "in_pausa", "script dei comandi senza dove né livello", r)
+        r = await hass.services.async_call("script", "jarvis_musica_controllo",
+                                           {"azione": "sposta", "dove": "soggiorno"},
+                                           blocking=True, return_response=True)
+        verifica(r.get("dispositivo") == "TV Samsung", "script dei comandi: sposta con dove", r)
 
         print("\n9. Spotify non collegato")
         del hass.config_entries._entries[voce.entry_id]  # noqa: SLF001

@@ -1,0 +1,21 @@
+# =============================================================================
+# Jarvis OS · musica — STANZE DI QUESTA CASA
+# =============================================================================
+# Si copia UNA VOLTA in /config/packages/jarvis_musica_stanze.yaml e si compila.
+# Gli aggiornamenti di Jarvis non toccano mai questo file (gli script stanno in
+# packages/jarvis_musica.yaml, che invece si sovrascrive).
+#
+# Stanza di casa → dispositivo Spotify Connect, con il NOME ESATTO che usa
+# Spotify (maiuscole e accenti non contano). I nomi si leggono nell'attributo
+# `source_list` del media_player Spotify mentre il dispositivo è acceso. Con più
+# nomi si usa il primo che Spotify vede in quel momento.
+
+jarvis_musica:
+  stanze:
+    # quelli di casa Rosone (verificati dalla sessione server il 30/09):
+    Cucina: Echo Pop cucina
+    Camera da letto: echo Pop camera da letto
+    Tutta la casa: Tutta la casa # gruppo di Alexa
+    # altro esempio: Soggiorno: [TV Samsung, Echo Pop soggiorno]
+  # Stanza usata se non si dice dove e non sta suonando niente (facoltativa)
+  predefinita: Cucina

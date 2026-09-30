@@ -1,25 +1,14 @@
 # =============================================================================
-# Jarvis OS · musica — pacchetto per Home Assistant
+# Jarvis OS · musica — script per Gemini (si sovrascrive a ogni aggiornamento)
 # =============================================================================
-# Va installato INSIEME al componente custom_components/jarvis_musica (senza il
-# componente questo file dà errore alla verifica della configurazione).
-# Richiede l'integrazione ufficiale Spotify già configurata (account Premium):
-# jarvis_musica riusa il suo accesso, non chiede credenziali nuove.
+# Va installato INSIEME al componente custom_components/jarvis_musica e al file
+# delle stanze packages/jarvis_musica_stanze.yaml (da esempi/, compilato una
+# volta sola per questa casa). Richiede l'integrazione ufficiale Spotify già
+# configurata (account Premium): jarvis_musica riusa il suo accesso.
 #
 # Perché serve: vedi custom_components/jarvis_musica/__init__.py. In breve, con
-# l'integrazione standard la musica non si può far partire "dal silenzio".
-
-jarvis_musica:
-  # Stanza di casa → dispositivo Spotify Connect, con il NOME ESATTO che usa
-  # Spotify. I nomi si leggono nell'attributo `source_list` del media_player
-  # Spotify (Strumenti per sviluppatori → Stati) mentre il dispositivo è acceso.
-  # Con più nomi si usa il primo che Spotify vede in quel momento.
-  # DA COMPILARE con i nomi veri, per esempio:
-  #   Camera da letto: Echo Pop Camera
-  #   Soggiorno: [TV Samsung, Echo Pop Soggiorno]
-  stanze: {}
-  # Stanza usata se non si dice dove e non sta suonando niente (facoltativa).
-  # predefinita: Soggiorno
+# l'integrazione standard la musica non si può far partire "dal silenzio", e il
+# media_player di HA vede i cambi di Spotify solo ogni 30 s.
 
 script:
   jarvis_musica:
@@ -32,8 +21,10 @@ script:
       esempio "camera da letto"); lascialo vuoto per usare la stanza dove sta
       già suonando. Restituisce esito ok con cosa suona e dove, oppure esito
       errore con un messaggio da riferire. Rispondi con una frase breve. Per
-      pausa, volume, brano successivo e "cosa sta suonando" usa il media
-      player di Spotify, non questo script.
+      pausa, volume, brano successivo o precedente e per spostare la musica
+      usa jarvis_musica_controllo; per "cosa sta suonando" usa
+      jarvis_musica_stato. Non usare il media player di Spotify: vede i
+      cambi con 30 secondi di ritardo, e subito dopo un avvio lo crede fermo.
     icon: mdi:music
     mode: parallel
     fields:
@@ -75,4 +66,71 @@ script:
           dove: "{{ dove if dove is defined and dove else '' }}"
         response_variable: esito
       - stop: "Musica"
+        response_variable: esito
+
+  jarvis_musica_controllo:
+    alias: "Jarvis · musica, comandi"
+    description: >-
+      Comanda la musica di Spotify che sta suonando, leggendo lo stato vero di
+      Spotify (anche subito dopo un avvio). azione: pausa, riprendi,
+      successivo, precedente, volume (con livello da 0 a 100), alza, abbassa
+      (10 punti) oppure sposta (con dove = la stanza in cui spostarla).
+      Restituisce esito ok con cosa suona adesso, dove e il volume, oppure
+      esito errore con un messaggio da riferire. Rispondi con una frase breve.
+    icon: mdi:play-pause
+    mode: parallel
+    fields:
+      azione:
+        name: Azione
+        description: "pausa, riprendi, successivo, precedente, volume, alza, abbassa, sposta"
+        required: true
+        selector:
+          select:
+            options:
+              - pausa
+              - riprendi
+              - successivo
+              - precedente
+              - volume
+              - alza
+              - abbassa
+              - sposta
+      dove:
+        name: Dove
+        description: "Solo per sposta: la stanza in cui spostare la musica"
+        required: false
+        selector:
+          text:
+      livello:
+        name: Livello
+        description: "Solo per volume: da 0 a 100"
+        required: false
+        selector:
+          number:
+            min: 0
+            max: 100
+    sequence:
+      - action: jarvis_musica.controllo
+        data: >-
+          {% set d = {'azione': azione} %}
+          {% if dove is defined and dove %}{% set d = dict(d, dove=dove) %}{% endif %}
+          {% if livello is defined and livello not in [none, ''] %}{% set d = dict(d, livello=livello | int) %}{% endif %}
+          {{ d }}
+        response_variable: esito
+      - stop: "Musica, comando"
+        response_variable: esito
+
+  jarvis_musica_stato:
+    alias: "Jarvis · musica, cosa suona"
+    description: >-
+      Dice cosa sta suonando su Spotify adesso, letto dallo stato vero di
+      Spotify: titolo, artisti, dispositivo, stanza, volume, oppure che non
+      suona niente o che è in pausa. Da usare per "cosa sta suonando?", "che
+      canzone è?", "dove suona la musica?". Rispondi con una frase breve.
+    icon: mdi:music-note
+    mode: parallel
+    sequence:
+      - action: jarvis_musica.stato
+        response_variable: esito
+      - stop: "Musica, stato"
         response_variable: esito

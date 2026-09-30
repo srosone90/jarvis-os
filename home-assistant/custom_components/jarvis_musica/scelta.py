@@ -196,37 +196,47 @@ def tipi_di_ricerca(tipo: str) -> list[str]:
 def candidati(cosa: str, tipo: str, risultati: Any, massimo: int = 3) -> list[Candidato]:
     """Candidati in ordine di preferenza, senza doppioni.
 
-    - tipo esplicito: i risultati di quel tipo, nell'ordine di Spotify;
+    - tipo esplicito: prima i nomi IDENTICI (normalizzati), poi il resto
+      nell'ordine di rilevanza di Spotify. Serve: cercando l'artista "Queen"
+      Spotify ha messo davanti Freddie Mercury (provato sull'Echo il 30/09). La
+      popolarità non c'è: nella ricerca spotifyaio restituisce gli artisti
+      senza quel campo;
     - genere: le playlist, poi i brani del genere tutti insieme;
     - auto: un nome identico vince (artista, poi brano, poi album, poi
       playlist), altrimenti il primo brano, poi la prima playlist.
     """
+    cercato = normalizza(cosa)
+
+    def identici_prima(elementi: list[Any], nomi: Any) -> list[Any]:
+        uguali = [e for e in elementi if cercato in nomi(e)]
+        return uguali + [e for e in elementi if e not in uguali]
+
+    def nome_brano(t: Any) -> set[str]:
+        return {normalizza(t.name), normalizza(f"{t.name} {_artisti(t)}")}
+
+    def nome_semplice(e: Any) -> set[str]:
+        return {normalizza(e.name)}
     brani = list(risultati.tracks or [])
     artisti = list(risultati.artists or [])
     album = list(risultati.albums or [])
     playlist = list(risultati.playlists or [])
     elenco: list[Candidato] = []
     if tipo == "brano":
-        elenco = [_brano(t) for t in brani]
+        elenco = [_brano(t) for t in identici_prima(brani, nome_brano)]
     elif tipo == "artista":
-        elenco = [_artista(a) for a in artisti]
+        elenco = [_artista(a) for a in identici_prima(artisti, nome_semplice)]
     elif tipo == "album":
-        elenco = [_album(a) for a in album]
+        elenco = [_album(a) for a in identici_prima(album, nome_semplice)]
     elif tipo == "playlist":
-        elenco = [_playlist(p) for p in playlist]
+        elenco = [_playlist(p) for p in identici_prima(playlist, nome_semplice)]
     elif tipo == "genere":
-        elenco = [_playlist(p) for p in playlist]
+        elenco = [_playlist(p) for p in identici_prima(playlist, nome_semplice)]
         if brani:
             elenco.append(Candidato("brani", f"brani {cosa}", uris=tuple(t.uri for t in brani)))
     else:
-        cercato = normalizza(cosa)
         identici = (
             [_artista(a) for a in artisti if normalizza(a.name) == cercato]
-            + [
-                _brano(t)
-                for t in brani
-                if cercato in {normalizza(t.name), normalizza(f"{t.name} {_artisti(t)}")}
-            ]
+            + [_brano(t) for t in brani if cercato in nome_brano(t)]
             + [_album(a) for a in album if normalizza(a.name) == cercato]
             + [_playlist(p) for p in playlist if normalizza(p.name) == cercato]
         )
@@ -245,3 +255,51 @@ def e_partito(stato: Any, device_id: str, candidato: Candidato) -> bool:
     if candidato.context_uri:
         return stato.context is not None and stato.context.uri == candidato.context_uri
     return stato.item is not None and stato.item.uri in candidato.uris
+
+
+# --- Controllo e stato (letti sempre freschi da Spotify) -----------------------
+
+AZIONI = ("pausa", "riprendi", "successivo", "precedente", "volume", "alza", "abbassa", "sposta")
+PASSO_VOLUME = 10
+
+
+def volume_nuovo(attuale: int, azione: str, livello: int | None) -> int:
+    """Volume da impostare (0-100). "alza"/"abbassa" di 10 punti."""
+    if azione == "alza":
+        return min(100, attuale + PASSO_VOLUME)
+    if azione == "abbassa":
+        return max(0, attuale - PASSO_VOLUME)
+    if livello is None:
+        raise ErroreMusica("livello_mancante", "A che volume? Dimmi un numero da 0 a 100.")
+    return max(0, min(100, int(livello)))
+
+
+def stanza_di(nome_dispositivo: str, stanze: dict[str, list[str]]) -> str | None:
+    cercato = normalizza(nome_dispositivo)
+    return next((s for s, nomi in stanze.items() if cercato in {normalizza(n) for n in nomi}), None)
+
+
+def descrivi(stato: Any, stanze: dict[str, list[str]]) -> dict[str, Any]:
+    """Cosa suona adesso, per Gemini: dati e una frase breve."""
+    if stato is None or stato.item is None:
+        return {"stato": "niente", "messaggio": "Su Spotify non sta suonando niente."}
+    elemento = stato.item
+    artisti = _artisti(elemento)
+    titolo = f"«{elemento.name}»" + (f" di {artisti}" if artisti else "")
+    dispositivo = stato.device.name
+    stanza = stanza_di(dispositivo, stanze)
+    dove = f"{dispositivo}" + (f" ({stanza})" if stanza else "")
+    volume = stato.device.volume_percent
+    if stato.is_playing:
+        messaggio = f"In riproduzione {titolo} su {dove}, volume {volume}%."
+    else:
+        messaggio = f"In pausa: {titolo} su {dove}."
+    return {
+        "stato": "in_riproduzione" if stato.is_playing else "in_pausa",
+        "messaggio": messaggio,
+        "titolo": elemento.name,
+        "artisti": artisti,
+        "dispositivo": dispositivo,
+        "stanza": stanza,
+        "volume": volume,
+    }

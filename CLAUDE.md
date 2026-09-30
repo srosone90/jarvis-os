@@ -115,8 +115,10 @@ In casa **non ci sono luci smart**.
 | `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
 | `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
 | `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
-| `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: far partire Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero) e `script.jarvis_musica` per Gemini |
-| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (29 casi) |
+| `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
+| `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
+| `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
+| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (53 casi) |
 | `prova-ehi-jarvis.html`, `src/prova/`, `vite.prova.config.ts` | Pagina della prova di fattibilità "Ehi Jarvis": build a parte, fuori dal pannello e dal service worker |
 | `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
@@ -721,8 +723,30 @@ Il rinnovo del token in HA 2026.9.3 alza `OAuth2TokenRequestReauthError`
 (accesso da rifare, HA apre già la richiesta) oppure
 `OAuth2TokenRequestTransientError` (un `ClientResponseError`, passeggero).
 
-**Da verificare sugli Echo veri** (sessione server): se gli Echo Pop restano
-tra i dispositivi Spotify dopo ore di inattività, e i tempi di avvio.
+**Provato sull'Echo vero (sessione server, 30/09)**, con le stanze Cucina,
+Camera da letto e Tutta la casa (gruppo Alexa), predefinita Cucina:
+
+- avvio dal silenzio ok in circa 12 s; via Gemini risposta in 5,7 s;
+- volume, successivo e pausa dal media_player: ok.
+
+Due difetti, corretti lo stesso giorno:
+
+1. "Queen" come artista faceva partire Freddie Mercury (primo nell'ordine di
+   Spotify). Ora per ogni tipo passano davanti i nomi identici normalizzati.
+   La popolarità non si può usare: nella ricerca spotifyaio dà
+   `SimplifiedArtist` senza quel campo.
+2. Subito dopo un avvio Gemini diceva "non sta suonando nulla": il
+   media_player di HA si aggiorna ogni 30 s. Ora ci sono i servizi `controllo`
+   (pausa, riprendi, successivo, precedente, volume, alza, abbassa, sposta) e
+   `stato`, che leggono da Spotify e confermano rileggendo. Ogni comando
+   riuscito fa `coordinator.async_refresh()`, che è ciò che fa HA stesso con
+   `async_refresh_after`. Prima usavo `async_request_refresh()`, che passa dal
+   debouncer da 10 s.
+
+Tempi: le tre richieste iniziali (dispositivi, stato, ricerca) ora vanno in
+parallelo, e la risposta porta `tempi_ms` per misurare invece di indovinare.
+Resta da verificare sugli Echo: se "riprendi" riparte dal punto giusto. Usa la
+stessa chiamata di HA, cioè `start_playback()` con `position_ms: 0`.
 
 **Fase M (pannello, dopo la G)**:
 - card "In riproduzione" solo quando suona;
@@ -854,7 +878,11 @@ se ne scrive una nuova che annulla la precedente.
 
 ## 7. Convenzioni
 
-- Tutto in italiano: codice, commenti, commit, documentazione.
+- Tutto in italiano: codice, commenti, commit, documentazione, e **anche i
+  messaggi a Salvatore**. Mai risposte in inglese (30/09: è successo e lo ha
+  irritato, a ragione).
+- **`STATO.md` sempre aggiornato**, con commit e push a ogni passo importante:
+  la sessione server lo legge da GitHub e non può scrivere nel repo.
 - In HA tutto ciò che crea Jarvis ha nome/ID che inizia con `jarvis`.
 - In HA le notifiche passano **solo** da `script.jarvis_notifica`.
 - Niente emoji nei controlli: icone SVG (`@mdi/js` nell'app).
@@ -993,6 +1021,12 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 - **Con `page.clock` si fa passare il tempo solo a risposta finita.** Un
   `fastForward` appena compare il primo pezzo della risposta fa scattare i 60 s
   massimi a metà: sembra un difetto dell'app e non lo è.
+- **I dati di una casa non stanno nel file che si aggiorna.** La prima
+  versione di `jarvis_musica.yaml` conteneva le stanze da compilare: al primo
+  aggiornamento, copiarlo avrebbe cancellato i nomi veri degli Echo. Ora le
+  stanze stanno in `packages/jarvis_musica_stanze.yaml`, creato una volta da
+  `esempi/`. Regola per tutto ciò che è configurazione di una casa (anche la
+  multi-casa).
 - **Una libreria che non segnala gli errori va controllata dal risultato.**
   spotifyaio 2.0.2 lascia passare in silenzio quasi tutti i rifiuti di Spotify:
   fidarsi di "`start_playback` non ha sollevato" avrebbe fatto dire a Gemini
