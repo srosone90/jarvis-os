@@ -1151,6 +1151,12 @@ function gestisci(ws, veloce) {
   });
 }
 
+// Node chiude le connessioni inattive dopo 5 s. Se Playwright riusa proprio in
+// quell'istante la connessione per un POST (/__prova/reset), riceve "socket hang
+// up" (successo nella CI della v0.5.1, 01/10). Qui il server non chiude mai per
+// primo: è il client a farlo.
+server.keepAliveTimeout = 10 * 60_000;
+server.headersTimeout = 10 * 60_000 + 1000;
 server.listen(PORTA, () =>
   console.log(`Finto Home Assistant su http://localhost:${PORTA}/local/jarvis/index.html`),
 );
