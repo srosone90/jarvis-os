@@ -46,6 +46,8 @@ export async function info(request: APIRequestContext): Promise<{
   richiesteTts: string[];
   disiscrizioniPipeline: number;
   pipelineAperte: number;
+  /** Iscrizioni a jarvis_annuncio (una per pannello collegato). */
+  iscrittiAnnunci: number;
   /** Iscrizioni a jarvis_timer (una per pannello collegato). */
   iscrittiTimer: number;
 }> {

@@ -1363,6 +1363,16 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   prove mirate non erano state rilanciate: **quando cambia qualcosa che
   vale per tutto il pannello (colonna, letture periodiche) si rilanciano
   tutte le prove nel browser, non solo quelle nuove.**
+- **Prove che dipendono dall'ora: si fissa la notte.** La release della
+  v0.5.6 è caduta in CI su 3 prove degli annunci: girava alle 23 di Roma, e
+  di notte (la notte del riposo, 23-7 di serie) gli annunci si scrivono e non
+  si dicono. In locale passavano solo perché era giorno. Le prove degli
+  annunci ora mettono `jarvis-riposo` con `notteDa = notteA = 0` (nessuna
+  notte), come già fase-g e layout. Prima ho creduto a una gara tra
+  iscrizione ed evento: c'è anche quella (il pannello segna "connesso" prima
+  di iscriversi), e le prove aspettano `iscrittiAnnunci`, ma da sola non
+  bastava. Lezione: una prova che cade solo in CI si riproduce **all'ora
+  della CI** prima di cambiare il codice.
 - **Finto HA**: `stato` con artisti, dispositivo, copertina, posizione e
   durata; `controllo` con successivo/precedente (3 brani), alza/abbassa
   (±10), sposta; `playlist`; `riproduci` ("Primo brano di <playlist>").

@@ -867,6 +867,11 @@ const server = createServer(async (req, res) => {
           (n, c) => n + [...c.abbonamentiEventi.values()].filter((t) => t === "jarvis_timer").length,
           0,
         ),
+        // iscrizioni a jarvis_annuncio: le prove aspettano il pannello prima di mandare (v0.5.6)
+        iscrittiAnnunci: [...clienti].reduce(
+          (n, c) => n + [...c.abbonamentiEventi.values()].filter((t) => t === "jarvis_annuncio").length,
+          0,
+        ),
       });
     if (comando === "spegni") {
       stato.acceso = false;

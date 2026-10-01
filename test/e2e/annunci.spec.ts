@@ -9,15 +9,28 @@ import { accedi, apriImpostazioni, comando, info } from "./aiuti";
 
 test.beforeEach(async ({ page, request }) => {
   await comando(request, "reset");
-  await page.addInitScript(() => localStorage.setItem("jarvis-stanza-pannello", "Cucina"));
+  await page.addInitScript(() => {
+    localStorage.setItem("jarvis-stanza-pannello", "Cucina");
+    // niente notte del riposo: di notte (23-7 di serie) gli annunci si scrivono e non si dicono,
+    // e le prove dipenderebbero dall'ora (la release della v0.5.6 è caduta alle 23 di Roma)
+    localStorage.setItem("jarvis-riposo", JSON.stringify({ attesaMin: 2, notteDa: 0, notteA: 0 }));
+  });
 });
 
-const annuncio = (
+/**
+ * L'evento parte solo quando il pannello è iscritto a jarvis_annuncio: il
+ * pannello segna "connesso" prima di iscriversi agli eventi, e un annuncio
+ * mandato in mezzo si perderebbe (come per i timer con iscrittiTimer).
+ */
+const annuncio = async (
   request: Parameters<typeof comando>[0],
   testo: string,
   ascolta = false,
   pannello = "jarvis_cucina",
-) => comando(request, "annuncio", { pannello, testo, ascolta });
+) => {
+  await expect.poll(async () => (await info(request)).iscrittiAnnunci).toBeGreaterThanOrEqual(1);
+  await comando(request, "annuncio", { pannello, testo, ascolta });
+};
 
 test("annuncio per questo pannello: Hub in primo piano, la voce di Jarvis lo dice (tts→tts)", async ({
   page,
