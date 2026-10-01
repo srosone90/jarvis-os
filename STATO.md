@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.2 (la frase intera con «Jarvis»). Release: vedi sotto._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.2 (la frase intera con «Jarvis»). Release verificata._
 
 ## Adesso
 
@@ -42,7 +42,7 @@ _Ultimo aggiornamento: 01/10/2026 — v0.5.2 (la frase intera con «Jarvis»). R
 |---|---|
 | Versione | **v0.5.2**: la frase intera con «Jarvis» |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.2 |
-| sha256 dello zip | _in arrivo: lo scrivo appena la release è pronta e verificata_ |
+| sha256 dello zip | `faa4b89b9d5919fdc557e4bfd634dbe9457d447602a3b88034b6a1784da138ff` (6,8 MB, service worker 0.5.2, `parola/` con 5 file, nessun file delle prove; verificati) |
 | Precedente | v0.5.1, sha256 `1ccd83b8…2af5` |
 
 ## Da installare lato server: v0.5.2
