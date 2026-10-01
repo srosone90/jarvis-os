@@ -24,7 +24,8 @@ export type CausaErrore =
   | "connessione"
   | "offline"
   | "nonSentito"
-  | "annullata";
+  | "annullata"
+  | "doppione";
 
 export interface MessaggioErrore {
   causa: CausaErrore;
@@ -108,6 +109,14 @@ function messaggioBase(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
         causa: "nonSentito",
         titolo: "Non ho capito, puoi ripetere?",
         spiegazione: "Tocca il microfono e parla dopo il bip, un po' più vicino.",
+        pulsante: "Parla di nuovo",
+        azione: "parla",
+      };
+    case "doppione":
+      return {
+        causa: "doppione",
+        titolo: "Ha risposto un altro pannello.",
+        spiegazione: "«Jarvis» l'ha sentito anche un pannello vicino, e ha risposto lui.",
         pulsante: "Parla di nuovo",
         azione: "parla",
       };

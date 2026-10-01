@@ -10,6 +10,7 @@ import type { Momento } from "../vista/vista";
 import { icona, OsservaConnessione, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
 import type { Anello } from "./jarvis-sfera";
 import "./jarvis-sfera";
+import "./jarvis-indicatore-parola";
 
 /** Cosa suona si rilegge ogni tanto (ogni lettura è una richiesta a Spotify). */
 const MUSICA_OGNI_MS = 60_000;
@@ -71,6 +72,13 @@ export class JarvisRiposo extends RiquadroSicuro {
         gap: 48px;
         padding: 24px 48px;
         transition: transform 2s ease;
+      }
+      /* «Jarvis» ascolta (v0.5.0): sempre visibile, nell'angolo, si sposta col resto */
+      jarvis-indicatore-parola {
+        position: absolute;
+        top: 0;
+        right: 0;
+        opacity: 0.8;
       }
       jarvis-sfera {
         --lato: min(62vh, 36vw);
@@ -368,6 +376,7 @@ export class JarvisRiposo extends RiquadroSicuro {
     }));
     const offline = this.stato.offline;
     return html`<div class="contenuto" data-test="riposo" data-momento=${momento}>
+      <jarvis-indicatore-parola></jarvis-indicatore-parola>
       <jarvis-sfera
         stato=${notte ? "notturna" : "fioca"}
         .anelli=${anelli}

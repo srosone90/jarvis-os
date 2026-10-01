@@ -221,11 +221,20 @@ test.describe("procedura guidata del primo avvio", () => {
     await page.getByTestId("guida-avanti").click();
     await page.getByTestId("guida-riposo").filter({ hasText: "Dopo 5 minuti" }).click();
     await page.getByTestId("guida-avanti").click();
+    // v0.5.0: «Jarvis» sempre in ascolto, acceso di serie; qui lo si spegne
+    await expect(page.getByTestId("guida-parola").filter({ hasText: "Sì" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await page.getByTestId("guida-parola").filter({ hasText: "No" }).click();
+    await page.getByTestId("guida-avanti").click();
     await expect(page.getByTestId("guida-riepilogo")).toContainText("Cucina");
     await expect(page.getByTestId("guida-riepilogo")).toContainText("dopo 5 minuti");
+    await expect(page.getByTestId("guida-riepilogo")).toContainText("sempre in ascolto: no");
     await page.getByTestId("guida-fine").click();
     await expect(guida).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("jarvis-stanza-pannello"))).toBe("Cucina");
+    expect(await page.evaluate(() => localStorage.getItem("jarvis-parola"))).toBe('{"acceso":false}');
     await page.reload();
     await expect(completo(page)).toBeVisible();
     await expect(guida).toHaveCount(0);

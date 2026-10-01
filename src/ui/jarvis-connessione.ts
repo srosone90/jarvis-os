@@ -2,6 +2,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { SOGLIA_OFFLINE_MS } from "../connessione/connessione";
 import { ascoltaOrigine, statoOrigine, tornaAllaRiserva } from "../pwa/origine";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
+import "./jarvis-indicatore-parola";
 
 const TESTO_STATO = {
   avvio: "Avvio",
@@ -127,6 +128,7 @@ export class JarvisConnessione extends RiquadroSicuro {
       aria-live="polite"
     >
       <span class="punto"></span><span>${offline ? "Offline" : TESTO_STATO[info.stato]}</span>
+      <jarvis-indicatore-parola></jarvis-indicatore-parola>
     </div>`;
   }
 }

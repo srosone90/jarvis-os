@@ -1,12 +1,12 @@
 {
   "name": "jarvis-os",
-  "version": "0.4.8",
+  "version": "0.5.0",
   "private": true,
   "description": "Jarvis OS — pannello domotico a muro (PWA) per Home Assistant",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build && vite build -c vite.prova.config.ts && node scripts/dopo-build.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/dopo-build.mjs",
     "anteprima": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . && prettier --check .",

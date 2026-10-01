@@ -1,4 +1,4 @@
-import { mdiHome, mdiWeatherNight } from "@mdi/js";
+import { mdiHome, mdiMicrophone, mdiMicrophoneOff, mdiWeatherNight } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione/connessione";
 import { descriviErrore, log } from "../diagnostica/log";
@@ -8,8 +8,9 @@ import { icona, RiquadroSicuro, stileBase } from "./base";
 
 /**
  * Procedura guidata del primo avvio, variante S3 (scelta di Salvatore, 30/09),
- * pensata per le altre case: una domanda per schermata. Solo ciò che esiste
- * oggi: stanza e schermo a riposo; voce e pronuncia arrivano con la v0.5.0.
+ * pensata per le altre case: una domanda per schermata. Stanza, schermo a
+ * riposo e «Jarvis» sempre in ascolto (v0.5.0); la pronuncia si insegna poi
+ * da Impostazioni → Voce, perché richiede qualche minuto.
  * Un pannello che ha già una stanza (installato prima) la considera fatta.
  * Si rifà dalle impostazioni, sezione "Stanza e nome".
  */
@@ -69,7 +70,7 @@ export function ascoltaGuida(f: () => void): () => void {
   return () => ascoltatori.delete(f);
 }
 
-type Passo = "stanza" | "riposo" | "fine";
+type Passo = "stanza" | "riposo" | "voce" | "fine";
 
 export class JarvisGuida extends RiquadroSicuro {
   static override properties = { passo: { state: true } };
@@ -287,6 +288,40 @@ export class JarvisGuida extends RiquadroSicuro {
       </div>
       <div class="fondo">
         <button @click=${() => (this.passo = "stanza")}>Indietro</button>
+        <button class="avanti" data-test="guida-avanti" @click=${() => (this.passo = "voce")}>Avanti</button>
+      </div>`;
+  }
+
+  private voce(): TemplateResult {
+    const acceso = connessione.parola.acceso;
+    const scelte: [boolean, string, string][] = [
+      [true, mdiMicrophone, "Sì, sempre in ascolto (consigliato)"],
+      [false, mdiMicrophoneOff, "No, solo quando tocco il microfono"],
+    ];
+    return html`<h1>Jarvis ti ascolta quando dici «Jarvis»?</h1>
+      <p>
+        Il microfono resta aperto e riconosce la parola qui sul pannello: a Home Assistant va solo quello che
+        dici dopo «Jarvis». In alto compare sempre il simbolo del microfono. Per insegnargli la tua pronuncia:
+        Impostazioni → Voce.
+      </p>
+      <div class="scelte" role="group" aria-label="«Jarvis» sempre in ascolto">
+        ${scelte.map(
+          ([v, ic, t]) =>
+            html`<button
+              class="scelta"
+              aria-pressed=${acceso === v ? "true" : "false"}
+              data-test="guida-parola"
+              @click=${() => {
+                if (connessione.parola.acceso !== v) connessione.parola.imposta(v);
+                this.requestUpdate();
+              }}
+            >
+              ${icona(ic)}${t}
+            </button>`,
+        )}
+      </div>
+      <div class="fondo">
+        <button @click=${() => (this.passo = "riposo")}>Indietro</button>
         <button class="avanti" data-test="guida-avanti" @click=${() => (this.passo = "fine")}>Avanti</button>
       </div>`;
   }
@@ -297,28 +332,31 @@ export class JarvisGuida extends RiquadroSicuro {
     return html`<h1>Fatto</h1>
       <p data-test="guida-riepilogo">
         Stanza: <b>${stanza ?? "nessuna"}</b>. Schermo a riposo:
-        <b>${attesa === null ? "mai da solo" : `dopo ${attesa} minuti`}</b>.
+        <b>${attesa === null ? "mai da solo" : `dopo ${attesa} minuti`}</b>. «Jarvis» sempre in ascolto:
+        <b>${connessione.parola.acceso ? "sì" : "no"}</b>.
       </p>
       <p>Per cambiare queste scelte tieni premuto l'orologio per 3 secondi: si aprono le impostazioni.</p>
       <div class="fondo">
-        <button @click=${() => (this.passo = "riposo")}>Indietro</button>
+        <button @click=${() => (this.passo = "voce")}>Indietro</button>
         <button class="avanti" data-test="guida-fine" @click=${() => this.fine()}>Inizia</button>
       </div>`;
   }
 
   protected disegna(): TemplateResult {
-    const n = { stanza: 1, riposo: 2, fine: 3 }[this.passo];
-    return html`<div class="passi" aria-label="Passo ${n} di 3">
-        ${[1, 2, 3].map((i) => html`<i class=${i <= n ? "fatto" : ""}></i>`)}
+    const n = { stanza: 1, riposo: 2, voce: 3, fine: 4 }[this.passo];
+    return html`<div class="passi" aria-label="Passo ${n} di 4">
+        ${[1, 2, 3, 4].map((i) => html`<i class=${i <= n ? "fatto" : ""}></i>`)}
       </div>
       ${
         this.passo === "stanza"
           ? this.stanza()
           : this.passo === "riposo"
             ? this.riposo()
-            : this.passo === "fine"
-              ? this.riepilogo()
-              : nothing
+            : this.passo === "voce"
+              ? this.voce()
+              : this.passo === "fine"
+                ? this.riepilogo()
+                : nothing
       }`;
   }
 }

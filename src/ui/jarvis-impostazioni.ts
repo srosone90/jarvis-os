@@ -1,4 +1,11 @@
-import { mdiClose, mdiHome, mdiInformationOutline, mdiVolumeHigh, mdiWeatherNight } from "@mdi/js";
+import {
+  mdiClose,
+  mdiHome,
+  mdiInformationOutline,
+  mdiMicrophone,
+  mdiVolumeHigh,
+  mdiWeatherNight,
+} from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione/connessione";
 import { log } from "../diagnostica/log";
@@ -10,11 +17,13 @@ import { ATTESE_POSSIBILI } from "../vista/vista";
 import { icona, RiquadroSicuro, stileBase } from "./base";
 import { rifaiGuida } from "./jarvis-guida";
 import "./jarvis-diagnostica";
+import "./jarvis-impostazioni-voce";
 
-export type Sezione = "stanza" | "riposo" | "audio" | "diagnostica";
+export type Sezione = "stanza" | "voce" | "riposo" | "audio" | "diagnostica";
 
 const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   { id: "stanza", titolo: "Stanza e nome", icona: mdiHome },
+  { id: "voce", titolo: "Voce", icona: mdiMicrophone },
   { id: "riposo", titolo: "Schermo a riposo", icona: mdiWeatherNight },
   { id: "audio", titolo: "Audio", icona: mdiVolumeHigh },
   { id: "diagnostica", titolo: "Diagnostica", icona: mdiInformationOutline },
@@ -24,9 +33,9 @@ const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
  * Impostazioni del pannello, variante S1 (scelta di Salvatore, 30/09): elenco
  * delle sezioni a sinistra, contenuto a destra, come le impostazioni di
  * Android. Si aprono tenendo premuto l'orologio 3 s, senza PIN: valgono solo
- * per questo dispositivo. Solo impostazioni che funzionano davvero oggi; la
- * voce («Jarvis», pronuncia) arriva con la v0.5.0. La diagnostica di prima è
- * l'ultima sezione.
+ * per questo dispositivo. Solo impostazioni che funzionano davvero oggi. La
+ * sezione Voce («Jarvis» sempre in ascolto, pronuncia) è della v0.5.0. La
+ * diagnostica di prima è l'ultima sezione.
  */
 export class JarvisImpostazioni extends RiquadroSicuro {
   static override properties = { sezione: { state: true } };
@@ -279,7 +288,7 @@ export class JarvisImpostazioni extends RiquadroSicuro {
       <div class="voce">
         <div>
           <b>Procedura guidata</b>
-          <small>Le domande del primo avvio: stanza e schermo a riposo.</small>
+          <small>Le domande del primo avvio: stanza, schermo a riposo e «Jarvis» sempre in ascolto.</small>
         </div>
         <button class="azione" data-test="rifai-guida" @click=${() => this.rifai()}>Rifalla</button>
       </div>`;
@@ -402,11 +411,13 @@ export class JarvisImpostazioni extends RiquadroSicuro {
     const corpo =
       s === "stanza"
         ? this.stanza()
-        : s === "riposo"
-          ? this.riposo()
-          : s === "audio"
-            ? this.audio()
-            : html`<jarvis-diagnostica></jarvis-diagnostica>`;
+        : s === "voce"
+          ? html`<jarvis-impostazioni-voce></jarvis-impostazioni-voce>`
+          : s === "riposo"
+            ? this.riposo()
+            : s === "audio"
+              ? this.audio()
+              : html`<jarvis-diagnostica></jarvis-diagnostica>`;
     return html`<header>
         <h1>Impostazioni</h1>
         <button

@@ -1,9 +1,10 @@
-import type { Assistente } from "../assistente/assistente";
+import type { Assistente, OpzioniParla } from "../assistente/assistente";
 import type { Turno } from "../assistente/eventi";
 import { messaggioMicrofono, problemaDaErrore, type MessaggioMicrofono } from "../assistente/messaggi";
 import { descriviErrore, log } from "../diagnostica/log";
 import { Bip, Riproduttore } from "./audio";
-import { Microfono, MicrofonoNonDisponibile } from "./microfono";
+import { CAMPIONI_PER_PEZZO, Microfono, MicrofonoNonDisponibile } from "./microfono";
+import type { SorgenteMicrofono } from "./microfono-condiviso";
 
 /**
  * Voce "tocca per parlare" (F5). Una faccia del motore dell'assistente: la
@@ -41,10 +42,19 @@ export const RIQUADRO_DOPO_MS = 6_000;
 /** Audio tenuto da parte prima che HA dia l'id: al massimo ~10 s. */
 const CODA_MASSIMA = 160;
 
+/** Domanda nata dalla parola «Jarvis» (v0.5.0). */
+export interface OpzioniVoce extends OpzioniParla {
+  /**
+   * Audio di poco prima dello scatto (la memoria circolare, ~1 s, 16 kHz):
+   * va a HA per primo, così la parola e l'inizio della frase non si perdono.
+   */
+  preroll?: Int16Array;
+}
+
 export interface DipendenzeVoce {
   assistente: Assistente;
   collegato: () => boolean;
-  microfono?: Microfono;
+  microfono?: SorgenteMicrofono;
   riproduttore?: Riproduttore;
   bip?: Bip;
 }
@@ -57,13 +67,15 @@ export class Voce {
   private riquadro = false;
   private sessione = 0;
   private seguito = false;
+  /** Domanda nata da «Jarvis» (non dal tocco): se nessuno parla si chiude in silenzio. */
+  private daParola = false;
   private riproduzioneAvviata = false;
   private coda: ArrayBuffer[] = [];
   private timerAscolto: ReturnType<typeof setTimeout> | undefined;
   private timerRiquadro: ReturnType<typeof setTimeout> | undefined;
   /** Limite di "apertura" e "pensa": si riarma a ogni cambio di fase. */
   private timerFase: ReturnType<typeof setTimeout> | undefined;
-  private readonly microfono: Microfono;
+  private readonly microfono: SorgenteMicrofono;
   private readonly riproduttore: Riproduttore;
   private readonly bip: Bip;
   private readonly ascoltatori = new Set<() => void>();
@@ -112,14 +124,15 @@ export class Voce {
     return () => this.ascoltatoriLivello.delete(f);
   }
 
-  /** Tocco sul microfono. */
-  async parla(dove: DoveVoce, seguito = false): Promise<void> {
+  /** Tocco sul microfono, o «Jarvis» sentito (con `opzioni`). */
+  async parla(dove: DoveVoce, seguito = false, opzioni: OpzioniVoce = {}): Promise<void> {
     if (this.statoFase !== "spenta" && this.statoFase !== "errore") return;
     clearTimeout(this.timerRiquadro);
     this.luogo = dove;
     this.riquadro = dove === "riquadro";
     this.problemaMic = null;
     this.seguito = seguito;
+    this.daParola = opzioni.parola !== undefined;
     if (!seguito) this.idTurno = null;
     if (!this.dip.collegato() || this.dip.assistente.occupato) {
       this.imposta("spenta");
@@ -134,6 +147,10 @@ export class Voce {
         livello: (l) => {
           for (const f of this.ascoltatoriLivello) f(l);
         },
+        interrotto: () => {
+          // il sistema ha chiuso il microfono: HA risponde a quello che ha già sentito
+          if (sessione === this.sessione && this.statoFase === "ascolto") this.chiudiMicrofono();
+        },
       });
     } catch (errore) {
       if (sessione !== this.sessione) return;
@@ -147,7 +164,8 @@ export class Voce {
       this.microfono.ferma();
       return;
     }
-    const id = this.dip.assistente.parla(frequenza);
+    const { preroll, ...perAssistente } = opzioni;
+    const id = this.dip.assistente.parla(frequenza, perAssistente);
     if (id === null) {
       // HA perso mentre il microfono si apriva
       this.microfono.ferma();
@@ -155,7 +173,8 @@ export class Voce {
       return;
     }
     this.idTurno = id;
-    this.coda = [];
+    // prima l'audio della parola, poi quello dal vivo (tenuti da parte fino all'id di HA)
+    this.coda = preroll ? aPezzi(preroll) : [];
     this.riproduzioneAvviata = false;
     this.bip.suona("apri");
     this.timerAscolto = setTimeout(() => {
@@ -241,14 +260,33 @@ export class Voce {
     if (t.fase === "errore") {
       this.chiudiMicrofono();
       this.riproduttore.ferma();
-      if (this.seguito && t.errore?.tipo === "nonSentito" && !t.domanda) {
-        // seguito senza risposta: come un Echo, si chiude in silenzio
+      if (t.errore?.tipo === "doppione") {
+        // un altro pannello ha sentito la stessa «Jarvis» e risponde lui: qui niente
+        log.info("Voce: «Jarvis» sentito anche da un altro pannello, risponde lui");
+        this.dip.assistente.scarta(t.id);
+        this.idTurno = null;
+        this.problemaMic = null;
+        this.nascondiRiquadro();
+        this.imposta("spenta");
+        return;
+      }
+      if ((this.seguito || this.daParola) && t.errore?.tipo === "nonSentito" && !t.domanda) {
+        // seguito senza risposta, o «Jarvis» sentito per sbaglio e nessuno parla:
+        // come un Echo, si chiude in silenzio (niente "Non ho capito" a ogni falso scatto)
+        if (this.daParola) log.info("Voce: dopo «Jarvis» nessuna domanda, chiudo in silenzio");
         this.dip.assistente.scarta(t.id);
         this.idTurno = null;
         this.finito();
         return;
       }
       if (this.statoFase !== "errore") this.imposta("errore");
+      return;
+    }
+    if (t.fase === "fatto" && t.audioPronto && !t.urlAudio && t.concluso && !this.riproduzioneAvviata) {
+      // risposta senza audio (es. «Jarvis, stop» gestito sul pannello): finita così
+      this.chiudiMicrofono();
+      this.riproduzioneAvviata = true;
+      this.finito();
       return;
     }
     if (t.fase === "fatto" && t.audioPronto && t.urlAudio && !this.riproduzioneAvviata) {
@@ -332,4 +370,12 @@ export class Voce {
       }
     }
   }
+}
+
+/** L'audio della memoria in pezzi come quelli del microfono (1024 campioni). */
+function aPezzi(pcm: Int16Array): ArrayBuffer[] {
+  const pezzi: ArrayBuffer[] = [];
+  for (let i = 0; i < pcm.length; i += CAMPIONI_PER_PEZZO)
+    pezzi.push(pcm.slice(i, i + CAMPIONI_PER_PEZZO).buffer);
+  return pezzi;
 }

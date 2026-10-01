@@ -1,8 +1,8 @@
 import type { InferenceSession, Tensor } from "onnxruntime-web";
 
 /**
- * Rilevatore della parola di attivazione ("Ehi Jarvis"). Per ora serve solo
- * alla PROVA DI FATTIBILITÀ (pagina prova-ehi-jarvis.html), non al pannello.
+ * Rilevatore della parola di attivazione («Jarvis»): dalla v0.5.0 è nel
+ * pannello, dentro il motore caricato a parte (src/parola/motore.ts).
  *
  * Il modello è sostituibile: chi usa il rilevatore conosce solo l'interfaccia
  * `RilevatoreParola`. I modelli pre-addestrati di openWakeWord sono CC BY-NC-SA

@@ -32,9 +32,11 @@ export default tseslint.config(
     },
   },
   {
-    // Modello del service worker: __ELENCO__ lo sostituisce scripts/dopo-build.mjs
+    // Modello del service worker: __ELENCO__ e __PAROLA__ li sostituisce scripts/dopo-build.mjs
     files: ["scripts/sw-modello.js"],
-    languageOptions: { globals: { __ELENCO__: "readonly", Request: "readonly" } },
+    languageOptions: {
+      globals: { __ELENCO__: "readonly", __PAROLA__: "readonly", Request: "readonly", console: "readonly" },
+    },
   },
   {
     // Finto Home Assistant delle prove: script Node, lo stato è una mappa di entità

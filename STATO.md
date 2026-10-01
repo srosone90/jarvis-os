@@ -4,33 +4,30 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 30/09/2026 — v0.4.8 (fase G: riposo, Hub, impostazioni, guida). Release verificata._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.0 («Jarvis» sempre in ascolto). Release: vedi sotto._
 
 ## Adesso
 
-- **Finito: v0.4.8, fase G** (ordine di Salvatore: prima la G, poi la
-  v0.5.0). Solo lato pannello, **niente da cambiare lato server**: usa
-  `jarvis_timer` con `in_pausa`, `timer_attivi` e `jarvis_musica.stato`.
-  - schermo a riposo C (sfera che respira, ora accanto, timer come anelli),
-    dopo 2 minuti senza tocchi;
-  - "Timer finito" come riquadro al centro sopra il riposo, di notte in rosso
-    scuro;
-  - toccando la sfera: Hub H1, Jarvis ascolta subito, domanda e risposta come
-    sottotitoli; dopo 30 s senza attività torna a riposo;
-  - impostazioni S1 (orologio premuto 3 s, niente PIN): Stanza, Schermo a
-    riposo, Audio, Diagnostica;
-  - procedura guidata al primo avvio, solo sui pannelli nuovi: i pannelli con
-    la stanza già scelta non la vedono.
-  - Non in questo giro: navigazione laterale, schermate Stanza, Meteo, Musica.
-- **Prossimo, subito: v0.5.0**, «Jarvis» sempre in ascolto come concordato:
-  la memoria circolare di ~1 s serve solo a riconoscere la parola; poi la
-  pipeline normale **senza `no_vad`**, con ~1 s di audio prima della parola
-  più l'audio dal vivo, e la fine della frase la decide `jarvis_voce`. Dentro
-  anche "stop"/"basta" per la suoneria e "Insegna a Jarvis la tua pronuncia"
-  nelle impostazioni (sezione Voce). Se mai servisse `no_vad`, lo scrivo qui
-  prima, con il motivo.
-- **Dopo la v0.5.0**: navigazione + Stanza + Meteo, poi Musica (fase M, con
-  copertina e playlist della 0.4.0).
+- **Finito: v0.5.0, «Jarvis» sempre in ascolto**, come concordato:
+  - la memoria circolare (~1 s, solo in RAM) serve solo a riconoscere la
+    parola; allo scatto parte la pipeline normale stt→tts **senza `no_vad`**:
+    la fine della frase la decide `jarvis_voce`. A HA arriva prima la memoria
+    (fino a 1 s: la parola), poi l'audio dal vivo;
+  - si manda `input.wake_word_phrase: "Jarvis"`: se due pannelli sentono la
+    stessa parola entro 2 s, HA scarta il secondo (`duplicate_wake_up_detected`,
+    `WAKE_WORD_COOLDOWN` in pipeline.py di 2026.9.3). Il pannello che perde
+    non mostra errori. Col tocco sul microfono non si manda;
+  - **acceso di serie** (scelta di Salvatore), si spegne in Impostazioni →
+    Voce; indicatore del microfono sempre visibile mentre ascolta;
+  - **timer che suona** (scelta di Salvatore): «Jarvis» zittisce subito la
+    suoneria e la pipeline va da stt a **stt** (solo testo). Se il testo è
+    «stop»/«basta»/«ferma» il pannello chiude il timer con il tuo
+    `timer_ferma` (anche sugli altri pannelli) e **Gemini non viene
+    chiamato**. Altrimenti, sullo stesso turno, parte una pipeline da
+    **intent a tts** col testo trascritto;
+  - "Insegna a Jarvis la tua pronuncia" è nelle impostazioni del pannello;
+  - tolta la pagina di prova `prova-ehi-jarvis.html`.
+- **Prossimo**: navigazione N2 + schermate Stanza e Meteo, poi Musica (fase M).
 - **Da fare in casa (Salvatore)**: la prova della TV, "spegni la TV del
   salotto" con la TV accesa.
 - **In parallelo:** il notebook Colab per il modello italiano.
@@ -39,12 +36,55 @@ _Ultimo aggiornamento: 30/09/2026 — v0.4.8 (fase G: riposo, Hub, impostazioni,
 
 | | |
 |---|---|
-| Versione | **v0.4.8**: fase G (riposo, Hub, impostazioni, guida) |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.4.8 |
-| sha256 dello zip | `fad878eb44aad6b7fa1ddb6fe2677f2dae3f8fecec4a030f2a2814cb4afb500a` (6,8 MB, service worker 0.4.8, verificati) |
-| Precedente | v0.4.7, sha256 `9c7684ea…bbc4` |
+| Versione | **v0.5.0**: «Jarvis» sempre in ascolto |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.0 |
+| sha256 dello zip | _in arrivo: lo scrivo appena la release è pronta e verificata_ |
+| Precedente | v0.4.8, sha256 `fad878eb…500a` |
 
-## Da installare lato server: v0.4.8
+## Da installare lato server: v0.5.0
+
+Lo zip sopra `/config/www/jarvis/`, come sempre. **Novità**: nello zip c'è la
+cartella `parola/` (circa 17 MB: riconoscimento della parola, modelli
+openWakeWord, CC BY-NC-SA 4.0, solo non commerciale). Si può cancellare
+`/config/www/jarvis/prova-ehi-jarvis.html` e la cartella `prova/`: non servono
+più. Lato HA non cambia niente.
+
+**Domanda per te** (vedi "Domande aperte", 12): il testo trascritto ora
+comincia di solito con «Jarvis» ("Jarvis, metti un timer di 5 minuti").
+
+**Come provarla, dentro il pannello** (tablet della cucina):
+
+1. Aggiorna il pannello (all'apertura si aggiorna da solo; la prima volta
+   scarica circa 17 MB). In alto, accanto a "Connesso", compare il simbolo
+   del microfono: «Jarvis» ascolta.
+2. Di' «Jarvis, che temperatura c'è in camera?» tutto di fila. Deve
+   rispondere nel riquadro piccolo. Poi prova «Jarvis», una pausa breve (meno
+   di un secondo: la fine della frase la decide il server) e la domanda.
+3. Metti il pannello a riposo (Impostazioni → Schermo a riposo → Metti a
+   riposo) e di' «Jarvis, che ore sono?»: si apre l'Hub con domanda e
+   risposta scritte sotto la sfera.
+4. Timer: «Jarvis, metti un timer di un minuto». Quando suona, di' «Jarvis»:
+   la suoneria tace subito. Poi, entro un secondo, «stop» (o tutto di fila:
+   «Jarvis, stop»): il riquadro "Timer finito" sparisce.
+   Rifallo e, invece di «stop», chiedi un'altra cosa: risponde, la suoneria
+   non riparte, e il riquadro resta finché non tocchi Stop.
+5. Se Jarvis capisce male «Jarvis» (lo dici «Giàrvis», con l'accento
+   sulla prima): tieni premuto l'orologio 3 s → Voce → "Insegna a Jarvis la
+   tua pronuncia". Scrivi il tuo nome, tocca «Registra «Jarvis»» e ripeti la
+   parola ogni volta che compare «adesso» (20 volte, circa un minuto). Poi
+   «Registra 60 s» con la TV accesa o parlando d'altro, e «Impara la
+   pronuncia». Rifai la prova 2.
+6. In Impostazioni → Voce, "Come sta andando": dimmi i **ms di calcolo** e il
+   **carico** sul tablet, e quante volte «Jarvis» è scattato senza che
+   nessuno l'abbia detto in un'ora con la TV accesa.
+7. L'interruttore in Impostazioni → Voce spegne tutto: il simbolo del
+   microfono sparisce.
+
+Nel log della diagnostica: "«Jarvis» in ascolto (…)", "«Jarvis» sentito
+(punteggio …)", "suoneria zittita", "«Jarvis» sentito anche da un altro
+pannello, risponde lui".
+
+## v0.4.8 (compresa nella v0.5.0)
 
 Solo lo zip sopra `/config/www/jarvis/`, come sempre. Contiene anche la
 v0.4.7 (timer in pausa), se non l'avevi ancora messa. Lato HA non cambia
@@ -246,3 +286,9 @@ ora no".
     Testo originale:: arriva anche un evento quando un timer va in pausa
     o riparte (per esempio `updated` con `in_pausa`)? Senza evento, il
     pannello lo saprebbe solo alla rilettura.
+12. **Frasi che cominciano con «Jarvis»** (v0.5.0): l'STT ora trascrive di
+    solito anche la parola ("Jarvis, metti un timer di 5 minuti"). Gemini lo
+    regge; le frasi riconosciute in locale da HA o da `jarvis_voce` (timer,
+    pausa…) funzionano anche con «Jarvis» davanti? Se no, meglio toglierla
+    lato server (il pannello potrebbe mandare meno memoria, ma allora
+    "spegni la TV, Jarvis" perderebbe l'inizio).

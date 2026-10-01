@@ -1,0 +1,385 @@
+import { messaggioMicrofono, problemaDaErrore, type MessaggioMicrofono } from "../assistente/messaggi";
+import { descriviErrore, log } from "../diagnostica/log";
+import type { Timer } from "../timer/timer";
+import { Microfono, MicrofonoNonDisponibile } from "../voce/microfono";
+import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";
+import type { DoveVoce, Voce } from "../voce/voce";
+import { MemoriaCircolare } from "./memoria";
+import type { EsitoParola, MotoreParola } from "./motore";
+import { eComandoStop } from "./stop";
+
+/**
+ * «Jarvis» sempre in ascolto (v0.5.0, decisioni del 30/09 in CLAUDE.md).
+ *
+ *  - Il microfono resta aperto e l'audio passa dal motore della parola, sul
+ *    dispositivo. Una memoria circolare di ~1 s, SOLO in RAM, serve a non
+ *    perdere la parola: allo scatto va a HA insieme all'audio dal vivo.
+ *  - Allo scatto parte la pipeline normale (stt → tts) SENZA `no_vad`: la
+ *    fine della frase la decide jarvis_voce, tarato sul server.
+ *  - Mentre suona un timer la parola zittisce la suoneria; «stop», «basta» o
+ *    «ferma» lo chiudono, altrimenti è una domanda (scelta di Salvatore, 30/09).
+ *  - Acceso di serie; si spegne in Impostazioni → Voce. Indicatore sempre
+ *    visibile mentre ascolta.
+ *  - Android: il microfono vive solo con la pagina in primo piano e lo schermo
+ *    acceso. Wake Lock mentre ascolta, e ripresa quando la pagina torna visibile.
+ */
+export type StatoAscolto = "spento" | "carica" | "ascolta" | "fermo" | "nonDisponibile";
+
+const CHIAVE = "jarvis-parola";
+/** Memoria circolare: solo quanto serve a riconoscere la parola (decisione del 30/09). */
+export const SECONDI_MEMORIA = 1;
+/** Dopo uno scatto, per quanto non se ne conta un altro (una frase = una domanda). */
+export const PAUSA_DOPO_SCATTO_MS = 2000;
+/** Dopo la risposta di Jarvis: la coda dell'audio dall'altoparlante non deve farlo ripartire. */
+export const PAUSA_DOPO_VOCE_MS = 1500;
+/** Se il dispositivo resta indietro di tanto, si butta l'audio vecchio (e lo si dice). */
+const RITARDO_MASSIMO_FRAME = 25;
+
+export interface DipendenzeAscolto {
+  micro: MicrofonoCondiviso;
+  voce: Pick<Voce, "attiva" | "fase" | "ascolta" | "parla">;
+  timer: Pick<Timer, "suonano" | "silenzia" | "ferma">;
+  /** Carica il motore (di serie con un import() pigro: onnxruntime e modelli non sono nel bundle iniziale). */
+  carica?: () => Promise<MotoreParola>;
+  adesso?: () => number;
+}
+
+export interface Statistiche {
+  frame: number;
+  scartati: number;
+  msMedio: number;
+  scatti: number;
+  ultimoScatto: number | null;
+  /** Punteggio più alto degli ultimi ~2 s (per vedere se "ci era vicino"). */
+  punteggioRecente: number;
+}
+
+export function leggiAcceso(grezzo: string | null): boolean {
+  if (grezzo === null) return true; // acceso di serie
+  try {
+    const d = JSON.parse(grezzo) as { acceso?: unknown };
+    return d.acceso !== false;
+  } catch (errore) {
+    log.avviso(`Parola: impostazione illeggibile (${descriviErrore(errore)}): acceso di serie`);
+    return true;
+  }
+}
+
+/** Si può far partire uno scatto adesso? Logica pura, provata a parte. */
+export function puoScattare(
+  e: Pick<EsitoParola, "punteggio">,
+  soglia: number,
+  adesso: number,
+  ultimoScatto: number,
+  voceAttiva: boolean,
+  fineVoce: number,
+  inRegistrazione: boolean,
+): boolean {
+  if (inRegistrazione || voceAttiva || e.punteggio < soglia) return false;
+  if (adesso - ultimoScatto < PAUSA_DOPO_SCATTO_MS) return false;
+  return adesso - fineVoce >= PAUSA_DOPO_VOCE_MS;
+}
+
+export class AscoltoParola {
+  private statoAttuale: StatoAscolto = "spento";
+  private problemaMic: MessaggioMicrofono | null = null;
+  private voluto: boolean;
+  private caricamento: Promise<MotoreParola> | null = null;
+  private motoreCaricato: MotoreParola | null = null;
+  private readonly memoria = new MemoriaCircolare(SECONDI_MEMORIA);
+  private inCoda = 0;
+  private ultimoScatto = -Infinity;
+  private fineVoce = -Infinity;
+  private eraAttiva = false;
+  private tempi: number[] = [];
+  private recenti: number[] = [];
+  private stat: Statistiche = {
+    frame: 0,
+    scartati: 0,
+    msMedio: 0,
+    scatti: 0,
+    ultimoScatto: null,
+    punteggioRecente: 0,
+  };
+  private wakeLock: { release(): Promise<void> } | null = null;
+  private generazione = 0;
+  private readonly adesso: () => number;
+  private readonly ascoltatori = new Set<() => void>();
+  /** Dove si vede la domanda nata dalla parola: la decide l'interfaccia (riposo → Hub, chat aperta → chat). */
+  doveParlare: () => DoveVoce = () => "riquadro";
+
+  constructor(private readonly dip: DipendenzeAscolto) {
+    this.adesso = dip.adesso ?? Date.now;
+    let letto: string | null = null;
+    try {
+      letto = localStorage.getItem(CHIAVE);
+    } catch (errore) {
+      log.avviso(`Parola: impostazione non letta (${descriviErrore(errore)}): acceso di serie`);
+    }
+    this.voluto = leggiAcceso(letto);
+    dip.voce.ascolta(() => {
+      const attiva = this.voceOccupata();
+      if (this.eraAttiva && !attiva) this.fineVoce = this.adesso();
+      this.eraAttiva = attiva;
+    });
+  }
+
+  /**
+   * La voce sta ascoltando, pensando o rispondendo. Un errore a schermo ("Non
+   * ho capito") non conta: la voce ripartirebbe da lì anche col tocco, e
+   * «Jarvis» non deve restare sordo finché qualcuno lo chiude.
+   */
+  private voceOccupata(): boolean {
+    return this.dip.voce.attiva && this.dip.voce.fase !== "errore";
+  }
+
+  get stato(): StatoAscolto {
+    return this.statoAttuale;
+  }
+  /** L'utente vuole «Jarvis» acceso su questo dispositivo. */
+  get acceso(): boolean {
+    return this.voluto;
+  }
+  /** Perché il microfono non è aperto, in parole semplici (stato "fermo"). */
+  get problema(): MessaggioMicrofono | null {
+    return this.problemaMic;
+  }
+  get motore(): MotoreParola | null {
+    return this.motoreCaricato;
+  }
+  get statistiche(): Statistiche {
+    return { ...this.stat };
+  }
+
+  ascolta(f: () => void): () => void {
+    this.ascoltatori.add(f);
+    return () => this.ascoltatori.delete(f);
+  }
+
+  /** All'avvio del pannello. */
+  avvia(): void {
+    document.addEventListener("visibilitychange", () => this.suVisibilita());
+    if (this.voluto) void this.accendi("avvio");
+  }
+
+  /** Interruttore di Impostazioni → Voce (e della procedura guidata). */
+  imposta(acceso: boolean): void {
+    this.voluto = acceso;
+    try {
+      localStorage.setItem(CHIAVE, JSON.stringify({ acceso }));
+    } catch (errore) {
+      log.avviso(`Parola: impostazione non salvata (${descriviErrore(errore)}): vale fino alla ricarica`);
+    }
+    log.info(`«Jarvis» sempre in ascolto: ${acceso ? "acceso" : "spento"}`);
+    if (acceso) void this.accendi("acceso dalle impostazioni");
+    else this.spegni("spento dalle impostazioni");
+  }
+
+  /** Riprova ad aprire il microfono (tocco su "Riprova" dopo un errore). */
+  riprova(): void {
+    if (this.voluto) void this.accendi("riprova");
+  }
+
+  private async accendi(motivo: string): Promise<void> {
+    if (this.statoAttuale === "ascolta" || this.statoAttuale === "carica") return;
+    if (!Microfono.disponibile()) {
+      this.problemaMic = messaggioMicrofono("https");
+      this.cambia("nonDisponibile");
+      log.avviso("«Jarvis» non può ascoltare: il microfono funziona solo sull'indirizzo https");
+      return;
+    }
+    const generazione = ++this.generazione;
+    this.problemaMic = null;
+    this.cambia("carica");
+    try {
+      const motore = await this.carica();
+      if (generazione !== this.generazione) return;
+      await motore.azzera();
+      if (generazione !== this.generazione) return;
+      await this.dip.micro.apriContinuo({
+        pezzo: (pcm) => void this.suPezzo(pcm, generazione),
+        interrotto: () => this.suInterrotto(),
+      });
+      if (generazione !== this.generazione) {
+        this.dip.micro.chiudiContinuo();
+        return;
+      }
+      log.info(`«Jarvis» in ascolto (${motivo}): memoria di ${SECONDI_MEMORIA} s solo in RAM`);
+      this.cambia("ascolta");
+      void this.tieniSchermoAcceso();
+    } catch (errore) {
+      if (generazione !== this.generazione) return;
+      const problema = errore instanceof MicrofonoNonDisponibile ? "https" : problemaDaErrore(errore);
+      this.problemaMic =
+        errore instanceof DOMException || errore instanceof MicrofonoNonDisponibile
+          ? messaggioMicrofono(problema)
+          : { problema: "altro", titolo: "«Jarvis» non è partito.", spiegazione: descriviErrore(errore) };
+      log.errore(`«Jarvis» non in ascolto (${motivo}): ${descriviErrore(errore)}`);
+      this.cambia("fermo");
+    }
+  }
+
+  private carica(): Promise<MotoreParola> {
+    this.caricamento ??= (
+      this.dip.carica ?? (() => import("./motore").then((m) => m.MotoreParola.crea()))
+    )().then(
+      (motore) => {
+        this.motoreCaricato = motore;
+        motore.ascolta(() => this.notifica());
+        return motore;
+      },
+      (errore: unknown) => {
+        // si potrà riprovare (rete tornata, cache pronta)
+        this.caricamento = null;
+        throw errore;
+      },
+    );
+    return this.caricamento;
+  }
+
+  private spegni(motivo: string): void {
+    this.generazione += 1;
+    this.dip.micro.chiudiContinuo();
+    this.memoria.svuota();
+    this.motoreCaricato?.annullaRegistrazione(motivo);
+    this.problemaMic = null;
+    void this.lasciaSchermo();
+    if (this.statoAttuale !== "spento") log.info(`«Jarvis» non ascolta più (${motivo}); memoria svuotata`);
+    this.cambia("spento");
+  }
+
+  private suInterrotto(): void {
+    this.generazione += 1;
+    this.memoria.svuota();
+    this.motoreCaricato?.annullaRegistrazione("microfono chiuso dal sistema");
+    this.problemaMic = {
+      problema: "altro",
+      titolo: "Il sistema ha chiuso il microfono.",
+      spiegazione: "Riparte da solo quando il pannello torna in primo piano.",
+    };
+    this.cambia("fermo");
+  }
+
+  /** Android: in secondo piano il microfono si ferma e il Wake Lock si perde; al ritorno si riprende. */
+  private suVisibilita(): void {
+    if (document.visibilityState !== "visible") return;
+    this.wakeLock = null;
+    if (!this.voluto) return;
+    if (this.statoAttuale === "ascolta") void this.tieniSchermoAcceso();
+    else if (this.statoAttuale === "fermo") void this.accendi("pagina di nuovo in primo piano");
+  }
+
+  private async suPezzo(pcm: Int16Array, generazione: number): Promise<void> {
+    const motore = this.motoreCaricato;
+    if (!motore || generazione !== this.generazione) return;
+    this.memoria.scrivi(pcm);
+    // il dispositivo non sta al passo: meglio buttare audio vecchio che rispondere in ritardo
+    if (this.inCoda * (pcm.length / 1280) > RITARDO_MASSIMO_FRAME) {
+      this.stat.scartati += pcm.length / 1280;
+      return;
+    }
+    this.inCoda += 1;
+    try {
+      const esiti = await motore.elabora(pcm);
+      if (generazione !== this.generazione) return;
+      for (const e of esiti) this.suEsito(e, motore);
+    } catch (errore) {
+      log.errore(`Parola: errore del modello: ${descriviErrore(errore)}`);
+    } finally {
+      this.inCoda -= 1;
+    }
+  }
+
+  private suEsito(e: EsitoParola, motore: MotoreParola): void {
+    this.stat.frame += 1;
+    this.tempi.push(e.ms);
+    if (this.tempi.length > 250) this.tempi.shift();
+    this.recenti.push(e.punteggio);
+    if (this.recenti.length > 25) this.recenti.shift();
+    if (this.stat.frame % 25 === 0) {
+      this.stat.msMedio = this.tempi.reduce((s, x) => s + x, 0) / this.tempi.length;
+      this.stat.punteggioRecente = Math.max(...this.recenti);
+      this.notifica();
+    }
+    const adesso = this.adesso();
+    if (
+      !puoScattare(
+        e,
+        motore.soglia,
+        adesso,
+        this.ultimoScatto,
+        this.voceOccupata(),
+        this.fineVoce,
+        motore.inRegistrazione !== null,
+      )
+    )
+      return;
+    this.scatta(e, motore, adesso);
+  }
+
+  private scatta(e: EsitoParola, motore: MotoreParola, adesso: number): void {
+    this.ultimoScatto = adesso;
+    this.stat.scatti += 1;
+    this.stat.ultimoScatto = adesso;
+    // la memoria va a HA una volta sola e poi si azzera davvero
+    const preroll = this.memoria.ultimi();
+    this.memoria.svuota();
+    const suonava = this.dip.timer.suonano.length > 0;
+    log.info(
+      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ""})${suonava ? ": suoneria zittita" : ""}`,
+    );
+    if (suonava) this.dip.timer.silenzia(`«${motore.parola}» sentito`);
+    const parola = motore.parola;
+    const fermaSeStop = (testo: string): "fermato" | "continua" => {
+      if (!eComandoStop(testo, parola)) return "continua";
+      this.dip.timer.ferma(`«${testo}» a voce`);
+      return "fermato";
+    };
+    void this.dip.voce.parla(
+      this.doveParlare(),
+      false,
+      suonava ? { preroll, parola, dopoTrascrizione: fermaSeStop } : { preroll, parola },
+    );
+    this.notifica();
+  }
+
+  private async tieniSchermoAcceso(): Promise<void> {
+    const nav = navigator as Navigator & {
+      wakeLock?: { request(t: "screen"): Promise<{ release(): Promise<void> }> };
+    };
+    if (!nav.wakeLock || this.wakeLock) return;
+    try {
+      this.wakeLock = await nav.wakeLock.request("screen");
+      log.info("Schermo tenuto acceso mentre «Jarvis» ascolta (Wake Lock)");
+    } catch (errore) {
+      log.avviso(
+        `Wake Lock non disponibile (${descriviErrore(errore)}): lo schermo va tenuto acceso dalle impostazioni del tablet`,
+      );
+    }
+  }
+
+  private async lasciaSchermo(): Promise<void> {
+    const w = this.wakeLock;
+    this.wakeLock = null;
+    try {
+      await w?.release();
+    } catch (errore) {
+      log.avviso(`Wake Lock non rilasciato: ${descriviErrore(errore)}`);
+    }
+  }
+
+  private cambia(stato: StatoAscolto): void {
+    this.statoAttuale = stato;
+    this.notifica();
+  }
+
+  private notifica(): void {
+    for (const f of this.ascoltatori) {
+      try {
+        f();
+      } catch (errore) {
+        log.errore(`Parola: ascoltatore in errore: ${descriviErrore(errore)}`);
+      }
+    }
+  }
+}

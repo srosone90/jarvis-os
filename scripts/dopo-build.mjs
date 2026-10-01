@@ -3,6 +3,10 @@
  *  1. genera dist/sw.js con l'elenco esatto dei file da mettere in cache;
  *  2. controlla i limiti del progetto: pochi file (ogni richiesta sull'HTTPS
  *     costa ~1,5 s) e bundle iniziale < 200 KB gzip.
+ *
+ * Il motore della parola «Jarvis» (v0.5.0: onnxruntime, modelli, ~17 MB) sta
+ * in parola/: fuori dal bundle iniziale e dal limite dei file, in una cache
+ * sua del service worker che scarica solo i file cambiati.
  */
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -21,13 +25,11 @@ function elenca(cartella) {
 }
 
 const versione = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
-// La pagina della prova "Ehi Jarvis" (vite.prova.config.ts) NON fa parte del
-// pannello: fuori dal service worker e dai limiti, con un controllo suo.
-const DELLA_PROVA = (p) => p === "prova-ehi-jarvis.html" || p.startsWith("prova/");
-const MAX_PROVA_MB = 25;
+const DELLA_PAROLA = (p) => p.startsWith("parola/");
+const MAX_PAROLA_MB = 25;
 const tuttiIFile = elenca(DIST).map((p) => relative(DIST, p).split("\\").join("/"));
-const prova = tuttiIFile.filter(DELLA_PROVA).sort();
-const file = tuttiIFile.filter((p) => p !== "sw.js" && !DELLA_PROVA(p)).sort();
+const parola = tuttiIFile.filter(DELLA_PAROLA).sort();
+const file = tuttiIFile.filter((p) => p !== "sw.js" && !DELLA_PAROLA(p)).sort();
 
 const impronta = createHash("sha256");
 for (const f of file) impronta.update(f).update(readFileSync(join(DIST, f)));
@@ -39,6 +41,14 @@ const sw = readFileSync(new URL("./sw-modello.js", import.meta.url), "utf8")
     "__ELENCO__",
     JSON.stringify(
       file.map((f) => `./${f}`),
+      null,
+      2,
+    ),
+  )
+  .replace(
+    "__PAROLA__",
+    JSON.stringify(
+      parola.map((f) => `./${f}`),
       null,
       2,
     ),
@@ -67,15 +77,24 @@ if (js.length !== 1) {
   console.error(`ERRORE: attesi 1 file JavaScript, trovati ${js.length}: ${js.join(", ")}`);
   errori++;
 }
-if (prova.length > 0) {
-  const mb = prova.reduce((s, f) => s + statSync(join(DIST, f)).size, 0) / 1024 / 1024;
-  console.log(
-    `\nProva "Ehi Jarvis" (fuori dal pannello e dal service worker): ${prova.length} file, ${mb.toFixed(1)} MB`,
+const mb = parola.reduce((s, f) => s + statSync(join(DIST, f)).size, 0) / 1024 / 1024;
+console.log(
+  `\nMotore della parola «Jarvis» (caricato dopo, cache a parte): ${parola.length} file, ${mb.toFixed(1)} MB`,
+);
+for (const f of parola) console.log(`  ${f}  (${(statSync(join(DIST, f)).size / 1024).toFixed(1)} KB)`);
+const jsParola = parola.filter((f) => f.endsWith(".js"));
+if (
+  jsParola.length !== 1 ||
+  !parola.some((f) => f.endsWith(".wasm")) ||
+  parola.filter((f) => f.endsWith(".onnx")).length !== 3
+) {
+  console.error(
+    `ERRORE: in parola/ attesi 1 JavaScript, il .wasm e 3 modelli .onnx: trovati ${parola.join(", ")}`,
   );
-  for (const f of prova) console.log(`  ${f}  (${(statSync(join(DIST, f)).size / 1024).toFixed(1)} KB)`);
-  if (mb > MAX_PROVA_MB) {
-    console.error(`ERRORE: la prova pesa ${mb.toFixed(1)} MB, massimo ${MAX_PROVA_MB}`);
-    errori++;
-  }
+  errori++;
+}
+if (mb > MAX_PAROLA_MB) {
+  console.error(`ERRORE: il motore della parola pesa ${mb.toFixed(1)} MB, massimo ${MAX_PAROLA_MB}`);
+  errori++;
 }
 process.exit(errori ? 1 : 0);

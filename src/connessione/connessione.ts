@@ -13,6 +13,8 @@ import { PausaMusica } from "../voce/pausa-musica";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { dispositivoPannello, proprietarioTimer } from "../timer/pannello";
 import { Voce } from "../voce/voce";
+import { MicrofonoCondiviso } from "../voce/microfono-condiviso";
+import { AscoltoParola } from "../parola/ascolto";
 import { Suoneria } from "../timer/suoneria";
 import { Timer } from "../timer/timer";
 import { Comandi } from "../comandi/comandi";
@@ -90,10 +92,13 @@ export class Connessione {
     // i timer chiesti a voce o in chat sono di questo pannello (v0.4.6)
     dispositivo: dispositivoPannello,
   });
+  /** Un solo microfono per la parola e per la voce (v0.5.0). */
+  readonly microfono = new MicrofonoCondiviso();
   /** Voce "tocca per parlare" (F5): dopo l'assistente, di cui è una faccia. */
   readonly voce = new Voce({
     assistente: this.assistente,
     collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
+    microfono: this.microfono.perVoce(),
   });
   /** La musica della stanza si ferma mentre Jarvis ascolta e parla (v0.4.4). */
   readonly pausaMusica = new PausaMusica(
@@ -108,6 +113,8 @@ export class Connessione {
     (servizio, dati) => this.chiamaServizio("jarvis_voce", servizio, dati),
     proprietarioTimer,
   );
+  /** «Jarvis» sempre in ascolto (v0.5.0): dopo voce e timer, che usa. */
+  readonly parola = new AscoltoParola({ micro: this.microfono, voce: this.voce, timer: this.timer });
 
   constructor() {
     window.addEventListener("online", this.suRetePresente);

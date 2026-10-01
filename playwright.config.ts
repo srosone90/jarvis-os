@@ -18,7 +18,8 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"]],
   use: {
-    // la procedura guidata del primo avvio (fase G) ha le sue prove: le altre partono con la guida già fatta
+    // guida del primo avvio (fase G) e «Jarvis» sempre in ascolto (v0.5.0) hanno le loro prove:
+    // le altre partono con la guida già fatta e «Jarvis» spento (solo "tocca per parlare")
     storageState: "test/e2e/stato-iniziale.json",
     baseURL: `http://localhost:${PORTA}/local/jarvis/`,
     viewport: { width: 1024, height: 600 },

@@ -194,22 +194,3 @@ test("sulla veloce senza HA da 30 s, con la riserva che risponde: si propone di 
   await page.waitForTimeout(2500);
   expect(new URL(page.url()).origin).toBe(RISERVA);
 });
-
-test("prova «Ehi Jarvis»: stesso passaggio alla veloce, e resta sulla riserva se la veloce manca", async ({
-  page,
-  request,
-}) => {
-  await page.goto(`${RISERVA}/local/jarvis/prova-ehi-jarvis.html?distanza=3`);
-  await expect(page).toHaveURL(`${VELOCE}/local/jarvis/prova-ehi-jarvis.html?distanza=3`, { timeout: 5000 });
-  await expect(page).toHaveTitle("Prova «Ehi Jarvis»");
-  await expect(page.getByTestId("risultati")).toHaveValue(
-    /Indirizzo: http:\/\/127\.0\.0\.1:18123 \(origine veloce/,
-  );
-
-  await comando(request, "veloce?stato=giu");
-  const altra = await page.context().newPage();
-  await altra.goto(`${RISERVA}/local/jarvis/prova-ehi-jarvis.html`);
-  await altra.waitForTimeout(2500);
-  expect(new URL(altra.url()).origin).toBe(RISERVA);
-  await expect(altra.getByTestId("licenza")).toBeVisible();
-});

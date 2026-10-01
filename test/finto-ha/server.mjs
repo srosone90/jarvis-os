@@ -26,13 +26,16 @@
  *                                voce: &trascrizione=… (cosa "sente" l'STT), &stt=silenzio|manuale|guasto
  *                                (nessuna parola / fine solo col tocco / stt-stream-failed), &tts=streaming (risposta locale: run-end
  *                                solo dopo che l'audio è stato scaricato), &continua=N (le
- *                                prossime N risposte chiedono un seguito)
+ *                                prossime N risposte chiedono un seguito), &doppione=1 (la
+ *                                prossima domanda con wake_word_phrase: un altro pannello ha
+ *                                già sentito la parola, duplicate_wake_up_detected)
  *   /__prova/veloce?stato=       su | giu | lenta: l'"origine veloce" delle prove, cioè le
  *                                richieste arrivate come 127.0.0.1 (l'origine di riserva è
  *                                localhost). giu = connessione chiusa (app Tailscale spenta),
  *                                lenta = 3 s di attesa su ogni richiesta HTTP
- *   /__prova/file                {nome, contenuto, tipo?}: un file in /local/jarvis/ che
- *                                nello zip non c'è (es. parola.json di una casa)
+ *   /__prova/file                {nome, contenuto, tipo?, ritardo?}: un file in /local/jarvis/ che
+ *                                nello zip non c'è (es. parola.json di una casa); ritardo in ms
+ *                                prima di servirlo (per decidere QUANDO parte «Jarvis» nelle prove)
  *   /__prova/musica              {stato, stanza, volume, titolo} | null: jarvis_musica (lo stato
  *                                vero di Spotify); null = componente non installato
  *   /__prova/timer               {tipo, id, nome, secondi_totali, secondi_rimasti, pannello}:
@@ -58,6 +61,8 @@ const TIPI = {
   ".webmanifest": "application/manifest+json",
   ".png": "image/png",
   ".json": "application/json",
+  // come aiohttp di HA (mimetypes): il motore della parola lo compila in streaming
+  ".wasm": "application/wasm",
 };
 
 function entitaIniziali() {
@@ -202,6 +207,7 @@ function reset() {
       stt: "normale",
       tts: "normale",
       continua: 0,
+      doppione: false,
     },
     // voce: byte di audio ricevuti per ogni pipeline, fine dell'audio, audio TTS scaricati
     audioVoce: [],
@@ -579,7 +585,7 @@ function wavProva() {
  * in frame binari [id][PCM]; un frame col solo id chiude l'audio. Qui il "VAD"
  * chiude dopo ~0,6 s di audio (il microfono finto di Chromium suona di continuo).
  */
-async function voceAssistente(cliente, id, conversationId, sampleRate) {
+async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTesto, parola }) {
   const a = stato.assistente;
   const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
   const evento = (type, data) =>
@@ -589,7 +595,10 @@ async function voceAssistente(cliente, id, conversationId, sampleRate) {
   const gestore = cliente.prossimoGestore++;
   const token = `tts-${id}-${Date.now()}`;
   const url = `/api/tts_proxy/${token}.wav`;
-  const registro = { pipeline: id, byte: 0, fine: false, sampleRate };
+  // byteSubito: arrivati nei primi 150 ms. Con «Jarvis» c'è la memoria di ~1 s (32000 byte)
+  // mandata tutta insieme; col solo audio dal vivo in 150 ms arrivano al massimo 2-3 pezzi
+  const inizio = Date.now();
+  const registro = { pipeline: id, byte: 0, byteSubito: 0, fine: false, sampleRate };
   stato.audioVoce.push(registro);
   // stt=manuale: nessun VAD, l'ascolto finisce solo col frame di fine (tocco su "ferma")
   const sogliaVad = a.stt === "manuale" ? Infinity : sampleRate * 2 * 0.6;
@@ -598,6 +607,7 @@ async function voceAssistente(cliente, id, conversationId, sampleRate) {
       dati(n) {
         if (registro.byte === 0 && n > 0) void evento("stt-vad-start", { timestamp: 0 });
         registro.byte += n;
+        if (Date.now() - inizio < 150) registro.byteSubito += n;
         if (registro.byte >= sogliaVad) ris("vad");
       },
       fine() {
@@ -607,13 +617,26 @@ async function voceAssistente(cliente, id, conversationId, sampleRate) {
     });
     setTimeout(() => ris("tempo"), 15_000);
   });
+  // come HA: tts_output solo se la pipeline arriva alla voce
   await evento("run-start", {
     pipeline: "pipeline-italiano",
     language: "it",
     conversation_id: conversationId,
     runner_data: { stt_binary_handler_id: gestore, timeout: 60 },
-    tts_output: { token, url, mime_type: "audio/wav", stream_response: a.tts === "streaming" },
+    ...(soloTesto
+      ? {}
+      : { tts_output: { token, url, mime_type: "audio/wav", stream_response: a.tts === "streaming" } }),
   });
+  // come pipeline.py: il doppio risveglio si scopre prima dell'STT
+  if (parola && a.doppione) {
+    a.doppione = false;
+    cliente.gestori.delete(gestore);
+    await evento("error", {
+      code: "duplicate_wake_up_detected",
+      message: `Duplicate wake-up detected for ${parola}`,
+    });
+    return evento("run-end", null);
+  }
   await evento("stt-start", {
     engine: "stt.google_ai_stt",
     metadata: { language: "it", sample_rate: 16000 },
@@ -633,6 +656,7 @@ async function voceAssistente(cliente, id, conversationId, sampleRate) {
   }
   await pausa(200);
   await evento("stt-end", { stt_output: { text: a.trascrizione } });
+  if (soloTesto) return evento("run-end", null);
   await evento("intent-start", {
     engine: "conversation.google_ai_conversation",
     language: "it",
@@ -643,6 +667,35 @@ async function voceAssistente(cliente, id, conversationId, sampleRate) {
     prefer_local_intents: true,
   });
   return rispondiAssistente(cliente, id, conversationId, a.trascrizione, { token, url });
+}
+
+/** Pipeline da intent a tts (v0.5.0): la domanda fatta mentre suonava un timer, già trascritta. */
+async function testoAVoceAssistente(cliente, id, conversationId, testo) {
+  const a = stato.assistente;
+  const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
+  const evento = (type, data) =>
+    vivo()
+      ? invia(cliente, { id, type: "event", event: { type, data, timestamp: new Date().toISOString() } })
+      : null;
+  const token = `tts-${id}-${Date.now()}`;
+  const url = `/api/tts_proxy/${token}.wav`;
+  await evento("run-start", {
+    pipeline: "pipeline-italiano",
+    language: "it",
+    conversation_id: conversationId,
+    runner_data: { stt_binary_handler_id: null, timeout: 60 },
+    tts_output: { token, url, mime_type: "audio/wav", stream_response: a.tts === "streaming" },
+  });
+  await evento("intent-start", {
+    engine: "conversation.google_ai_conversation",
+    language: "it",
+    intent_input: testo,
+    conversation_id: conversationId,
+    device_id: null,
+    satellite_id: null,
+    prefer_local_intents: true,
+  });
+  return rispondiAssistente(cliente, id, conversationId, testo, { token, url });
 }
 
 function trasmettiEntita(agg) {
@@ -697,8 +750,8 @@ const server = createServer(async (req, res) => {
     } else if (comando === "accendi") stato.acceso = true;
     else if (comando === "latenza") stato.latenza = Number(url.searchParams.get("ms") ?? 0);
     else if (comando === "file") {
-      const { nome, contenuto, tipo } = JSON.parse(await leggiCorpo(req));
-      stato.fileVirtuali.set(nome, { contenuto, tipo: tipo ?? "application/json" });
+      const { nome, contenuto, tipo, ritardo } = JSON.parse(await leggiCorpo(req));
+      stato.fileVirtuali.set(nome, { contenuto, tipo: tipo ?? "application/json", ritardo: ritardo ?? 0 });
     } else if (comando === "veloce") {
       stato.veloce = url.searchParams.get("stato") ?? "su";
       if (stato.veloce === "giu") for (const c of clienti) if (c.veloce) c.ws.terminate();
@@ -713,6 +766,7 @@ const server = createServer(async (req, res) => {
       if (q.has("stt")) a.stt = q.get("stt");
       if (q.has("tts")) a.tts = q.get("tts");
       if (q.has("continua")) a.continua = Number(q.get("continua"));
+      if (q.has("doppione")) a.doppione = q.get("doppione") === "1";
     } else if (comando === "aggiungi") {
       // {area?, dispositivo?, entita, s, a}: un dispositivo nuovo in HA
       const { area, dispositivo, entita, s: st, a } = JSON.parse(await leggiCorpo(req));
@@ -829,6 +883,7 @@ const server = createServer(async (req, res) => {
     const virtuale = stato.fileVirtuali.get(rel);
     if (virtuale) {
       stato.info.richieste[rel] = (stato.info.richieste[rel] ?? 0) + 1;
+      if (virtuale.ritardo) await pausa(virtuale.ritardo);
       res.writeHead(200, { "content-type": virtuale.tipo, "cache-control": "public, max-age=2678400" });
       return res.end(virtuale.contenuto);
     }
@@ -1032,9 +1087,17 @@ function gestisci(ws, veloce) {
           start_stage: msg.start_stage,
           end_stage: msg.end_stage,
           timeout: msg.timeout,
+          // v0.5.0, solo per le domande a voce: la parola detta e se il pannello ha spento il VAD di HA
+          ...(msg.start_stage === "stt"
+            ? { wake_word_phrase: msg.input?.wake_word_phrase ?? null, no_vad: msg.input?.no_vad ?? null }
+            : {}),
         });
+        // v0.5.0: stt→stt (solo il testo, mentre suona un timer) e intent→tts (il seguito a voce)
         const aVoce =
-          msg.start_stage === "stt" && msg.end_stage === "tts" && typeof msg.input?.sample_rate === "number";
+          msg.start_stage === "stt" &&
+          (msg.end_stage === "tts" || msg.end_stage === "stt") &&
+          typeof msg.input?.sample_rate === "number";
+        const testoAVoce = msg.start_stage === "intent" && msg.end_stage === "tts";
         if (!aVoce && (msg.start_stage !== "intent" || typeof testoDomanda !== "string"))
           return invia(cliente, {
             id,
@@ -1051,7 +1114,12 @@ function gestisci(ws, veloce) {
         a.conversazioni.add(conversationId);
         cliente.pipeline.add(id);
         await invia(cliente, { id, type: "result", success: true, result: null });
-        if (aVoce) void voceAssistente(cliente, id, conversationId, msg.input.sample_rate);
+        if (aVoce)
+          void voceAssistente(cliente, id, conversationId, msg.input.sample_rate, {
+            soloTesto: msg.end_stage === "stt",
+            parola: msg.input.wake_word_phrase ?? null,
+          });
+        else if (testoAVoce) void testoAVoceAssistente(cliente, id, conversationId, testoDomanda);
         else void rispondiAssistente(cliente, id, conversationId, testoDomanda);
         return;
       }

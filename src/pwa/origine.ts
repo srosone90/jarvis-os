@@ -25,7 +25,7 @@ const CHIAVE_PASSAGGIO = "jarvis-passaggio-origine";
 const CHIAVE_ARRIVO = "jarvis-arrivo-da-riserva";
 /** ?origine=riserva: si arriva dalla veloce col tasto del banner, non si riparte. */
 const PARAMETRO = "origine";
-/** File che c'è sempre nello zip, accanto alla pagina (anche per la prova "Ehi Jarvis"). */
+/** File che c'è sempre nello zip, accanto alla pagina. */
 const FILE_DI_PROVA = "sw.js";
 
 export type UsoOrigine = "veloce" | "riserva" | "altra";
@@ -124,7 +124,7 @@ async function risponde(url: string, modo: RequestMode, attesaMs: number): Promi
 }
 
 /**
- * Da chiamare per prima cosa all'avvio (pannello e prova "Ehi Jarvis"). Non
+ * Da chiamare per prima cosa all'avvio del pannello. Non
  * blocca: la prova parte in parallelo e la pagina intanto si avvia normalmente.
  */
 export function passaAllOrigineVeloce(): void {

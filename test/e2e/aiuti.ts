@@ -17,6 +17,9 @@ export interface RichiestaAssistente {
   start_stage: string;
   end_stage: string;
   timeout: number;
+  /** v0.5.0, solo domande a voce: la parola detta (se nata da «Jarvis») e no_vad. */
+  wake_word_phrase?: string | null;
+  no_vad?: boolean | null;
 }
 
 export async function info(request: APIRequestContext): Promise<{
@@ -26,7 +29,7 @@ export async function info(request: APIRequestContext): Promise<{
   richieste: Record<string, number>;
   chiamate: { servizio: string; dati: Record<string, unknown> }[];
   richiesteAssistente: RichiestaAssistente[];
-  audioVoce: { pipeline: number; byte: number; fine: boolean; sampleRate: number }[];
+  audioVoce: { pipeline: number; byte: number; byteSubito: number; fine: boolean; sampleRate: number }[];
   richiesteTts: string[];
   disiscrizioniPipeline: number;
   pipelineAperte: number;
@@ -58,7 +61,7 @@ export async function aspettaServiceWorker(page: Page): Promise<void> {
 /** Impostazioni (fase G): orologio tenuto premuto 3 s, poi la sezione chiesta. */
 export async function apriImpostazioni(
   page: Page,
-  sezione: "stanza" | "riposo" | "audio" | "diagnostica" = "stanza",
+  sezione: "stanza" | "voce" | "riposo" | "audio" | "diagnostica" = "stanza",
 ): Promise<void> {
   const ora = page.getByTestId("ora");
   const box = await ora.boundingBox();

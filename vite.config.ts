@@ -23,8 +23,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         entryFileNames: "assets/jarvis-[hash].js",
-        chunkFileNames: "assets/jarvis-[hash].js",
-        assetFileNames: "assets/[name]-[hash][extname]",
+        // l'unico pezzo caricato dopo: il motore della parola «Jarvis» (v0.5.0), con
+        // onnxruntime e i modelli, in parola/ (scripts/dopo-build.mjs lo tiene fuori
+        // dal bundle iniziale; il service worker lo mette in una cache sua)
+        chunkFileNames: "parola/motore-[hash].js",
+        assetFileNames: (a) =>
+          /\.(wasm|onnx)$/.test(a.names[0] ?? "")
+            ? "parola/[name]-[hash][extname]"
+            : "assets/[name]-[hash][extname]",
       },
     },
   },

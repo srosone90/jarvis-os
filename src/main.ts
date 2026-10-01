@@ -22,6 +22,8 @@ if (import.meta.env.PROD) void registraServiceWorker();
 vista.avvia();
 // audio impercettibile per l'Echo in Bluetooth (v0.4.5): parte subito o al primo tocco
 audioSveglio.avvia();
+// «Jarvis» sempre in ascolto (v0.5.0): acceso di serie, si spegne in Impostazioni → Voce
+connessione.parola.avvia();
 avviaRicaricaNotturna(() => connessione.timer.occupato);
 void connessione.avvia();
 sorvegliaRitorno(() => connessione.stato);

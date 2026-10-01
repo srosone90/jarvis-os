@@ -58,7 +58,7 @@ solo il link vecchio**, niente link nuovi da ricordare. Quindi:
   `cache: 'no-store'`, `mode: 'cors'`, con 1,5 s di tempo; se risponde `ok` →
   `location.replace()` alla stessa pagina (percorso, parametri, frammento). La
   prova parte in parallelo all'avvio: niente attesa, mai pagina bianca;
-- vale per il pannello e per `prova-ehi-jarvis.html`;
+- vale per il pannello (fino alla v0.4.8 anche per `prova-ehi-jarvis.html`, tolta con la v0.5.0);
 - **al massimo un passaggio per sessione** (`sessionStorage` della riserva);
   la veloce non rimanda mai alla riserva da sola. Se sulla veloce HA manca da
   30 s (non per un login da fare) e la riserva risponde (`no-cors`: la riserva
@@ -120,14 +120,16 @@ In casa **non ci sono luci smart**.
 | `src/ui/jarvis-impostazioni.ts`, `jarvis-guida.ts` | Impostazioni S1 a sezioni (stanza, riposo, audio, diagnostica) e procedura guidata S3 del primo avvio |
 | `test/e2e/fase-g.spec.ts`, `test/unit/vista.test.ts`, `test/e2e/stato-iniziale.json` | Prove della fase G; stato iniziale delle e2e con la guida già fatta |
 | `src/voce/audio-sveglio.ts` | Rumore a -80 dB in loop per tenere sveglio l'Echo in Bluetooth (v0.4.5) |
-| `src/parola/` | Parola di attivazione (per ora solo per la prova): `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM) |
+| `src/parola/` | Parola «Jarvis» (v0.5.0): `ascolto.ts` (ascolto continuo nel bundle iniziale: stato, memoria di 1 s, scatto, stop della suoneria), `motore.ts` (caricato con `import()` pigro: onnxruntime + modelli + verificatore + registrazione della pronuncia), `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM), `stop.ts` («stop»/«basta»/«ferma» nel testo), `ricampiona.ts` (a 16 kHz) |
+| `src/voce/microfono-condiviso.ts` | Un solo microfono per la parola e per la voce, sempre a 16 kHz (v0.5.0) |
+| `src/ui/jarvis-indicatore-parola.ts`, `src/ui/jarvis-impostazioni-voce.ts` | Indicatore del microfono (accanto a "Connesso" e a riposo); Impostazioni → Voce con "Insegna a Jarvis la tua pronuncia" |
+| `test/e2e/parola.spec.ts`, `test/unit/parola-ascolto.test.ts` | «Jarvis» col motore vero e un verificatore finto "sempre sì" servito da `parola.json` con ritardo; stop, ricampionamento, regole dello scatto, pipeline in due tempi, microfono condiviso |
 | `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
 | `scripts/riferimento-verificatore.py`, `test/unit/dati/verificatore-sklearn.json` | Riferimento scikit-learn per il test del verificatore |
 | `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
 | `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
 | `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
 | `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (60 casi) |
-| `prova-ehi-jarvis.html`, `src/prova/`, `vite.prova.config.ts` | Pagina della prova di fattibilità "Ehi Jarvis": build a parte, fuori dal pannello e dal service worker |
 | `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
@@ -143,7 +145,6 @@ In casa **non ci sono luci smart**.
 | `docs/proposta-multicasa.md` | Proposta per le altre case: HACS, stima, esigenze da servizio, cosa progettare subito nella fase G |
 | `docs/mockup-f5.html` | Mockup della voce (F5) |
 | `test/e2e/origine.spec.ts`, `test/unit/origine.test.ts` | Origine veloce e di riserva: passaggio, niente giri, timeout, offline, login, ritorno proposto |
-| `test/e2e/prova-ehi-jarvis.spec.ts` | Pagina della prova: si apre col service worker installato, modello, frame, privacy, serie |
 | `test/unit/parola.test.ts` | Memoria circolare; rilevatore coi modelli veri |
 | `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, stream STT caduto, annulla mentre pensa, offline |
 | `test/e2e/timer.spec.ts`, `test/unit/timer.test.ts` | Timer: conto alla rovescia, suoneria e Stop, sopra la chat, dopo un riavvio di HA, due pannelli; lettura degli eventi, 2 minuti, timer a zero senza `finished` |
@@ -508,6 +509,9 @@ Regole per la F5 (requisiti di Salvatore e fatti verificati):
 
 ### "Ehi Jarvis": prova di fattibilità (29/09, v0.4.1)
 
+> Storia: dalla v0.5.0 la pagina di prova non c'è più, «Jarvis» è nel pannello
+> (sezione "«Jarvis» sempre in ascolto" più sotto). I fatti verificati qui valgono ancora.
+
 Solo una prova, **non** la funzione: pagina `…/local/jarvis/prova-ehi-jarvis.html`,
 build a parte (`vite.prova.config.ts`, ~17 MB in `dist/prova/`), fuori dal
 service worker del pannello e dai suoi limiti. Il service worker ora risponde
@@ -862,8 +866,8 @@ secondi_rimasti}`. Il pannello (`src/timer/`) non decide niente:
   funziona anche offline) e overlay "Timer [nome] finito" sopra tutto
   (z-index 40, sopra chat e diagnostica), con uno Stop grande. Si ferma con
   Stop o da sola dopo `SUONERIA_MASSIMA_MS` (2 minuti, che ripartono a ogni
-  timer finito). Lo stop a voce ("stop", "basta") arriva con la v0.5.0,
-  quando il microfono è sempre in ascolto.
+  timer finito). Lo stop a voce («Jarvis, stop», «basta») c'è dalla v0.5.0
+  (sezione "«Jarvis» sempre in ascolto").
 - **Autoplay**: Chrome non fa suonare una pagina mai toccata. Il contesto
   audio si prepara al primo tocco. Se al momento della suoneria è bloccato,
   va nel log una volta e suona al primo tocco; l'overlay si vede comunque.
@@ -1092,6 +1096,67 @@ Meteo, Musica. Solo dati che il server manda davvero.
 - **Guida**: `jarvis-guida` = "fatta" nel localStorage. Un pannello che ha già
   la stanza è "di prima della fase G" e non la vede. Si rifà dalle impostazioni.
 
+### «Jarvis» sempre in ascolto (v0.5.0, 30/09)
+
+Decisioni: sempre in ascolto, **acceso di serie**, memoria di ~1 s solo per la
+parola, pipeline normale **senza `no_vad`** (la fine della frase la decide
+`jarvis_voce`, tarato sul server), «Jarvis» ferma la suoneria (log del 30/09).
+
+- **Due pezzi.** `src/parola/ascolto.ts` sta nel bundle iniziale (leggero);
+  `src/parola/motore.ts` arriva con un `import()` pigro e si porta dietro
+  onnxruntime-web (WASM, un thread) e i tre modelli: ~17 MB in `dist/parola/`.
+  `vite.config.ts` manda il pezzo pigro in `parola/motore-*.js` e `.wasm`/`.onnx`
+  in `parola/`; `scripts/dopo-build.mjs` li tiene fuori dal limite dei file e
+  dei 200 KB (controlla invece 1 JS, il .wasm e 3 .onnx, massimo 25 MB).
+- **Service worker**: cache `jarvis-parola` che sopravvive alle versioni. I
+  nomi hanno l'impronta del contenuto, quindi a ogni versione si scarica solo
+  ciò che è cambiato. La cache si riempie **al primo uso** (il fetch del
+  service worker), **mai durante l'installazione**: vedi la lezione qui sotto.
+  All'attivazione si tolgono dalla cache i file che la versione non usa più.
+- **Microfono condiviso** (`MicrofonoCondiviso`): uno solo, sempre a 16 kHz
+  (ricampiona se il browser non li concede) e a HA si dichiara sempre 16000.
+  La voce si aggancia al microfono aperto; staccandosi non lo chiude se
+  l'ascolto continuo è acceso. Con «Jarvis» spento tutto come prima.
+- **Scatto** (`puoScattare`): punteggio ≥ soglia (0,5, o `parola.json`), non
+  durante una domanda (un errore a schermo come "Non ho capito" NON conta come
+  domanda in corso: altrimenti «Jarvis» resterebbe sordo finché qualcuno lo
+  chiude), non entro 2 s dal precedente, non entro 1,5 s dalla
+  fine della risposta (la coda dell'audio dall'altoparlante), mai durante la
+  registrazione degli esempi. Se il dispositivo resta indietro di oltre 25
+  frame si butta l'audio vecchio (e si conta).
+- **Allo scatto**: la memoria (fino a 1 s) va a HA tutta insieme appena HA dà
+  l'id, poi l'audio dal vivo; poi la memoria si azzera davvero. Si manda
+  `input.wake_word_phrase: "Jarvis"`: HA 2026.9.3 scarta un secondo risveglio
+  con la stessa parola entro 2 s (`WAKE_WORD_COOLDOWN`, errore
+  `duplicate_wake_up_detected`, letto in `pipeline.py`). Sul pannello che
+  perde: turno scartato in silenzio (tipo d'errore `doppione`). Col tocco
+  niente `wake_word_phrase`.
+- **Falso scatto**: se dopo «Jarvis» nessuno parla (`stt-no-text-recognized`
+  senza testo) la voce si chiude in silenzio, come il seguito: niente "Non ho
+  capito" a ogni falso positivo. Col tocco invece il messaggio resta.
+- **Dove si vede**: dal riposo o dall'Hub → Hub; chat aperta → chat;
+  altrimenti riquadro piccolo (`doveParlare`, deciso in `jarvis-app`).
+- **Suoneria**: allo scatto `timer.silenzia()` (riquadro e 2 minuti restano).
+  La pipeline va da stt a **stt** (solo testo, ammesso da HA: `end_stage` ≥
+  `start_stage`). Col testo: se `eComandoStop` (tolte la parola e i
+  riempitivi restano solo stop/basta/ferma/zitto…) → `timer.ferma()` con
+  `timer_ferma` agli altri, turno chiuso con "Timer fermato." e nessuna
+  chiamata a Gemini; altrimenti sullo stesso turno parte una pipeline da
+  **intent a tts** col testo (`Assistente.dopoTrascrizione`).
+- **Android**: Wake Lock mentre ascolta; microfono chiuso dal sistema →
+  stato "fermo", ripresa quando la pagina torna visibile.
+- **Impostazioni → Voce**: interruttore (`jarvis-parola` nel localStorage,
+  `{acceso}`), stato, misure (frame, ms per frame, carico, scatti), modello e
+  licenza, verificatore; "Insegna a Jarvis la tua pronuncia" (20 esempi per
+  persona, 60 s di parlato normale, «Impara la pronuncia»), cancellazioni con
+  conferma che dice che non si recuperano.
+- **Prove**: il microfono finto di Chromium suona un tono, quindi la parola la
+  fa "sentire" un verificatore "sempre sì" servito da `parola.json`, con un
+  ritardo del finto HA (`/__prova/file` con `ritardo`) che decide QUANDO parte
+  il motore (dopo aver messo a riposo, dopo che il timer suona). Le altre prove
+  partono con «Jarvis» spento (`stato-iniziale.json`). Il finto HA misura i
+  byte arrivati nei primi 150 ms (`byteSubito`): la memoria arriva subito.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -1289,6 +1354,15 @@ se ne scrive una nuova che annulla la precedente.
   2 minuti): i ~90 s del gruppo 3 valgono per le schermate della navigazione,
   che non esistono ancora.
 
+- **2026-09-30** — **v0.5.0, due scelte di Salvatore.** (1) Mentre suona un
+  timer basta «Jarvis»: la suoneria tace subito e Jarvis ascolta; «stop»,
+  «basta» o «ferma» chiudono il timer (anche sugli altri pannelli), un'altra
+  domanda ha la sua risposta e la suoneria non riparte. Scartato «Jarvis»
+  che abbassa solo la suoneria. Riconoscere «stop» da solo servirebbe un
+  secondo modello, che non c'è. (2) «Jarvis» **acceso di serie** su ogni
+  pannello, si spegne in Impostazioni → Voce (annulla il "spento di default"
+  pensato per la prova).
+
 ## 7. Convenzioni
 
 - Tutto in italiano: codice, commenti, commit, documentazione, e **anche i
@@ -1298,8 +1372,8 @@ se ne scrive una nuova che annulla la precedente.
   sempre).** Tutto si prova DENTRO il pannello, sul link di sempre. Le misure e
   gli strumenti (es. "Insegna a Jarvis la tua pronuncia") stanno nelle
   impostazioni del pannello. Le istruzioni per Salvatore sono passi dentro il
-  pannello, in italiano semplice, senza link. `prova-ehi-jarvis.html` esce
-  dallo zip appena la sua parte è nel pannello (v0.5.0).
+  pannello, in italiano semplice, senza link. `prova-ehi-jarvis.html` è uscita
+  dallo zip con la v0.5.0.
 - **`STATO.md` sempre aggiornato**, con commit e push a ogni passo importante:
   la sessione server lo legge da GitHub e non può scrivere nel repo.
 - In HA tutto ciò che crea Jarvis ha nome/ID che inizia con `jarvis`.
@@ -1522,3 +1596,17 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   cadute alle 23:07: era notte, quindi niente righe e un solo timer. L'aiuto
   `senzaNotte` (notte da 0 a 0 = mai) le rende indipendenti dall'orario; la
   notte ha una prova a parte che la imposta sull'ora corrente.
+- **L'installazione del service worker non deve scaricare file grandi,
+  nemmeno "in modo non bloccante".** Con i 17 MB del motore scaricati
+  all'installazione, la prova "indirizzo lento" cadeva a volte: circa una
+  ricarica su due il JavaScript del pannello arrivava dalla rete (1,5 s) invece
+  che dalla cache. Sulla v0.4.8, stessa prova, 6 volte su 6 sotto gli 80 ms;
+  tolto lo scaricamento dall'installazione, 8 su 8. Il motore si mette in cache
+  al primo uso. Un tempo che "a volte" sfora non è un caso: si confronta con la
+  versione precedente prima di dirlo instabile.
+- **Le prove di una funzione "sempre accesa" non devono cambiare le altre.**
+  Con «Jarvis» acceso di serie il microfono resta aperto, e le prove della
+  voce che controllano "microfono chiuso dopo la risposta" sarebbero cadute
+  per il motivo sbagliato. Come per la guida: le prove esistenti partono con
+  «Jarvis» spento, e i casi incrociati (tocco con «Jarvis» in ascolto) hanno
+  prove loro.

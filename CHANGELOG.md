@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.5.0
+
+«Jarvis» sempre in ascolto.
+
+- **Di' «Jarvis» e poi la domanda**, anche nella stessa frase ("Jarvis, spegni
+  la TV"). Il pannello riconosce la parola da solo, sul dispositivo; a Home
+  Assistant va solo quello che dici dopo, più il secondo prima (tenuto solo in
+  memoria). La fine della frase la decide il server (`jarvis_voce`), come
+  concordato: nessun `no_vad`.
+- **Acceso di serie** su ogni pannello. In alto, accanto a "Connesso" (e
+  nell'angolo dello schermo a riposo), c'è sempre il simbolo del microfono
+  mentre ascolta; barrato se si è fermato. Si spegne in Impostazioni → Voce.
+- Dallo schermo a riposo «Jarvis» apre l'Hub, con domanda e risposta come
+  sottotitoli; con la chat aperta risponde nella chat; altrimenti nel riquadro
+  piccolo.
+- **Timer che suona**: «Jarvis» zittisce subito la suoneria. «Stop», «basta» o
+  «ferma» chiudono il timer, anche sugli altri pannelli, senza passare da
+  Gemini. Un'altra domanda ha la sua risposta e la suoneria non riparte; il
+  riquadro "Timer finito" resta finché non tocchi Stop.
+- **Due pannelli vicini** che sentono la stessa «Jarvis»: risponde uno solo
+  (Home Assistant scarta il secondo), e l'altro non mostra errori.
+- **Impostazioni → Voce** (sezione nuova): interruttore, stato, come sta
+  andando (tempo di calcolo, quante volte ha sentito la parola), e **"Insegna
+  a Jarvis la tua pronuncia"**: 20 volte «Jarvis» come lo dici tu, 60 secondi
+  di parlato normale, poi «Impara la pronuncia». Tutto resta sul pannello.
+- La procedura guidata del primo avvio chiede anche se «Jarvis» deve essere
+  sempre in ascolto.
+- Il riconoscimento della parola (circa 17 MB) si scarica una volta sola, in
+  una memoria a parte: gli aggiornamenti successivi riscaricano solo ciò che
+  cambia. Il pannello si apre veloce come prima.
+- Tolta la pagina di prova `prova-ehi-jarvis.html`: tutto quello che serviva
+  ora è nel pannello.
+- Il microfono è uno solo per «Jarvis» e per il tocco sul microfono.
+
 ## v0.4.8
 
 Fase G: schermo a riposo con la sfera, Hub vocale, impostazioni nuove e

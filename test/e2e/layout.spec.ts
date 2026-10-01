@@ -484,7 +484,7 @@ for (const v of MISURE) {
     await page.getByTestId("hub-completo").click();
 
     // 4. impostazioni, sezione per sezione
-    for (const s of ["stanza", "riposo", "audio", "diagnostica"]) {
+    for (const s of ["stanza", "voce", "riposo", "audio", "diagnostica"]) {
       if (s === "stanza") await page.getByTestId("ora").click({ delay: 3300 });
       await page.getByTestId(`sezione-${s}`).click();
       await page.screenshot({ path: `schermate/layout/impostazioni-${s}-${v.nome}.png` });
@@ -534,3 +534,82 @@ test("layout riposo di notte (tablet e telefono verticale)", async ({ page, requ
     await page.getByTestId("riposo-ora").click();
   }
 });
+
+// --- v0.5.0: «Jarvis» sempre in ascolto, indicatore del microfono a tutte le misure ---
+
+for (const v of MISURE) {
+  test(`layout ${v.nome} «Jarvis»: indicatore nel pannello, a riposo, nell'Hub; sezione Voce`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await page.addInitScript(() => {
+      localStorage.setItem("jarvis-parola", JSON.stringify({ acceso: true }));
+      localStorage.setItem("jarvis-riposo", JSON.stringify({ attesaMin: 2, notteDa: 0, notteA: 0 }));
+    });
+    await accedi(page);
+    const indicatore = page.getByTestId("indicatore-parola");
+    await expect(indicatore.first()).toHaveAttribute("data-stato", "ascolta", { timeout: 30_000 });
+
+    // 1. pannello completo: il pallino con l'indicatore resta nello schermo e non copre niente
+    await page.screenshot({ path: `schermate/layout/parola-pannello-${v.nome}.png` });
+    const pallino = ["jarvis-app", "jarvis-connessione", ".pallino"];
+    expect(
+      [
+        ...(await controllaParti(page, v, [pallino, ["jarvis-app", "jarvis-orologio"]])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "pannello",
+    ).toEqual([]);
+
+    // 2. riposo: l'indicatore nell'angolo, fuori dalla sfera e dal testo
+    await page.getByTestId("ora").click({ delay: 3300 });
+    await page.getByTestId("sezione-riposo").click();
+    await page.getByTestId("prova-riposo").click();
+    await expect(page.getByTestId("riposo")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/parola-riposo-${v.nome}.png` });
+    const r = ["jarvis-app", "jarvis-riposo"];
+    expect(
+      await controllaParti(page, v, [
+        [...r, "jarvis-indicatore-parola"],
+        [...r, "jarvis-sfera"],
+        [...r, ".testo"],
+      ]),
+      "riposo",
+    ).toEqual([]);
+
+    // 3. Hub: l'indicatore sta nell'angolo con ora, stanza e pallino
+    await page.getByTestId("riposo-sfera").click();
+    await expect(page.getByTestId("hub-risposta")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/parola-hub-${v.nome}.png` });
+    const h = ["jarvis-app", "jarvis-hub"];
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          [...h, ".angolo"],
+          [...h, "button.griglia"],
+          [...h, "jarvis-sfera"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "hub",
+    ).toEqual([]);
+    await page.getByTestId("hub-completo").click();
+
+    // 4. Impostazioni → Voce, con le misure e la pronuncia
+    await page.getByTestId("ora").click({ delay: 3300 });
+    await page.getByTestId("sezione-voce").click();
+    await expect(page.getByTestId("misure-parola")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/impostazioni-voce-${v.nome}.png`, fullPage: true });
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          ["jarvis-app", "jarvis-impostazioni", "header"],
+          ["jarvis-app", "jarvis-impostazioni", "nav"],
+          ["jarvis-app", "jarvis-impostazioni", "main"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "impostazioni voce",
+    ).toEqual([]);
+  });
+}

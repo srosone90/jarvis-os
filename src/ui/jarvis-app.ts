@@ -470,6 +470,15 @@ export class JarvisApp extends LitElement {
         !connessione.assistente.occupato
       );
     });
+    // «Jarvis» sentito (v0.5.0): dal riposo o dall'Hub si parla nell'Hub, con la chat aperta nella chat
+    connessione.parola.doveParlare = () => {
+      if (this.chat && this.connessione.info.stato !== "login-richiesto") return "chat";
+      if (vista.vista === "riposo" || vista.vista === "hub") {
+        vista.vai("hub", "«Jarvis» sentito");
+        return "hub";
+      }
+      return "riquadro";
+    };
     new OsservaRegistri(this);
     // la voce decide se mostrare il riquadro piccolo
     new OsservaVoce(this);

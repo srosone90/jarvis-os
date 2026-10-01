@@ -319,6 +319,18 @@ export class Timer {
       });
   }
 
+  /**
+   * «Jarvis» sentito mentre suona (v0.5.0): la suoneria tace subito, perché
+   * Jarvis deve sentire la domanda. Il riquadro "Timer finito" resta, e
+   * restano i 2 minuti: lo chiudono Stop, «stop» a voce o il tempo. Un altro
+   * timer che finisce fa suonare di nuovo.
+   */
+  silenzia(motivo: string): void {
+    if (this.finiti.length === 0) return;
+    log.info(`Timer: suoneria zittita (${motivo})`);
+    this.suoneria.ferma();
+  }
+
   /** `fermato`: Stop toccato su un pannello qualsiasi. Si ferma anche qui, se suona per quell'id. */
   private suFermato(id: string): void {
     const suonava = this.finiti.some((f) => f.id === id);

@@ -12,15 +12,14 @@ orizzontale acceso 24/7.
 | F2 — stanze e comandi dei dispositivi | **v0.2.2** (layout per tutte le misure) |
 | F4 — assistente testuale (Gemini) | **v0.3.2** |
 | F5 — voce "tocca per parlare" | **v0.4.0** |
-| Prova "Ehi Jarvis" (pagina separata, `prova-ehi-jarvis.html`) | **v0.4.3**: con il verificatore della vostra pronuncia, in attesa delle misure sul telefono |
 | Origine veloce con ripiego sul link di riserva | **v0.4.2** |
 | Musica in pausa mentre Jarvis ascolta e parla; mai più una versione vecchia | **v0.4.4** |
 | Timer che suonano, pulsante del microfono mai bloccato, tastiera della chat, audio sveglio per il Bluetooth | **v0.4.5** |
 | Timer solo sul pannello a cui appartengono, Stop che ferma tutti | **v0.4.6** |
 | Timer in pausa fermi, stanza calcolata come il server | **v0.4.7** |
 | Fase G: schermo a riposo con la sfera, Hub vocale, impostazioni a sezioni, procedura guidata al primo avvio | **v0.4.8** |
-| «Jarvis» sempre in ascolto | Prossima: v0.5.0 |
-| Navigazione laterale e schermate Stanza, Meteo, poi Musica | Dopo la v0.5.0 |
+| «Jarvis» sempre in ascolto, stop della suoneria a voce, pronuncia di casa | **v0.5.0** |
+| Navigazione laterale e schermate Stanza, Meteo, poi Musica | Prossima |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
 
@@ -54,11 +53,13 @@ avanti e indietro. Serve che nginx risponda su `/local/jarvis/*` con
 dice quale origine è in uso e perché. Le origini, per ora, stanno in
 `src/configurazione.ts`.
 
-**Prova "Ehi Jarvis"**: `…/local/jarvis/prova-ehi-jarvis.html`, anche lei passa
-da sola all'origine veloce. Se sul telefono c'era un pannello più vecchio della
-v0.4.1, prima apri il pannello, tieni premuto l'orologio 3 s e tocca "Aggiorna
-ora". Altrimenti il vecchio service worker risponde col pannello al posto della
-pagina di prova.
+**«Jarvis» sempre in ascolto** (v0.5.0): la prima volta il pannello scarica il
+riconoscimento della parola (cartella `parola/` dello zip, circa 17 MB) e lo
+tiene in una memoria a parte del browser: gli aggiornamenti successivi
+riscaricano solo ciò che cambia. Il microfono funziona solo sull'indirizzo
+https. Chi vuole un altro modello o una soglia diversa mette un `parola.json`
+accanto a `index.html` (esempio in `src/parola/impostazioni.ts`): non è nello
+zip, quindi un aggiornamento non lo tocca.
 
 **La vostra pronuncia (verificatore, v0.4.3)**. Il modello di base riconosce
 «Giarvìs» all'inglese, non «Giàrvis». Nella sezione "La tua pronuncia" della

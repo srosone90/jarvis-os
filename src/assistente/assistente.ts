@@ -62,8 +62,31 @@ const CHIUSURA_MS = 10_000;
 
 export const LINGUA = "it";
 
+/**
+ * Domanda a voce nata dalla parola «Jarvis» (v0.5.0). Senza `no_vad`: la fine
+ * della frase la decide il server (jarvis_voce è tarato lì).
+ */
+export interface OpzioniParla {
+  /**
+   * La parola come la dice il modello ("Jarvis"): va a HA come
+   * `wake_word_phrase`, così se due pannelli sentono la stessa parola entro 2 s
+   * risponde uno solo (`duplicate_wake_up_detected`, pipeline.py di HA 2026.9.3).
+   */
+  parola?: string;
+  /**
+   * Mentre suona un timer: la pipeline si ferma al testo (end_stage "stt") e
+   * decide chi chiama. "fermato" = era «stop», il turno si chiude qui senza
+   * Gemini; "continua" = è una domanda, riparte da intent a tts sullo stesso turno.
+   */
+  dopoTrascrizione?: (testo: string) => "fermato" | "continua";
+}
+
+/** Risposta scritta di un «Jarvis, stop» gestito sul pannello. */
+export const RISPOSTA_STOP = "Timer fermato.";
+
 interface Esecuzione {
   turnoId: number;
+  dopoTrascrizione: OpzioniParla["dopoTrascrizione"];
   smetti: (() => Promise<void>) | null;
   timerMassimo: ReturnType<typeof setTimeout>;
   /** Voce: parte solo quando finisci di parlare, non mentre parli. */
@@ -146,7 +169,7 @@ export class Assistente {
    * `inviaAudio` appena HA dà l'id (run-start); prima lo tiene chi registra.
    * Ritorna l'id del turno, o null se non può partire (offline, già occupato).
    */
-  parla(sampleRate: number): number | null {
+  parla(sampleRate: number, opzioni: OpzioniParla = {}): number | null {
     if (this.occupato) return null;
     const conn = this.dip.conn();
     if (!conn || !this.dip.collegato()) return null;
@@ -155,7 +178,7 @@ export class Assistente {
     const turno = nuovoTurno(this.contatore, "", true);
     this.elenco = [...this.elenco, turno];
     this.ultimaAttivita = this.adesso();
-    this.avvia(conn, turno, sampleRate);
+    this.avvia(conn, turno, { sampleRate, ...opzioni });
     this.notifica();
     return turno.id;
   }
@@ -249,14 +272,21 @@ export class Assistente {
     }, LENTA_MS);
   }
 
-  private avvia(conn: ConnessioneAssistente, turno: Turno, sampleRate?: number): void {
+  private avvia(
+    conn: ConnessioneAssistente,
+    turno: Turno,
+    voce: (OpzioniParla & { sampleRate: number }) | "risposta" | null = null,
+  ): void {
+    const perVoce = voce !== null && voce !== "risposta" ? voce : null;
     const esecuzione: Esecuzione = {
       turnoId: turno.id,
+      dopoTrascrizione: perVoce?.dopoTrascrizione,
       smetti: null,
       chiusa: false,
       audioChiuso: false,
       timerChiusura: undefined,
-      timerLenta: turno.voce ? undefined : this.armaLenta(),
+      // a voce "più lenta del solito" conta da quando hai finito di parlare
+      timerLenta: turno.voce && voce !== "risposta" ? undefined : this.armaLenta(),
       timerMassimo: setTimeout(() => {
         log.avviso(`Assistente: nessuna risposta entro ${MASSIMO_MS / 1000} s`);
         this.chiudiConErrore(esecuzione, "tempo", `Nessuna risposta entro ${MASSIMO_MS / 1000} s`);
@@ -264,19 +294,23 @@ export class Assistente {
     };
     this.esecuzione = esecuzione;
     this.lentaDa = null;
-    const messaggio: Record<string, unknown> = turno.voce
+    const messaggio: Record<string, unknown> = perVoce
       ? {
           type: "assist_pipeline/run",
           start_stage: "stt",
-          end_stage: "tts",
-          input: { sample_rate: sampleRate ?? 16000 },
+          end_stage: perVoce.dopoTrascrizione ? "stt" : "tts",
+          input: {
+            sample_rate: perVoce.sampleRate,
+            ...(perVoce.parola ? { wake_word_phrase: perVoce.parola } : {}),
+          },
           conversation_id: this.conversationId,
           timeout: MASSIMO_MS / 1000,
         }
       : {
           type: "assist_pipeline/run",
           start_stage: "intent",
-          end_stage: "intent",
+          // il seguito di una domanda a voce trascritta: risposta scritta e audio
+          end_stage: voce === "risposta" ? "tts" : "intent",
           input: { text: turno.domanda },
           conversation_id: this.conversationId,
           timeout: MASSIMO_MS / 1000,
@@ -306,6 +340,10 @@ export class Assistente {
     if (!prima) return;
     const dopo = applicaEvento(prima, ev);
     if (dopo === prima) return;
+    if (ev.type === "stt-end" && esecuzione.dopoTrascrizione) {
+      this.dopoTrascrizione(esecuzione, dopo, esecuzione.dopoTrascrizione);
+      return;
+    }
     this.sostituisci(dopo);
     if (dopo.conversationId) this.conversationId = dopo.conversationId;
     // voce: finito di parlare, da qui conta il tempo della risposta
@@ -321,6 +359,65 @@ export class Assistente {
         esecuzione.timerChiusura = setTimeout(() => this.concludi(esecuzione), CHIUSURA_MS);
     }
     if (dopo.concluso) this.concludi(esecuzione);
+    this.notifica();
+  }
+
+  /**
+   * Il testo della domanda fatta mentre suonava un timer: «stop» si chiude
+   * qui, il resto va avanti con una pipeline da intent a tts sullo stesso
+   * turno (stessa conversazione, stessa faccia della voce).
+   */
+  private dopoTrascrizione(
+    esecuzione: Esecuzione,
+    trascritto: Turno,
+    decidi: NonNullable<OpzioniParla["dopoTrascrizione"]>,
+  ): void {
+    // la pipeline "solo testo" è finita qui: HA manda solo run-end
+    this.concludi(esecuzione);
+    let esito: "fermato" | "continua";
+    try {
+      esito = trascritto.domanda ? decidi(trascritto.domanda) : "continua";
+    } catch (errore) {
+      log.errore(`Assistente: decisione dopo la trascrizione in errore: ${descriviErrore(errore)}`);
+      esito = "continua";
+    }
+    this.ultimaAttivita = this.adesso();
+    if (!trascritto.domanda) {
+      this.sostituisci({
+        ...trascritto,
+        fase: "errore",
+        concluso: true,
+        errore: { tipo: "nonSentito", dettaglio: "stt-end senza testo" },
+      });
+      this.notifica();
+      return;
+    }
+    if (esito === "fermato") {
+      this.sostituisci({
+        ...trascritto,
+        fase: "fatto",
+        risposta: RISPOSTA_STOP,
+        audioPronto: true,
+        urlAudio: null,
+        concluso: true,
+      });
+      this.notifica();
+      return;
+    }
+    const conn = this.dip.conn();
+    if (!conn || !this.dip.collegato()) {
+      this.sostituisci({
+        ...trascritto,
+        fase: "errore",
+        concluso: true,
+        errore: { tipo: "connessione", dettaglio: "Connessione persa dopo la trascrizione" },
+      });
+      this.notifica();
+      return;
+    }
+    this.sostituisci({ ...trascritto, fase: "pensa", concluso: false });
+    const aggiornato = this.turno(trascritto.id);
+    if (aggiornato) this.avvia(conn, aggiornato, "risposta");
     this.notifica();
   }
 

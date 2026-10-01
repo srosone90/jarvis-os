@@ -27,7 +27,8 @@ export type TipoErrore =
   | "tempo" // nessuna risposta entro il tempo massimo
   | "offline" // HA non collegato: la domanda non è mai partita
   | "nonSentito" // voce: HA non ha riconosciuto nessuna parola (o lo stream audio è caduto)
-  | "annullata"; // voce: fermata dall'utente mentre Jarvis pensava
+  | "annullata" // voce: fermata dall'utente mentre Jarvis pensava
+  | "doppione"; // «Jarvis» sentito anche da un altro pannello, che ha risposto lui (v0.5.0)
 
 export interface Turno {
   id: number;
@@ -138,6 +139,8 @@ function conNome(nomi: string[], nome: string | null): string[] {
 function tipoDaCodice(codice: string | null): TipoErrore {
   if (codice === "timeout") return "tempo";
   if (codice === "stt-no-text-recognized" || codice === "stt-stream-failed") return "nonSentito";
+  // wake_word_phrase: un altro pannello ha sentito la stessa parola entro 2 s (pipeline.py)
+  if (codice === "duplicate_wake_up_detected") return "doppione";
   return "agente";
 }
 
