@@ -1,6 +1,6 @@
 import { descriviErrore, log } from "../diagnostica/log";
 import { Ricampionatore } from "../parola/ricampiona";
-import { Microfono, type Ascoltatori } from "./microfono";
+import { Microfono, type Ascoltatori, type Elaborazione } from "./microfono";
 
 /**
  * Un solo microfono per tutto il pannello (v0.5.0). Con «Jarvis» sempre in
@@ -25,13 +25,59 @@ export interface AscoltatoreContinuo {
   interrotto: () => void;
 }
 
+const CHIAVE_ELABORAZIONE = "jarvis-microfono";
+/** Di serie (v0.5.1): solo la cancellazione dell'eco, niente riduzione del rumore né guadagno automatico. */
+export const ELABORAZIONE_DI_SERIE: Elaborazione = "solo-eco";
+
+export function leggiElaborazione(grezzo: string | null): Elaborazione {
+  if (grezzo === null) return ELABORAZIONE_DI_SERIE;
+  try {
+    const e = (JSON.parse(grezzo) as { elaborazione?: unknown }).elaborazione;
+    return e === "tutta" || e === "solo-eco" || e === "nessuna" ? e : ELABORAZIONE_DI_SERIE;
+  } catch (errore) {
+    log.avviso(`Microfono: impostazione illeggibile (${descriviErrore(errore)}): uso quella di serie`);
+    return ELABORAZIONE_DI_SERIE;
+  }
+}
+
 export class MicrofonoCondiviso {
   private ricampiona = new Ricampionatore(FREQUENZA);
+  private elaborazioneAttuale: Elaborazione = ELABORAZIONE_DI_SERIE;
   private continuo: AscoltatoreContinuo | null = null;
   private voce: Ascoltatori | null = null;
   private apertura: Promise<void> | null = null;
 
-  constructor(private readonly microfono: Pick<Microfono, "attivo" | "avvia" | "ferma"> = new Microfono()) {}
+  constructor(private readonly microfono: Pick<Microfono, "attivo" | "avvia" | "ferma"> = new Microfono()) {
+    try {
+      this.elaborazioneAttuale = leggiElaborazione(localStorage.getItem(CHIAVE_ELABORAZIONE));
+    } catch (errore) {
+      log.avviso(`Microfono: impostazione non letta (${descriviErrore(errore)}): uso quella di serie`);
+    }
+  }
+
+  get elaborazione(): Elaborazione {
+    return this.elaborazioneAttuale;
+  }
+
+  /** Impostazioni → Voce: se il microfono è aperto lo si riapre con la scelta nuova. */
+  async impostaElaborazione(e: Elaborazione): Promise<void> {
+    this.elaborazioneAttuale = e;
+    try {
+      localStorage.setItem(CHIAVE_ELABORAZIONE, JSON.stringify({ elaborazione: e }));
+    } catch (errore) {
+      log.avviso(`Microfono: impostazione non salvata (${descriviErrore(errore)}): vale fino alla ricarica`);
+    }
+    log.info(`Microfono: elaborazione «${e}»`);
+    if (!this.microfono.attivo) return;
+    this.microfono.ferma();
+    await this.apri();
+  }
+
+  /** Livello del microfono adesso (0..1), per l'indicatore dal vivo delle impostazioni. */
+  get livello(): number {
+    return this.microfono.attivo ? this.livelloAttuale : 0;
+  }
+  private livelloAttuale = 0;
 
   get aperto(): boolean {
     return this.microfono.attivo;
@@ -87,11 +133,17 @@ export class MicrofonoCondiviso {
     // due richieste insieme (parola e voce): un solo getUserMedia
     this.apertura ??= (async () => {
       try {
-        const frequenza = await this.microfono.avvia({
-          pezzo: (grezzo) => this.suPezzo(new Int16Array(grezzo)),
-          livello: (l) => this.voce?.livello(l),
-          interrotto: () => this.suInterrotto(),
-        });
+        const frequenza = await this.microfono.avvia(
+          {
+            pezzo: (grezzo) => this.suPezzo(new Int16Array(grezzo)),
+            livello: (l) => {
+              this.livelloAttuale = l;
+              this.voce?.livello(l);
+            },
+            interrotto: () => this.suInterrotto(),
+          },
+          this.elaborazioneAttuale,
+        );
         this.ricampiona = new Ricampionatore(frequenza);
         if (this.ricampiona.serve)
           log.info(`Microfono aperto a ${frequenza} Hz: ricampiono a ${FREQUENZA} per Jarvis e per HA`);

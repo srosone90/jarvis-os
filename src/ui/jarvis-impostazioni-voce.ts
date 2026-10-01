@@ -4,6 +4,8 @@ import { descriviErrore, log } from "../diagnostica/log";
 import type { RiepilogoEsempi } from "../parola/motore";
 import { RiquadroSicuro, stileBase } from "./base";
 import { OsservaParola } from "./jarvis-indicatore-parola";
+import "./jarvis-parola-dal-vivo";
+import type { Elaborazione } from "../voce/microfono";
 
 const numero = (n: number, cifre = 0): string => n.toFixed(cifre).replace(".", ",");
 
@@ -67,6 +69,7 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
         gap: 8px;
       }
       button,
+      select,
       input[type="text"] {
         min-height: 48px;
         max-width: 100%;
@@ -213,27 +216,67 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
     const m = p.motore;
     if (!m || p.stato !== "ascolta") return html``;
     const s = p.statistiche;
+    const elab: [Elaborazione, string][] = [
+      ["solo-eco", "Solo contro l'eco (consigliato)"],
+      ["nessuna", "Nessuna: microfono grezzo"],
+      ["tutta", "Tutta: eco, rumore e volume automatico"],
+    ];
     return html`<div class="voce">
-      <div>
-        <b>Come sta andando</b>
-        <small data-test="misure-parola"
-          >${numero(s.frame)} pezzi da 80 ms ascoltati, ${numero(s.msMedio, 1)} ms di calcolo ciascuno (carico
-          ${numero((s.msMedio / 80) * 100)}%)${s.scartati ? `, ${numero(s.scartati)} saltati perché in ritardo` : ""}.
-          «${m.parola}» sentito ${s.scatti}
-          volte${
-            s.ultimoScatto
-              ? `, l'ultima alle ${new Date(s.ultimoScatto).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
-              : ""
-          }.</small
-        >
-        <small
-          >Modello ${m.modello.id}
-          (${m.modello.licenza}${m.modello.commerciale ? "" : ", solo uso non commerciale"}), soglia
-          ${numero(m.soglia, 2)}, ${m.fonteImpostazioni}. Pronuncia di casa:
-          <span data-test="stato-verificatore">${m.descriviVerificatore()}</span>.</small
-        >
+        <div>
+          <b>Prova dal vivo</b>
+          <small>Di' «Jarvis» e guarda la barra: è il punteggio più alto degli ultimi 3 secondi.</small>
+          <jarvis-parola-dal-vivo style="margin-top: 10px"></jarvis-parola-dal-vivo>
+        </div>
       </div>
-    </div>`;
+      <div class="voce">
+        <div>
+          <b>Elaborazione del microfono</b>
+          <small
+            >Su Android la riduzione del rumore e il volume automatico possono schiacciare la voce. Se
+            «Jarvis» non sale, prova un'altra scelta e guarda la barra qui sopra.</small
+          >
+        </div>
+        <select
+          data-test="elaborazione-microfono"
+          aria-label="Elaborazione del microfono"
+          @change=${(e: Event) =>
+            void connessione.microfono.impostaElaborazione(
+              (e.target as HTMLSelectElement).value as Elaborazione,
+            )}
+        >
+          ${elab.map(
+            ([v, t]) =>
+              html`<option value=${v} ?selected=${connessione.microfono.elaborazione === v}>${t}</option>`,
+          )}
+        </select>
+      </div>
+      <div class="voce">
+        <div>
+          <b>Come sta andando</b>
+          <small data-test="misure-parola"
+            >${numero(s.frame)} pezzi da 80 ms ascoltati, ${numero(s.msMedio, 1)} ms di calcolo ciascuno
+            (carico
+            ${numero((s.msMedio / 80) * 100)}%)${s.scartati ? `, ${numero(s.scartati)} saltati perché in ritardo` : ""}.
+            «${m.parola}» sentito ${s.scatti}
+            volte${
+              s.ultimoScatto
+                ? `, l'ultima alle ${new Date(s.ultimoScatto).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}`
+                : ""
+            }.</small
+          >
+          <small
+            >Modello ${m.modello.id}
+            (${m.modello.licenza}${m.modello.commerciale ? "" : ", solo uso non commerciale"}), soglia
+            ${numero(m.soglia, 2)}, ${m.fonteImpostazioni}. Pronuncia di casa:
+            <span data-test="stato-verificatore">${m.descriviVerificatore()}</span>.</small
+          >
+          <small data-test="pronuncia-indirizzo"
+            >Esempi e pronuncia imparata restano nella memoria del browser di questo indirizzo
+            (${location.host}): se il pannello passa all'altro indirizzo (veloce o di riserva), lì vanno
+            insegnati di nuovo.</small
+          >
+        </div>
+      </div>`;
   }
 
   private pronuncia(): TemplateResult {

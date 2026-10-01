@@ -123,6 +123,8 @@ In casa **non ci sono luci smart**.
 | `src/parola/` | Parola «Jarvis» (v0.5.0): `ascolto.ts` (ascolto continuo nel bundle iniziale: stato, memoria di 1 s, scatto, stop della suoneria), `motore.ts` (caricato con `import()` pigro: onnxruntime + modelli + verificatore + registrazione della pronuncia), `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM), `stop.ts` («stop»/«basta»/«ferma» nel testo), `ricampiona.ts` (a 16 kHz) |
 | `src/voce/microfono-condiviso.ts` | Un solo microfono per la parola e per la voce, sempre a 16 kHz (v0.5.0) |
 | `src/ui/jarvis-indicatore-parola.ts`, `src/ui/jarvis-impostazioni-voce.ts` | Indicatore del microfono (accanto a "Connesso" e a riposo); Impostazioni → Voce con "Insegna a Jarvis la tua pronuncia" |
+| `test/dati/audio/` (+ `LICENZA.md`), `test/unit/parola-audio-vero.test.ts`, `test/e2e/parola-audio-vero.spec.ts`, `test/e2e/parola-rumore-vero.spec.ts` | v0.5.1: «hey jarvis» vero (Piper) e rumore generato; modello VERO, e nel browser la clip come microfono (`--use-file-for-fake-audio-capture`, aiuto `microfonoDaFile`) |
+| `src/ui/jarvis-parola-dal-vivo.ts` | Indicatore dal vivo (punteggio degli ultimi 3 s, soglia, livello del microfono) in Impostazioni → Voce e Diagnostica |
 | `test/e2e/parola.spec.ts`, `test/unit/parola-ascolto.test.ts` | «Jarvis» col motore vero e un verificatore finto "sempre sì" servito da `parola.json` con ritardo; stop, ricampionamento, regole dello scatto, pipeline in due tempi, microfono condiviso |
 | `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
 | `scripts/riferimento-verificatore.py`, `test/unit/dati/verificatore-sklearn.json` | Riferimento scikit-learn per il test del verificatore |
@@ -1113,6 +1115,21 @@ parola, pipeline normale **senza `no_vad`** (la fine della frase la decide
   ciò che è cambiato. La cache si riempie **al primo uso** (il fetch del
   service worker), **mai durante l'installazione**: vedi la lezione qui sotto.
   All'attivazione si tolgono dalla cache i file che la versione non usa più.
+- **Elaborazione del microfono (v0.5.1)**: di serie `solo-eco`
+  (echoCancellation sì, noiseSuppression e autoGainControl no), oppure
+  `nessuna` o `tutta` (com'era fino alla v0.5.0); localStorage
+  `jarvis-microfono`. Cambiandola a microfono aperto lo si riapre. All'apertura
+  il registro scrive la frequenza dell'AudioContext e `getSettings()` della
+  traccia.
+- **Diagnostica dal vivo (v0.5.1)**: `AscoltoParola.dalVivo` (punteggio e base
+  più alti degli ultimi 3 s, livello del microfono), mostrato da
+  `jarvis-parola-dal-vivo` (4 volte al secondo, solo finché è a schermo).
+  Riepilogo nel registro: ogni 30 s nei primi 10 minuti di ascolto e quando il
+  massimo è ≥ 0,05, poi ogni 10 minuti (`riepilogoDaScrivere`): il registro ha
+  200 voci e un riepilogo fisso le riempirebbe in meno di due ore.
+- **Esempi e pronuncia stanno nell'IndexedDB DELL'INDIRIZZO in uso**: veloce e
+  riserva sono due origini, con due memorie separate. All'avvio il registro
+  dice quanti esempi ci sono su quell'indirizzo; la sezione Voce lo avvisa.
 - **Microfono condiviso** (`MicrofonoCondiviso`): uno solo, sempre a 16 kHz
   (ricampiona se il browser non li concede) e a HA si dichiara sempre 16000.
   La voce si aggancia al microfono aperto; staccandosi non lo chiude se
@@ -1610,3 +1627,16 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   per il motivo sbagliato. Come per la guida: le prove esistenti partono con
   «Jarvis» spento, e i casi incrociati (tocco con «Jarvis» in ascolto) hanno
   prove loro.
+- **Un verificatore finto "sempre sì" prova il cablaggio, non il riconoscimento.**
+  La v0.5.0 aveva tutte le prove verdi e sul tablet «Jarvis» non è mai
+  scattato: il percorso vero (microfono → worklet → modelli) non era mai stato
+  provato con una voce. Dalla v0.5.1 c'è una clip vera usata come microfono di
+  Chromium. Quella prova ha mostrato che il percorso è giusto (0,98-1,00), e
+  quindi che il problema va cercato sul tablet: pronuncia, elaborazione del
+  microfono di Android, indirizzo in uso. Da qui l'indicatore dal vivo.
+- **Il modello regge il volume, non la quantizzazione.** Ipotesi del 01/10:
+  "audio in scala float → punteggio ~0". Misurato: la clip divisa per 32768 in
+  virgola mobile dà ancora 0,999. Quello che rompe è la scala float messa in
+  interi (diventa silenzio): la controprova che conta è nel worklet, e la prova
+  e2e con audio vero la prende. Un'ipotesi plausibile si misura prima di
+  scriverci una prova sopra.

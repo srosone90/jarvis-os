@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.5.1
+
+«Jarvis» col microfono vero: strumenti per capire perché non scatta, e
+microfono meno elaborato.
+
+- **Impostazioni → Voce → Prova dal vivo** (e in Diagnostica): una barra col
+  punteggio più alto degli ultimi 3 secondi, con la linea della soglia, e il
+  livello del microfono. Dicendo «Jarvis» si vede subito se la parola arriva.
+- **Elaborazione del microfono**: di serie ora solo la cancellazione dell'eco,
+  senza riduzione del rumore né volume automatico, che su Android possono
+  schiacciare la voce. Si può scegliere anche "nessuna" o "tutta" (come prima).
+- **Registro della diagnostica**: frequenza vera dell'audio e impostazioni
+  effettive del microfono all'apertura; il punteggio più alto ogni 30 secondi
+  nei primi 10 minuti e ogni volta che qualcosa somiglia alla parola, poi ogni
+  10 minuti; all'avvio quanti esempi della pronuncia ci sono su questo
+  indirizzo.
+- La sezione Voce dice che esempi e pronuncia imparata valgono per
+  l'indirizzo in uso: se il pannello passa dall'indirizzo veloce a quello di
+  riserva (o il contrario), lì vanno insegnati di nuovo.
+- Prove nuove col modello vero e una voce vera: «hey jarvis» supera la soglia
+  (0,999), anche da un microfono a 48 o 44,1 kHz; il rumore resta sotto 0,01.
+
 ## v0.5.0
 
 «Jarvis» sempre in ascolto.

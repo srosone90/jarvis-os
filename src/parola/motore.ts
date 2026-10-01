@@ -160,6 +160,17 @@ export class MotoreParola {
       motore.sogliaBaseScelta = true;
     }
     await motore.preparaVerificatore(impostazioni.verificatore);
+    // esempi e pronuncia stanno nella memoria del browser DI QUESTO indirizzo (v0.5.1)
+    const r = await motore.riepilogo().catch((errore: unknown) => {
+      log.avviso(`Parola: esempi salvati non letti: ${descriviErrore(errore)}`);
+      return null;
+    });
+    if (r)
+      log.info(
+        `Parola: su ${location.host} ${r.persone.reduce((n, p) => n + p.esempi, 0)} esempi della parola` +
+          `${r.persone.length ? ` (${r.persone.map((p) => p.nome).join(", ")})` : ""}, ` +
+          `${Math.round(r.secondiNormale)} s di parlato normale`,
+      );
     log.info(
       `Parola: modello ${modello.id} («${modello.parola}») pronto in ${Math.round(motore.msCaricamento)} ms, ${fonte}, verificatore ${motore.descriviVerificatore()}`,
     );

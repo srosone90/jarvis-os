@@ -19,6 +19,7 @@ orizzontale acceso 24/7.
 | Timer in pausa fermi, stanza calcolata come il server | **v0.4.7** |
 | Fase G: schermo a riposo con la sfera, Hub vocale, impostazioni a sezioni, procedura guidata al primo avvio | **v0.4.8** |
 | «Jarvis» sempre in ascolto, stop della suoneria a voce, pronuncia di casa | **v0.5.0** |
+| «Jarvis»: prova dal vivo, microfono meno elaborato, prove con audio vero | **v0.5.1** |
 | Navigazione laterale e schermate Stanza, Meteo, poi Musica | Prossima |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |

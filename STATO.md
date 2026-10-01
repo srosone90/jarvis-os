@@ -4,44 +4,88 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.0 («Jarvis» sempre in ascolto). Release verificata._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.1 («Jarvis»: prova dal vivo, microfono meno elaborato). Release: vedi sotto._
 
 ## Adesso
 
-- **Finito: v0.5.0, «Jarvis» sempre in ascolto**, come concordato:
-  - la memoria circolare (~1 s, solo in RAM) serve solo a riconoscere la
-    parola; allo scatto parte la pipeline normale stt→tts **senza `no_vad`**:
-    la fine della frase la decide `jarvis_voce`. A HA arriva prima la memoria
-    (fino a 1 s: la parola), poi l'audio dal vivo;
-  - si manda `input.wake_word_phrase: "Jarvis"`: se due pannelli sentono la
-    stessa parola entro 2 s, HA scarta il secondo (`duplicate_wake_up_detected`,
-    `WAKE_WORD_COOLDOWN` in pipeline.py di 2026.9.3). Il pannello che perde
-    non mostra errori. Col tocco sul microfono non si manda;
-  - **acceso di serie** (scelta di Salvatore), si spegne in Impostazioni →
-    Voce; indicatore del microfono sempre visibile mentre ascolta;
-  - **timer che suona** (scelta di Salvatore): «Jarvis» zittisce subito la
-    suoneria e la pipeline va da stt a **stt** (solo testo). Se il testo è
-    «stop»/«basta»/«ferma» il pannello chiude il timer con il tuo
-    `timer_ferma` (anche sugli altri pannelli) e **Gemini non viene
-    chiamato**. Altrimenti, sullo stesso turno, parte una pipeline da
-    **intent a tts** col testo trascritto;
-  - "Insegna a Jarvis la tua pronuncia" è nelle impostazioni del pannello;
-  - tolta la pagina di prova `prova-ehi-jarvis.html`.
-- **Prossimo**: navigazione N2 + schermate Stanza e Meteo, poi Musica (fase M).
+- **Finito: v0.5.1**, la risposta al problema «Jarvis non scatta mai».
+  Verificato in quest'ordine, come chiedevi:
+  1. **Scala dell'audio: è giusta.** Il worklet converte in int16 (±32768) e
+     il rilevatore passa al melspettrogramma quei valori, come `utils.py`.
+     Misurato anche il contrario: il modello **regge il volume** (la clip
+     divisa per 32768 in virgola mobile dà ancora 0,999). Quello che lo rompe
+     è la scala float messa in interi (silenzio): controprova fatta, la prova
+     nuova cade.
+  2. **Ricampionamento e ordine dei pezzi: giusti.** «hey jarvis» vero
+     (Piper) dà 0,9988 a 16 kHz, 0,9988 da 48 kHz e 0,9989 da 44,1 kHz
+     ricampionati come sul pannello; il rumore 0,0035. E nel **pannello vero**,
+     con la clip usata come microfono di Chromium (getUserMedia, worklet,
+     microfono condiviso, modelli), «Jarvis» scatta con 0,98-1,00 e parte la
+     pipeline con `wake_word_phrase`.
+  3. **Elaborazione del microfono**: di serie ora solo cancellazione dell'eco,
+     senza riduzione del rumore né volume automatico; scelta in Impostazioni →
+     Voce ("nessuna" e "tutta" per confronto). Il registro scrive frequenza
+     dell'AudioContext e `getSettings()` effettive.
+  4. **Pronuncia "nessuno"**: l'addestramento funziona e regge la ricarica
+     (provato con la clip come microfono: 160 esempi, salvato, ritrovato).
+     Causa più probabile: **esempi e pronuncia stanno nella memoria del
+     browser dell'indirizzo in uso**, e veloce e riserva sono due indirizzi
+     diversi. Se Salvatore ha insegnato la pronuncia su uno e poi il pannello è
+     passato all'altro, lì risulta "nessuno". Ora il registro all'avvio dice
+     quanti esempi ci sono su quell'indirizzo, e la sezione Voce lo avvisa.
+  - Quindi il percorso è giusto: sul tablet resta da capire se la pronuncia
+    italiana («Giàrvis») o il microfono tengono basso il punteggio. Lo dice
+    la **Prova dal vivo** (Impostazioni → Voce, e in Diagnostica).
+- **Risposta ricevuta (domanda 12)**: `jarvis_voce` 0.2.4 toglie «Jarvis» /
+  «Ehi Jarvis» dall'inizio della trascrizione; «Jarvis» da solo diventa
+  `stt-no-text-recognized`, che il pannello chiude in silenzio. Grazie.
+- **Prossimo, come deciso**: colonna laterale + schermate Stanza e Meteo, poi
+  Musica (fase M).
 - **Da fare in casa (Salvatore)**: la prova della TV, "spegni la TV del
   salotto" con la TV accesa.
-- **In parallelo:** il notebook Colab per il modello italiano.
 
 ## Ultima release del pannello
 
 | | |
 |---|---|
-| Versione | **v0.5.0**: «Jarvis» sempre in ascolto |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.0 |
-| sha256 dello zip | `563587ecf63c22835cd62d8512fcce3c3bfe171b8cd0688f48ffa2079ea0e843` (6,8 MB, service worker 0.5.0, `parola/` con 5 file, verificati) |
-| Precedente | v0.4.8, sha256 `fad878eb…500a` |
+| Versione | **v0.5.1**: «Jarvis» con prova dal vivo e microfono meno elaborato |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.1 |
+| sha256 dello zip | _in arrivo: lo scrivo appena la release è pronta e verificata_ |
+| Precedente | v0.5.0, sha256 `563587ec…e843` |
 
-## Da installare lato server: v0.5.0
+## Da installare lato server: v0.5.1
+
+Solo lo zip sopra `/config/www/jarvis/`, come sempre. Lato HA niente.
+
+**Come provarla, dentro il pannello** (tablet della cucina):
+
+1. Tieni premuto l'orologio 3 s → **Voce** → **Prova dal vivo**. Di'
+   «Jarvis» a distanza normale, poi «Ehi Jarvis», poi «Giarvìs» (accento in
+   fondo, all'inglese). Guarda la barra «Jarvis», ultimi 3 s: deve superare la
+   linea bianca. Mentre parli deve muoversi anche la barra **Microfono**.
+2. Se il microfono si muove ma «Jarvis» resta vicino a zero, è la pronuncia:
+   nella stessa pagina "Insegna a Jarvis la tua pronuncia" (20 volte
+   «Jarvis», poi 60 s di parlato normale, poi «Impara la pronuncia»), e
+   rifai il punto 1: la barra «Jarvis» deve salire, e sotto compare anche
+   quella del modello di base.
+3. Se nemmeno il microfono si muove, cambia **Elaborazione del microfono**
+   ("Nessuna", poi "Tutta") e rifai il punto 1.
+4. Diagnostica → registro: mandami le righe "Microfono aperto (…)",
+   "Parola: su … esempi" e "«Jarvis» negli ultimi 30 s: punteggio massimo …".
+   Dicono la frequenza vera del tablet, le impostazioni del microfono,
+   quanti esempi ci sono su quell'indirizzo, e quanto si è avvicinato.
+
+Nota: la pronuncia imparata vale per l'indirizzo in uso (la sezione Voce lo
+scrive). Se il pannello passa da quello veloce a quello di riserva, lì va
+insegnata di nuovo.
+
+## v0.5.0 (compresa nella v0.5.1)
+
+| | |
+|---|---|
+| sha256 dello zip | `563587ecf63c22835cd62d8512fcce3c3bfe171b8cd0688f48ffa2079ea0e843` |
+
+## Passi di prova della v0.5.0
 
 Lo zip sopra `/config/www/jarvis/`, come sempre. **Novità**: nello zip c'è la
 cartella `parola/` (circa 17 MB: riconoscimento della parola, modelli
@@ -286,7 +330,8 @@ ora no".
     Testo originale:: arriva anche un evento quando un timer va in pausa
     o riparte (per esempio `updated` con `in_pausa`)? Senza evento, il
     pannello lo saprebbe solo alla rilettura.
-12. **Frasi che cominciano con «Jarvis»** (v0.5.0): l'STT ora trascrive di
+12. ~~**Frasi che cominciano con «Jarvis»**~~ — risolta da `jarvis_voce` 0.2.4
+    (01/10), che toglie la parola dall'inizio. Testo originale: (v0.5.0): l'STT ora trascrive di
     solito anche la parola ("Jarvis, metti un timer di 5 minuti"). Gemini lo
     regge; le frasi riconosciute in locale da HA o da `jarvis_voce` (timer,
     pausa…) funzionano anche con «Jarvis» davanti? Se no, meglio toglierla

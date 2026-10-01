@@ -32,11 +32,44 @@ export const SECONDI_MEMORIA = 1;
 export const PAUSA_DOPO_SCATTO_MS = 2000;
 /** Dopo la risposta di Jarvis: la coda dell'audio dall'altoparlante non deve farlo ripartire. */
 export const PAUSA_DOPO_VOCE_MS = 1500;
+/** Indicatore dal vivo delle impostazioni: il punteggio più alto di questa finestra. */
+export const FINESTRA_DAL_VIVO_MS = 3000;
+/**
+ * Riepilogo nel registro (v0.5.1): ogni 30 s nei primi 10 minuti di ascolto e
+ * ogni volta che qualcosa somiglia alla parola (≥ 0,05); dopo, uno ogni 10
+ * minuti. Il registro tiene 200 voci: un riepilogo fisso ogni 30 s le
+ * riempirebbe in meno di due ore, buttando via gli errori veri.
+ */
+export const RIEPILOGO_OGNI_MS = 30_000;
+export const RIEPILOGO_FITTO_PER_MS = 10 * 60_000;
+export const RIEPILOGO_RADO_OGNI_MS = 10 * 60_000;
+export const RIEPILOGO_SE_ALMENO = 0.05;
+
+/** Il riepilogo di questa finestra va nel registro? Logica pura. */
+export function riepilogoDaScrivere(
+  massimo: number,
+  daInizioAscolto: number,
+  daUltimoScritto: number,
+): boolean {
+  if (daInizioAscolto < RIEPILOGO_FITTO_PER_MS || massimo >= RIEPILOGO_SE_ALMENO) return true;
+  return daUltimoScritto >= RIEPILOGO_RADO_OGNI_MS;
+}
+
+export interface DalVivo {
+  /** Punteggio finale più alto degli ultimi 3 s. */
+  punteggio: number;
+  /** Punteggio del modello di base più alto degli ultimi 3 s. */
+  base: number;
+  /** Livello del microfono adesso (0..1). */
+  livello: number;
+  soglia: number;
+}
+
 /** Se il dispositivo resta indietro di tanto, si butta l'audio vecchio (e lo si dice). */
 const RITARDO_MASSIMO_FRAME = 25;
 
 export interface DipendenzeAscolto {
-  micro: MicrofonoCondiviso;
+  micro: Pick<MicrofonoCondiviso, "apriContinuo" | "chiudiContinuo" | "livello">;
   voce: Pick<Voce, "attiva" | "fase" | "ascolta" | "parla">;
   timer: Pick<Timer, "suonano" | "silenzia" | "ferma">;
   /** Carica il motore (di serie con un import() pigro: onnxruntime e modelli non sono nel bundle iniziale). */
@@ -93,6 +126,11 @@ export class AscoltoParola {
   private eraAttiva = false;
   private tempi: number[] = [];
   private recenti: number[] = [];
+  /** Ultimi 3 s di punteggi, per l'indicatore dal vivo. */
+  private vivo: { t: number; p: number; b: number }[] = [];
+  private riepilogo = { da: 0, massimo: 0, base: 0, livello: 0, frame: 0 };
+  private inizioAscolto = 0;
+  private ultimoRiepilogo = 0;
   private stat: Statistiche = {
     frame: 0,
     scartati: 0,
@@ -205,6 +243,9 @@ export class AscoltoParola {
         return;
       }
       log.info(`«Jarvis» in ascolto (${motivo}): memoria di ${SECONDI_MEMORIA} s solo in RAM`);
+      this.inizioAscolto = this.adesso();
+      this.ultimoRiepilogo = this.inizioAscolto;
+      this.riepilogo = { da: this.inizioAscolto, massimo: 0, base: 0, livello: 0, frame: 0 };
       this.cambia("ascolta");
       void this.tieniSchermoAcceso();
     } catch (errore) {
@@ -302,6 +343,7 @@ export class AscoltoParola {
       this.notifica();
     }
     const adesso = this.adesso();
+    this.registraDalVivo(e, adesso);
     if (
       !puoScattare(
         e,
@@ -315,6 +357,38 @@ export class AscoltoParola {
     )
       return;
     this.scatta(e, motore, adesso);
+  }
+
+  /** Punteggio più alto degli ultimi 3 s e livello del microfono: Impostazioni → Voce e Diagnostica. */
+  get dalVivo(): DalVivo {
+    const limite = this.adesso() - FINESTRA_DAL_VIVO_MS;
+    const finestra = this.vivo.filter((x) => x.t >= limite);
+    return {
+      punteggio: finestra.reduce((m, x) => Math.max(m, x.p), 0),
+      base: finestra.reduce((m, x) => Math.max(m, x.b), 0),
+      livello: this.statoAttuale === "ascolta" ? this.dip.micro.livello : 0,
+      soglia: this.motoreCaricato?.soglia ?? 0.5,
+    };
+  }
+
+  private registraDalVivo(e: EsitoParola, adesso: number): void {
+    this.vivo.push({ t: adesso, p: e.punteggio, b: e.base });
+    while ((this.vivo[0]?.t ?? adesso) < adesso - FINESTRA_DAL_VIVO_MS) this.vivo.shift();
+    const r = this.riepilogo;
+    r.frame += 1;
+    r.massimo = Math.max(r.massimo, e.punteggio);
+    r.base = Math.max(r.base, e.base);
+    r.livello = Math.max(r.livello, this.dip.micro.livello);
+    if (adesso - r.da < RIEPILOGO_OGNI_MS) return;
+    if (riepilogoDaScrivere(r.massimo, adesso - this.inizioAscolto, adesso - this.ultimoRiepilogo)) {
+      const f = (n: number): string => n.toFixed(2).replace(".", ",");
+      log.info(
+        `«Jarvis» negli ultimi ${Math.round((adesso - r.da) / 1000)} s: punteggio massimo ${f(r.massimo)}` +
+          `${r.base !== r.massimo ? ` (modello base ${f(r.base)})` : ""}, livello del microfono fino a ${f(r.livello)}, ${r.frame} pezzi`,
+      );
+      this.ultimoRiepilogo = adesso;
+    }
+    this.riepilogo = { da: adesso, massimo: 0, base: 0, livello: 0, frame: 0 };
   }
 
   private scatta(e: EsitoParola, motore: MotoreParola, adesso: number): void {

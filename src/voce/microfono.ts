@@ -45,6 +45,23 @@ class Cattura extends AudioWorkletProcessor {
 registerProcessor("${NOME_PROCESSORE}", Cattura);
 `;
 
+/**
+ * Elaborazione del microfono chiesta al browser (v0.5.1). Su Android la
+ * riduzione del rumore e il guadagno automatico possono schiacciare la voce
+ * proprio dove il riconoscimento di «Jarvis» la cerca; la cancellazione
+ * dell'eco serve invece contro la voce di Jarvis e la suoneria.
+ */
+export type Elaborazione = "tutta" | "solo-eco" | "nessuna";
+
+export function vincoliAudio(e: Elaborazione): MediaTrackConstraints {
+  return {
+    channelCount: 1,
+    echoCancellation: e !== "nessuna",
+    noiseSuppression: e === "tutta",
+    autoGainControl: e === "tutta",
+  };
+}
+
 /** Il microfono non si può usare qui (manca HTTPS): niente getUserMedia. */
 export class MicrofonoNonDisponibile extends Error {
   override name = "MicrofonoNonDisponibile";
@@ -72,12 +89,10 @@ export class Microfono {
   }
 
   /** Apre il microfono. Ritorna la frequenza vera da dichiarare a HA. */
-  async avvia(ascolta: Ascoltatori): Promise<number> {
+  async avvia(ascolta: Ascoltatori, elaborazione: Elaborazione = "tutta"): Promise<number> {
     if (!Microfono.disponibile()) throw new MicrofonoNonDisponibile("Serve un indirizzo sicuro (HTTPS)");
     this.ferma();
-    const flusso = await navigator.mediaDevices.getUserMedia({
-      audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-    });
+    const flusso = await navigator.mediaDevices.getUserMedia({ audio: vincoliAudio(elaborazione) });
     this.flusso = flusso;
     for (const traccia of flusso.getTracks())
       traccia.addEventListener("ended", () => {
@@ -112,6 +127,13 @@ export class Microfono {
       contesto.createMediaStreamSource(flusso).connect(nodo);
       nodo.connect(muto).connect(contesto.destination);
       this.nodo = nodo;
+      // per capire da remoto cosa arriva davvero (v0.5.1): frequenza e impostazioni effettive
+      const imp = flusso.getAudioTracks()[0]?.getSettings() ?? {};
+      log.info(
+        `Microfono aperto (elaborazione: ${elaborazione}): AudioContext a ${contesto.sampleRate} Hz, ` +
+          `traccia ${imp.sampleRate ?? "?"} Hz, canali ${imp.channelCount ?? "?"}, ` +
+          `eco ${sì(imp.echoCancellation)}, rumore ${sì(imp.noiseSuppression)}, guadagno automatico ${sì(imp.autoGainControl)}`,
+      );
       return contesto.sampleRate;
     } catch (errore) {
       this.ferma();
@@ -136,3 +158,6 @@ export class Microfono {
       });
   }
 }
+
+const sì = (v: unknown): string =>
+  v === undefined ? "?" : v === true ? "sì" : v === false ? "no" : String(v);

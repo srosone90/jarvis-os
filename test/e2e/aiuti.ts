@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 /** Funzioni comuni delle prove end-to-end contro il finto Home Assistant. */
@@ -92,3 +93,19 @@ export async function chiedi(page: Page, testo: string): Promise<void> {
   await campo.fill(testo);
   await campo.press("Enter");
 }
+
+const ARGOMENTI = [
+  "--use-fake-device-for-media-stream",
+  "--use-fake-ui-for-media-stream",
+  "--autoplay-policy=no-user-gesture-required",
+];
+/**
+ * Microfono finto di Chromium che suona un file WAV (in loop), per le prove con
+ * audio vero di «Jarvis» (v0.5.1). Va in `test.use()` a livello di file.
+ */
+export const microfonoDaFile = (file: string) => ({
+  launchOptions: {
+    args: [...ARGOMENTI, `--use-file-for-fake-audio-capture=${resolve(`test/dati/audio/${file}`)}`],
+    ...(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {}),
+  },
+});

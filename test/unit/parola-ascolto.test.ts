@@ -8,13 +8,15 @@ import {
   PAUSA_DOPO_SCATTO_MS,
   PAUSA_DOPO_VOCE_MS,
   puoScattare,
+  RIEPILOGO_SE_ALMENO,
+  riepilogoDaScrivere,
   SECONDI_MEMORIA,
 } from "../../src/parola/ascolto";
 import { Ricampionatore } from "../../src/parola/ricampiona";
 import { eComandoStop } from "../../src/parola/stop";
 import type { Bip, Riproduttore } from "../../src/voce/audio";
-import type { Ascoltatori } from "../../src/voce/microfono";
-import { MicrofonoCondiviso } from "../../src/voce/microfono-condiviso";
+import { vincoliAudio, type Ascoltatori } from "../../src/voce/microfono";
+import { leggiElaborazione, MicrofonoCondiviso } from "../../src/voce/microfono-condiviso";
 import { Voce } from "../../src/voce/voce";
 
 describe("«Jarvis, stop» mentre suona un timer", () => {
@@ -404,5 +406,56 @@ describe("microfono condiviso", () => {
     voce.ferma();
     expect(stato.chiusure).toBe(1);
     expect(voce.attivo).toBe(false);
+  });
+});
+
+describe("v0.5.1: registro e microfono", () => {
+  it("riepilogo ogni 30 s nei primi 10 minuti e quando qualcosa somiglia alla parola; poi ogni 10 minuti", () => {
+    const min = 60_000;
+    expect(riepilogoDaScrivere(0.001, 5 * min, 30_000)).toBe(true);
+    expect(riepilogoDaScrivere(0.001, 20 * min, 30_000)).toBe(false);
+    expect(riepilogoDaScrivere(RIEPILOGO_SE_ALMENO, 20 * min, 30_000)).toBe(true);
+    expect(riepilogoDaScrivere(0.001, 20 * min, 10 * min)).toBe(true);
+  });
+
+  it("elaborazione del microfono: di serie solo l'eco; le tre scelte diventano i vincoli di getUserMedia", () => {
+    expect(leggiElaborazione(null)).toBe("solo-eco");
+    expect(leggiElaborazione('{"elaborazione":"nessuna"}')).toBe("nessuna");
+    expect(leggiElaborazione('{"elaborazione":"strana"}')).toBe("solo-eco");
+    expect(leggiElaborazione("rotto")).toBe("solo-eco");
+    expect(vincoliAudio("solo-eco")).toEqual({
+      channelCount: 1,
+      echoCancellation: true,
+      noiseSuppression: false,
+      autoGainControl: false,
+    });
+    expect(vincoliAudio("nessuna")).toMatchObject({ echoCancellation: false, noiseSuppression: false });
+    expect(vincoliAudio("tutta")).toMatchObject({
+      echoCancellation: true,
+      noiseSuppression: true,
+      autoGainControl: true,
+    });
+  });
+
+  it("cambiando l'elaborazione a microfono aperto, lo si riapre con i vincoli nuovi", async () => {
+    const usate: string[] = [];
+    let attivo = false;
+    const c = new MicrofonoCondiviso({
+      get attivo() {
+        return attivo;
+      },
+      avvia: (_a: Ascoltatori, e?: string) => {
+        usate.push(e ?? "?");
+        attivo = true;
+        return Promise.resolve(16000);
+      },
+      ferma: () => {
+        attivo = false;
+      },
+    });
+    await c.apriContinuo({ pezzo: () => undefined, interrotto: () => undefined });
+    await c.impostaElaborazione("nessuna");
+    expect(usate).toEqual(["solo-eco", "nessuna"]);
+    expect(c.aperto).toBe(true);
   });
 });

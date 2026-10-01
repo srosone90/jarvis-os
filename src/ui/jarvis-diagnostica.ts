@@ -5,6 +5,7 @@ import { log, type VoceLog } from "../diagnostica/log";
 import { statoAggiornamento, applicaAggiornamento, versioneSulServer } from "../pwa/aggiornamenti";
 import { statoOrigine } from "../pwa/origine";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
+import "./jarvis-parola-dal-vivo";
 
 /**
  * Diagnostica: versione, indirizzo in uso, stato della connessione, latenza,
@@ -183,6 +184,8 @@ export class JarvisDiagnostica extends RiquadroSicuro {
             }[agg]
           }
         </dd>
+        <dt>«Jarvis» dal vivo</dt>
+        <dd><jarvis-parola-dal-vivo></jarvis-parola-dal-vivo></dd>
       </dl>
       <ol data-test="log" aria-label="Log degli errori">
         ${log.voci().map((v) => html`<li class=${v.livello}>${ora(v)} · ${v.livello} · ${v.messaggio}</li>`)}
