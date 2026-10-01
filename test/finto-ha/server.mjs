@@ -585,7 +585,13 @@ function wavProva() {
  * in frame binari [id][PCM]; un frame col solo id chiude l'audio. Qui il "VAD"
  * chiude dopo ~0,6 s di audio (il microfono finto di Chromium suona di continuo).
  */
-async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTesto, parola }) {
+async function voceAssistente(
+  cliente,
+  id,
+  conversationId,
+  sampleRate,
+  { soloTesto, parola, noVad, dispositivo },
+) {
   const a = stato.assistente;
   const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
   const evento = (type, data) =>
@@ -599,15 +605,29 @@ async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTes
   // dell'ascolto (0,6 s di audio). Con «Jarvis» c'è la frase prima della parola (v0.5.2:
   // fino a 10 s, 320 KB) mandata tutta insieme appena HA dà l'id; col solo audio dal
   // vivo in 300 ms arrivano al massimo 5 pezzi (10 KB)
-  const registro = { pipeline: id, byte: 0, byteSubito: 0, fine: false, sampleRate };
+  // v0.5.3: la pipeline del contesto (device_id «…__contesto», no_vad) si riconosce dal device_id
+  const contesto = typeof dispositivo === "string" && dispositivo.endsWith("__contesto");
+  const registro = {
+    pipeline: id,
+    byte: 0,
+    byteSubito: 0,
+    fine: false,
+    sampleRate,
+    device_id: dispositivo ?? null,
+    contesto,
+    noVad: noVad === true,
+    // ms dalla richiesta al frame di fine (il contesto arriva a raffica e si chiude subito)
+    msFine: null,
+  };
+  const richiesta = Date.now();
   let inizio = 0;
   cliente.misure.set(gestore, (n) => {
     if (inizio === 0) inizio = Date.now();
     if (Date.now() - inizio < 300) registro.byteSubito += n;
   });
   stato.audioVoce.push(registro);
-  // stt=manuale: nessun VAD, l'ascolto finisce solo col frame di fine (tocco su "ferma")
-  const sogliaVad = a.stt === "manuale" ? Infinity : sampleRate * 2 * 0.6;
+  // stt=manuale o no_vad: nessun VAD, l'ascolto finisce solo col frame di fine
+  const sogliaVad = a.stt === "manuale" || noVad === true ? Infinity : sampleRate * 2 * 0.6;
   const fineAscolto = new Promise((ris) => {
     cliente.gestori.set(gestore, {
       dati(n) {
@@ -617,6 +637,7 @@ async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTes
       },
       fine() {
         registro.fine = true;
+        registro.msFine = Date.now() - richiesta;
         ris("fine");
       },
     });
@@ -653,6 +674,12 @@ async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTes
   if (a.stt === "guasto") {
     // lo stream audio verso l'STT si interrompe (visto sul server il 30/09)
     await evento("error", { code: "stt-stream-failed", message: "Speech-to-text failed" });
+    return evento("run-end", null);
+  }
+  if (contesto) {
+    // jarvis_voce: il contesto si trascrive e basta (lo prende Gemini con la domanda)
+    await pausa(100);
+    await evento("stt-end", { stt_output: { text: "discussione sulle vacanze" } });
     return evento("run-end", null);
   }
   if (a.stt === "silenzio" || registro.byte === 0) {
@@ -1126,6 +1153,8 @@ function gestisci(ws, veloce) {
           void voceAssistente(cliente, id, conversationId, msg.input.sample_rate, {
             soloTesto: msg.end_stage === "stt",
             parola: msg.input.wake_word_phrase ?? null,
+            noVad: msg.input.no_vad ?? false,
+            dispositivo: msg.device_id ?? null,
           });
         else if (testoAVoce) void testoAVoceAssistente(cliente, id, conversationId, testoDomanda);
         else void rispondiAssistente(cliente, id, conversationId, testoDomanda);

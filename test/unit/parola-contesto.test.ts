@@ -3,7 +3,12 @@ import { readFileSync } from "node:fs";
 import * as ort from "onnxruntime-web";
 import { describe, expect, it } from "vitest";
 import { SECONDI_MEMORIA } from "../../src/parola/ascolto";
-import { inizioFrase, MARGINE_PRIMA_S } from "../../src/parola/inizio-frase";
+import {
+  inizioFrase,
+  inizioRichiesta,
+  intervalloContesto,
+  MARGINE_PRIMA_S,
+} from "../../src/parola/inizio-frase";
 import { MemoriaCircolare } from "../../src/parola/memoria";
 import { RilevatoreOpenWakeWord } from "../../src/parola/rilevatore";
 
@@ -38,12 +43,14 @@ function leggiWav(nome: string): Int16Array {
 const modello = (f: string) => new Uint8Array(readFileSync(`modelli/openwakeword/${f}`));
 
 /**
- * Come il pannello: pezzi da 1024 campioni nella memoria da 10 s e nel
+ * Come il pannello: pezzi da 1024 campioni nella memoria da 60 s e nel
  * rilevatore; al primo punteggio ≥ 0,5 si prende la memoria dall'inizio della
  * frase. Ritorna da quale campione della clip parte l'audio mandato, e dove
  * era lo scatto.
  */
-async function scatto(nome: string): Promise<{ da: number; scatto: number }> {
+async function scatto(
+  nome: string,
+): Promise<{ da: number; scatto: number; contesto: { da: number; a: number } | null }> {
   const r = await RilevatoreOpenWakeWord.crea(
     ort,
     { id: "hey_jarvis_v0.1", parola: "Jarvis", licenza: "CC BY-NC-SA 4.0", commerciale: false },
@@ -62,8 +69,13 @@ async function scatto(nome: string): Promise<{ da: number; scatto: number }> {
       if (e.punteggio >= 0.5) {
         const fine = Math.min(pcm.length, i + 1024);
         const m = memoria.ultimi();
-        const inviati = m.length - inizioFrase(m);
-        return { da: fine - inviati, scatto: fine };
+        const inizio = inizioRichiesta(m);
+        const inviati = m.length - inizio;
+        // il contesto (v0.5.3): dove sta nella clip
+        const c = intervalloContesto(m, inizio);
+        const inizioMemoria = fine - m.length;
+        const contesto = c ? { da: inizioMemoria + c[0], a: inizioMemoria + c[1] } : null;
+        return { da: fine - inviati, scatto: fine, contesto };
       }
   }
   throw new Error(`«Jarvis» non scattato in ${nome}`);
@@ -101,6 +113,27 @@ describe("contesto prima di «Jarvis» (modello vero, clip vere)", () => {
     expect(da).toBeLessThanOrEqual(parola.da);
     expect(da).toBeGreaterThanOrEqual(parola.da - MARGINE_PRIMA_S * FR - 0.1 * FR);
   }, 60_000);
+});
+
+describe("il minuto prima di «Jarvis» (v0.5.3, modello vero, clip vera)", () => {
+  it("40 s di discussione, pausa di 1,4 s, frase con «hey jarvis»: richiesta = la frase, contesto = la discussione", async () => {
+    const parti = parlato("discussione-poi-jarvis");
+    const frase = parti.at(-1);
+    const primaFrase = parti[0];
+    const ultimaDiscussione = parti.at(-2);
+    if (!frase || !primaFrase || !ultimaDiscussione) throw new Error("segmenti mancanti");
+    const { da, contesto } = await scatto("discussione-poi-jarvis");
+    // la richiesta: solo l'ultima frase (dall'inizio, col margine)
+    expect(da, `richiesta da ${s(da)} s, frase da ${s(frase.da)} s`).toBeLessThanOrEqual(frase.da);
+    expect(da).toBeGreaterThanOrEqual(frase.da - MARGINE_PRIMA_S * FR - 0.1 * FR);
+    // il contesto: tutta la discussione, senza il silenzio iniziale né la pausa prima della frase
+    if (!contesto) throw new Error("contesto non trovato");
+    expect(contesto.da, `contesto da ${s(contesto.da)} s`).toBeLessThanOrEqual(primaFrase.da);
+    expect(contesto.da).toBeGreaterThanOrEqual(primaFrase.da - MARGINE_PRIMA_S * FR - 0.1 * FR);
+    expect(contesto.a, `contesto fino a ${s(contesto.a)} s`).toBeGreaterThanOrEqual(ultimaDiscussione.a);
+    expect(contesto.a).toBeLessThanOrEqual(da);
+    expect((contesto.a - contesto.da) / FR).toBeGreaterThan(39);
+  }, 120_000);
 });
 
 describe("inizio della frase (energia a finestre da 20 ms)", () => {

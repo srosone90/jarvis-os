@@ -5,6 +5,7 @@ import { messaggioErrore } from "../../src/assistente/messaggi";
 import {
   AscoltoParola,
   leggiAcceso,
+  leggiSuono,
   PAUSA_DOPO_SCATTO_MS,
   PAUSA_DOPO_VOCE_MS,
   puoScattare,
@@ -90,8 +91,12 @@ describe("quando scatta «Jarvis»", () => {
     expect(puoScattare(e, 0.5, 10_000, -Infinity, false, 10_000 - PAUSA_DOPO_VOCE_MS + 1, false)).toBe(false);
     expect(puoScattare(e, 0.5, 10_000, -Infinity, false, 10_000 - PAUSA_DOPO_VOCE_MS, false)).toBe(true);
   });
-  it("memoria di 10 s per il contesto prima della parola (v0.5.2), e acceso di serie", () => {
-    expect(SECONDI_MEMORIA).toBe(10);
+  it("memoria di 60 s per il contesto prima della parola (v0.5.3), acceso e col suono di serie", () => {
+    expect(SECONDI_MEMORIA).toBe(60);
+    expect(leggiSuono(null)).toBe(true);
+    expect(leggiSuono('{"acceso":true}')).toBe(true);
+    expect(leggiSuono('{"acceso":true,"suono":false}')).toBe(false);
+    expect(leggiSuono("rotto")).toBe(true);
     expect(leggiAcceso(null)).toBe(true);
     expect(leggiAcceso('{"acceso":false}')).toBe(false);
     expect(leggiAcceso('{"acceso":true}')).toBe(true);
@@ -347,14 +352,16 @@ describe("ascolto: la voce che mostra un errore non rende «Jarvis» sordo", () 
     const timer = { suonano: [], silenzia: () => undefined, ferma: () => undefined };
     const a = new AscoltoParola({
       micro: {} as unknown as MicrofonoCondiviso,
+      assistente: { inviaContesto: () => false, occupato: false },
       voce: voce as unknown as ConstructorParameters<typeof AscoltoParola>[0]["voce"],
       timer: timer as unknown as ConstructorParameters<typeof AscoltoParola>[0]["timer"],
       adesso: () => 100_000,
     });
     const motore = { soglia: 0.5, inRegistrazione: null, parola: "Jarvis" };
-    (a as unknown as { suEsito(e: unknown, m: unknown): void }).suEsito(
+    (a as unknown as { suEsito(e: unknown, m: unknown, t: number): void }).suEsito(
       { punteggio: 0.9, base: 0.9, verificato: false, ms: 5 },
       motore,
+      0,
     );
     return chiamate.length;
   }

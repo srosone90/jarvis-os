@@ -5,6 +5,7 @@ import { descriviErrore, log } from "../diagnostica/log";
 import { Bip, Riproduttore } from "./audio";
 import { CAMPIONI_PER_PEZZO, Microfono, MicrofonoNonDisponibile } from "./microfono";
 import type { SorgenteMicrofono } from "./microfono-condiviso";
+import { RilevaParlato } from "./parlato";
 
 /**
  * Voce "tocca per parlare" (F5). Una faccia del motore dell'assistente: la
@@ -15,15 +16,27 @@ import type { SorgenteMicrofono } from "./microfono-condiviso";
  * solo dopo 0,7 s di silenzio (VAD); il tocco su "ferma" lo chiude prima.
  * L'audio della risposta parte SUBITO a tts-end (o tts-start in streaming),
  * mai aspettando run-end: per le risposte locali HA non chiude la pipeline
- * finché qualcuno non consuma l'audio. Se HA vuole un seguito
- * (continue_conversation), finito l'audio il microfono si riapre da solo.
+ * finché qualcuno non consuma l'audio.
+ *
+ * Conversazione continua (v0.5.3, come un Echo): finita la risposta il
+ * pannello riascolta 8 s senza «Jarvis» ("Ti ascolto ancora"). La domanda
+ * verso HA parte solo se qui si sente parlare (`RilevaParlato`), con lo
+ * stesso conversation_id; se nessuno parla si chiude in silenzio e dal
+ * pannello non è uscito niente.
  */
 export type FaseVoce = "spenta" | "apertura" | "ascolto" | "pensa" | "risponde" | "errore";
 /** Dove si vede la voce: nella chat, nel riquadro piccolo o nell'Hub (fase G). */
 export type DoveVoce = "chat" | "riquadro" | "hub";
 
-/** Rete di sicurezza: HA chiude l'ascolto al massimo dopo 15 s (vad.py); noi dopo 20. */
-export const ASCOLTO_MASSIMO_MS = 20_000;
+/**
+ * Rete di sicurezza: la frase la chiude il server (jarvis_voce 0.2.7, al
+ * massimo 30 s). Il pannello non deve tagliarla prima: noi chiudiamo a 35.
+ */
+export const ASCOLTO_MASSIMO_MS = 35_000;
+/** Dopo la risposta: per quanto si riascolta senza «Jarvis» (v0.5.3). */
+export const SEGUITO_MS = 8_000;
+/** Seguito: audio mandato a HA prima del primo pezzo di parlato, per non tagliare la prima sillaba. */
+const PRIMA_DEL_PARLATO = 8; // pezzi da 64 ms: ~0,5 s
 /**
  * Il pulsante del microfono non resta mai bloccato (sessione server, 30/09):
  * ogni fase "di attesa" ha un limite, e scaduto quello si torna attivi con un
@@ -46,14 +59,33 @@ export const RIQUADRO_DOPO_MS = 6_000;
  * sarebbe buttato proprio l'audio dopo la parola.
  */
 const CODA_MASSIMA = 400;
+/** Seguito in attesa di parlato: si tiene solo l'ultimo mezzo secondo. */
+const CODA_SEGUITO = PRIMA_DEL_PARLATO;
 
 /** Domanda nata dalla parola «Jarvis» (v0.5.0). */
 export interface OpzioniVoce extends OpzioniParla {
   /**
-   * Audio di poco prima dello scatto (la memoria circolare, ~1 s, 16 kHz):
-   * va a HA per primo, così la parola e l'inizio della frase non si perdono.
+   * La frase fino allo scatto (dalla memoria circolare, 16 kHz): va a HA per
+   * prima, così la parola e l'inizio della frase non si perdono.
    */
   preroll?: Int16Array;
+  /** Suono breve subito, insieme al segnale a schermo (Impostazioni → Voce, v0.5.3). */
+  suono?: boolean;
+  /**
+   * Tempi della parola (performance.now()): quando è arrivato il pezzo con la
+   * fine della parola e quando è scattata. Il resto lo misura la voce e va
+   * nel registro in una riga (v0.5.3, "reattività come Alexa").
+   */
+  tempi?: { finePezzo: number; scatto: number };
+}
+
+/** Le misure di reattività di una domanda nata da «Jarvis». */
+interface Misura {
+  finePezzo: number;
+  scatto: number;
+  segnale: number | null;
+  runStart: number | null;
+  primoAudio: number | null;
 }
 
 export interface DipendenzeVoce {
@@ -76,6 +108,11 @@ export class Voce {
   private daParola = false;
   private riproduzioneAvviata = false;
   private coda: ArrayBuffer[] = [];
+  /** Seguito aperto (8 s dopo la risposta), finché qui non si sente parlare. */
+  private attesaSeguito: RilevaParlato | null = null;
+  private frequenza = 16000;
+  private misura: Misura | null = null;
+  private timerSeguito: ReturnType<typeof setTimeout> | undefined;
   private timerAscolto: ReturnType<typeof setTimeout> | undefined;
   private timerRiquadro: ReturnType<typeof setTimeout> | undefined;
   /** Limite di "apertura" e "pensa": si riarma a ogni cambio di fase. */
@@ -113,6 +150,10 @@ export class Voce {
   get attiva(): boolean {
     return this.statoFase !== "spenta";
   }
+  /** "Ti ascolto ancora": riascolto dopo la risposta, senza «Jarvis» (v0.5.3). */
+  get ascoltoAncora(): boolean {
+    return this.statoFase === "ascolto" && this.attesaSeguito !== null;
+  }
   /** Il browser permette il microfono su questo indirizzo. */
   get disponibile(): boolean {
     return Microfono.disponibile();
@@ -132,6 +173,11 @@ export class Voce {
   /** Tocco sul microfono, o «Jarvis» sentito (con `opzioni`). */
   async parla(dove: DoveVoce, seguito = false, opzioni: OpzioniVoce = {}): Promise<void> {
     if (this.statoFase !== "spenta" && this.statoFase !== "errore") return;
+    // segnale subito (v0.5.3): il suono prima di tutto, lo schermo con "apertura" qui sotto
+    if (opzioni.suono) this.bip.suona("apri");
+    this.misura = opzioni.tempi
+      ? { ...opzioni.tempi, segnale: null, runStart: null, primoAudio: null }
+      : null;
     clearTimeout(this.timerRiquadro);
     this.luogo = dove;
     this.riquadro = dove === "riquadro";
@@ -145,6 +191,11 @@ export class Voce {
     }
     const sessione = ++this.sessione;
     this.imposta("apertura");
+    const misura = this.misura;
+    if (misura)
+      requestAnimationFrame(() => {
+        misura.segnale = performance.now();
+      });
     let frequenza: number;
     try {
       frequenza = await this.microfono.avvia({
@@ -169,24 +220,72 @@ export class Voce {
       this.microfono.ferma();
       return;
     }
-    const { preroll, ...perAssistente } = opzioni;
-    const id = this.dip.assistente.parla(frequenza, perAssistente);
-    if (id === null) {
-      // HA perso mentre il microfono si apriva
-      this.microfono.ferma();
-      this.imposta("spenta");
+    this.frequenza = frequenza;
+    if (seguito) {
+      // conversazione continua: si ascolta qui, la domanda a HA parte solo se qualcuno parla
+      this.attesaSeguito = new RilevaParlato();
+      this.coda = [];
+      this.timerSeguito = setTimeout(() => this.seguitoSenzaParlato(sessione), SEGUITO_MS);
+      log.info(`Voce: ti ascolto ancora per ${SEGUITO_MS / 1000} s, senza «Jarvis»`);
+      this.imposta("ascolto");
       return;
+    }
+    const perAssistente: OpzioniParla = {
+      ...(opzioni.parola !== undefined ? { parola: opzioni.parola } : {}),
+      ...(opzioni.dopoTrascrizione ? { dopoTrascrizione: opzioni.dopoTrascrizione } : {}),
+    };
+    if (!this.avviaDomanda(perAssistente, opzioni.preroll ? aPezzi(opzioni.preroll) : [])) return;
+    // con «Jarvis» il suono (se acceso) è già partito allo scatto; il tocco ha il suo bip
+    if (opzioni.parola === undefined) this.bip.suona("apri");
+    this.imposta("ascolto");
+  }
+
+  /** La domanda parte verso HA: pipeline, audio tenuto da parte, limite dell'ascolto. */
+  private avviaDomanda(opzioni: OpzioniParla, coda: ArrayBuffer[]): boolean {
+    const id = this.dip.assistente.parla(this.frequenza, opzioni);
+    if (id === null) {
+      // HA perso mentre il microfono si apriva (o una domanda scritta in corso)
+      this.microfono.ferma();
+      this.coda = [];
+      this.finito();
+      return false;
     }
     this.idTurno = id;
     // prima l'audio della parola, poi quello dal vivo (tenuti da parte fino all'id di HA)
-    this.coda = preroll ? aPezzi(preroll) : [];
+    this.coda = coda;
     this.riproduzioneAvviata = false;
-    this.bip.suona("apri");
     this.timerAscolto = setTimeout(() => {
       log.avviso("Voce: ascolto oltre il tempo massimo, lo chiudo");
       this.chiudiMicrofono();
     }, ASCOLTO_MASSIMO_MS);
-    this.imposta("ascolto");
+    return true;
+  }
+
+  /** Seguito: qualcuno ha cominciato a parlare, la domanda parte (stessa conversazione). */
+  private parlatoNelSeguito(): void {
+    clearTimeout(this.timerSeguito);
+    this.attesaSeguito = null;
+    log.info("Voce: parlato dopo la risposta, la domanda continua");
+    // il turno della risposta finita non va più seguito (allinea lo leggerebbe come "pensa")
+    this.idTurno = null;
+    if (!this.avviaDomanda({}, this.coda.splice(0))) return;
+    this.notifica();
+  }
+
+  /** Seguito: 8 s senza parlato. Si chiude in silenzio, a HA non è andato niente. */
+  private seguitoSenzaParlato(sessione: number): void {
+    if (sessione !== this.sessione || !this.attesaSeguito) return;
+    this.chiudiSeguito("nessuno ha parlato dopo la risposta, chiudo in silenzio");
+  }
+
+  private chiudiSeguito(motivo: string): void {
+    clearTimeout(this.timerSeguito);
+    this.attesaSeguito = null;
+    this.sessione += 1;
+    this.microfono.ferma();
+    this.coda = [];
+    log.info(`Voce: ${motivo}`);
+    this.finito();
   }
 
   /** Tocco su "ferma"/"interrompi"/"chiudi", a seconda del momento. */
@@ -202,8 +301,10 @@ export class Voce {
         this.interrompi("annullata", "domanda annullata dall'utente");
         break;
       case "ascolto":
+        // riascolto dopo la risposta, nessuno ha ancora parlato: si chiude e basta
+        if (this.attesaSeguito) this.chiudiSeguito("riascolto chiuso col tocco");
         // HA riceve la fine dell'audio e risponde a quello che ha sentito
-        this.chiudiMicrofono();
+        else this.chiudiMicrofono();
         break;
       case "risponde":
         // interrotta: niente seguito (rispondi() lo apre solo se l'audio è "finito")
@@ -234,19 +335,53 @@ export class Voce {
   }
 
   private suPezzo(pcm: ArrayBuffer): void {
+    if (this.statoFase !== "ascolto") return;
+    const attesa = this.attesaSeguito;
+    if (attesa) {
+      // seguito: niente verso HA finché qui non si sente parlare
+      this.coda.push(pcm);
+      if (this.coda.length > CODA_SEGUITO) this.coda.shift();
+      if (attesa.pezzo(new Int16Array(pcm))) this.parlatoNelSeguito();
+      return;
+    }
     const id = this.idTurno;
-    if (id === null || this.statoFase !== "ascolto") return;
+    if (id === null) return;
     const t = this.dip.assistente.turno(id);
     if (t?.idAudio == null) {
       // HA non ha ancora dato l'id (run-start): si tiene da parte
       if (this.coda.length < CODA_MASSIMA) this.coda.push(pcm);
       return;
     }
-    for (const vecchio of this.coda.splice(0)) this.dip.assistente.inviaAudio(id, vecchio);
+    this.svuotaCoda(id);
     this.dip.assistente.inviaAudio(id, pcm);
   }
 
+  /** L'audio tenuto da parte va a HA appena c'è l'id (run-start), senza aspettare il pezzo dopo. */
+  private svuotaCoda(id: number): void {
+    const misura = this.misura;
+    if (misura && misura.primoAudio === null) {
+      misura.primoAudio = performance.now();
+      this.scriviMisura(misura);
+    }
+    for (const vecchio of this.coda.splice(0)) this.dip.assistente.inviaAudio(id, vecchio);
+  }
+
+  /**
+   * Reattività di «Jarvis» nel registro (v0.5.3): dalla fine della parola
+   * (il pezzo di microfono che la contiene) allo scatto del modello, al
+   * segnale a schermo, alla risposta di HA (run-start) e al primo audio.
+   */
+  private scriviMisura(m: Misura): void {
+    this.misura = null;
+    const ms = (t: number | null): string => (t === null ? "?" : `${Math.round(t - m.finePezzo)} ms`);
+    log.info(
+      `Reattività «Jarvis»: scatto ${ms(m.scatto)}, segnale ${ms(m.segnale)}, ` +
+        `run-start ${ms(m.runStart)}, primo audio ${ms(m.primoAudio)} (dalla fine della parola)`,
+    );
+  }
+
   private chiudiMicrofono(): void {
+    if (this.attesaSeguito) return;
     clearTimeout(this.timerAscolto);
     this.timerAscolto = undefined;
     if (!this.microfono.attivo) return;
@@ -260,7 +395,12 @@ export class Voce {
   /** Segue il turno nel motore dell'assistente. */
   private allinea(): void {
     const t = this.turno;
-    if (!t || this.statoFase === "spenta" || this.statoFase === "apertura") return;
+    // nel riascolto il turno è ancora quello della risposta appena data
+    if (!t || this.statoFase === "spenta" || this.statoFase === "apertura" || this.attesaSeguito) return;
+    if (this.statoFase === "ascolto" && t.idAudio != null && t.fase === "ascolto") {
+      if (this.misura && this.misura.runStart === null) this.misura.runStart = performance.now();
+      if (this.coda.length) this.svuotaCoda(t.id);
+    }
     if (this.statoFase === "ascolto" && (t.fineParlato || t.fase !== "ascolto")) this.chiudiMicrofono();
     if (t.fase === "errore") {
       this.chiudiMicrofono();
@@ -309,8 +449,8 @@ export class Voce {
     this.imposta("risponde");
     const esito = await this.riproduttore.riproduci(new URL(url, location.href).href);
     if (sessione !== this.sessione || this.statoFase !== "risponde") return;
-    // seguito come un Echo: solo se l'audio è finito da solo (non interrotto) e HA lo chiede
-    if (esito === "finito" && this.turno?.continua && this.dip.collegato()) {
+    // conversazione continua (v0.5.3): sempre, se l'audio è finito da solo (non interrotto)
+    if (esito === "finito" && this.dip.collegato()) {
       this.imposta("spenta");
       await this.parla(this.luogo, true);
       return;

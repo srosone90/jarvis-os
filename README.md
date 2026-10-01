@@ -21,6 +21,7 @@ orizzontale acceso 24/7.
 | «Jarvis» sempre in ascolto, stop della suoneria a voce, pronuncia di casa | **v0.5.0** |
 | «Jarvis»: prova dal vivo, microfono meno elaborato, prove con audio vero | **v0.5.1** |
 | «Jarvis»: la frase intera, anche con la parola alla fine | **v0.5.2** |
+| «Jarvis»: il minuto prima come contesto, conversazione continua, bip e soglia personale | **v0.5.3** |
 | Navigazione laterale e schermate Stanza, Meteo, poi Musica | Prossima |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
@@ -62,6 +63,14 @@ riscaricano solo ciò che cambia. Il microfono funziona solo sull'indirizzo
 https. Chi vuole un altro modello o una soglia diversa mette un `parola.json`
 accanto a `index.html` (esempio in `src/parola/impostazioni.ts`): non è nello
 zip, quindi un aggiornamento non lo tocca.
+
+**Il minuto prima e la conversazione continua** (v0.5.3): il pannello tiene
+in memoria, solo in RAM, l'ultimo minuto. Il minuto prima parte SOLO quando
+scatta «Jarvis», e solo verso il nostro Home Assistant (che lo manda a Gemini
+per trascriverlo), con una pipeline a parte (`device_id` `<pannello>__contesto`,
+`no_vad`). Dopo ogni risposta il pannello ascolta ancora 8 secondi senza
+«Jarvis»: se nessuno parla si chiude, e verso Home Assistant non è partito
+niente. Serve `jarvis_voce` 0.2.7 lato server.
 
 **La vostra pronuncia (verificatore, v0.4.3)**. Il modello di base riconosce
 «Giarvìs» all'inglese, non «Giàrvis». Nella sezione "La tua pronuncia" della

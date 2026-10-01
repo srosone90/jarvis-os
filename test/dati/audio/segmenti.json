@@ -78,5 +78,125 @@
         "a": 133601
       }
     ]
+  },
+  "discussione-poi-jarvis": {
+    "campioni": 753220,
+    "segmenti": [
+      {
+        "testo": null,
+        "da": 0,
+        "a": 24000
+      },
+      {
+        "testo": "We should really decide where to go on holiday this summer.",
+        "da": 24000,
+        "a": 68381
+      },
+      {
+        "testo": null,
+        "da": 68381,
+        "a": 75581
+      },
+      {
+        "testo": "My sister says the mountains are nicer in July, because it is not so hot.",
+        "da": 75581,
+        "a": 139004
+      },
+      {
+        "testo": null,
+        "da": 139004,
+        "a": 146204
+      },
+      {
+        "testo": "But I would prefer the sea, maybe somewhere in Sicily or in Sardinia.",
+        "da": 146204,
+        "a": 206979
+      },
+      {
+        "testo": null,
+        "da": 206979,
+        "a": 214179
+      },
+      {
+        "testo": "Last year the hotel was too expensive and the beach was always crowded.",
+        "da": 214179,
+        "a": 270797
+      },
+      {
+        "testo": null,
+        "da": 270797,
+        "a": 277997
+      },
+      {
+        "testo": "This time we could rent a small house with a garden, close to the water.",
+        "da": 277997,
+        "a": 335519
+      },
+      {
+        "testo": null,
+        "da": 335519,
+        "a": 342719
+      },
+      {
+        "testo": "The children want a swimming pool, of course, and a place to ride bikes.",
+        "da": 342719,
+        "a": 396912
+      },
+      {
+        "testo": null,
+        "da": 396912,
+        "a": 404112
+      },
+      {
+        "testo": "I also need a good internet connection, because I have to work some mornings.",
+        "da": 404112,
+        "a": 469334
+      },
+      {
+        "testo": null,
+        "da": 469334,
+        "a": 476534
+      },
+      {
+        "testo": "We could leave on the first Saturday of August and come back two weeks later.",
+        "da": 476534,
+        "a": 536083
+      },
+      {
+        "testo": null,
+        "da": 536083,
+        "a": 543283
+      },
+      {
+        "testo": "The car needs new tyres before such a long trip, I will book the garage.",
+        "da": 543283,
+        "a": 606902
+      },
+      {
+        "testo": null,
+        "da": 606902,
+        "a": 614102
+      },
+      {
+        "testo": "And we have to find someone to feed the cat while we are away.",
+        "da": 614102,
+        "a": 663037
+      },
+      {
+        "testo": null,
+        "da": 663037,
+        "a": 685437
+      },
+      {
+        "testo": "so what is the weather going to be like tomorrow, hey jarvis",
+        "da": 685437,
+        "a": 729220
+      },
+      {
+        "testo": null,
+        "da": 729220,
+        "a": 753220
+      }
+    ]
   }
 }

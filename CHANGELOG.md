@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.5.3
+
+Una persona sempre presente: Jarvis sa di cosa si stava parlando, e dopo la
+risposta ti ascolta ancora.
+
+- **Il minuto prima di «Jarvis»**: il pannello tiene in memoria 60 secondi
+  (solo in RAM). Quando scatta «Jarvis», oltre alla frase con la parola (come
+  la v0.5.2) manda a Home Assistant, con una pipeline a parte, il parlato che
+  c'era prima: il server lo fa trascrivere e Gemini risponde sapendo di cosa
+  si parlava. Se prima nessuno parlava non si manda niente; se «Jarvis» non
+  scatta non esce niente. Nessun errore a schermo se il contesto non arriva:
+  la domanda va avanti lo stesso.
+- **Conversazione continua**: finita la risposta, il pannello ti ascolta
+  ancora per 8 secondi senza bisogno di ridire «Jarvis» («Ti ascolto
+  ancora…», con l'anello che respira). La domanda parte verso Home Assistant
+  solo se qui si sente parlare, nella stessa conversazione; se nessuno parla
+  si chiude in silenzio, senza «Non ho capito». Vale anche dopo una domanda
+  fatta col tocco.
+- **Reattività**: segnale a schermo subito allo scatto e un «bip» breve
+  (disattivabile in Impostazioni → Voce). L'audio tenuto da parte parte
+  appena Home Assistant risponde, senza aspettare il pezzo successivo. Nel
+  registro, per ogni «Jarvis», i tempi: fine della parola → scatto →
+  segnale → risposta di Home Assistant → primo audio inviato.
+- **Strada veloce**: insegnando la pronuncia, il pannello calcola una soglia
+  di scatto personale dai tuoi esempi (più bassa di quella di serie se la
+  tua voce lo permette, mai sotto 0,2 né vicina al parlato normale). Si vede
+  in Impostazioni → Voce.
+- Il pannello non taglia più la frase prima del server: fino a 30 secondi
+  (prima 20).
+- Prove con una clip vera di 47 secondi: 40 s di discussione, una pausa, poi
+  la frase con «hey jarvis».
+
 ## v0.5.2
 
 La frase intera, anche con «Jarvis» alla fine.

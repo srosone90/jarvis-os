@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { defineConfig } from "@playwright/test";
 
 const PORTA = 18123;
@@ -27,14 +28,19 @@ export default defineConfig({
     locale: "it-IT",
     timezoneId: "Europe/Rome",
     trace: "retain-on-failure",
-    // voce (F5): microfono finto di Chromium (suona un tono di continuo), permesso
-    // già concesso, audio della risposta senza bisogno di un tocco
+    // voce (F5): microfono finto di Chromium, permesso già concesso, audio della
+    // risposta senza bisogno di un tocco. Il microfono di serie è un fruscio
+    // bassissimo (v0.5.3): col tono continuo di Chromium il riascolto di 8 s
+    // dopo ogni risposta lo prenderebbe per parlato e la conversazione non
+    // finirebbe mai. HA finto conta i byte, non l'energia: le domande col tocco
+    // vanno come prima. Chi vuole voce vera usa `microfonoDaFile`.
     permissions: ["microphone"],
     launchOptions: {
       args: [
         "--use-fake-device-for-media-stream",
         "--use-fake-ui-for-media-stream",
         "--autoplay-policy=no-user-gesture-required",
+        `--use-file-for-fake-audio-capture=${resolve("test/dati/audio/silenzio.wav")}`,
       ],
       ...(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {}),
     },

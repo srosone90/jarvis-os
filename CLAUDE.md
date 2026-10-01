@@ -1174,16 +1174,72 @@ parola, pipeline normale **senza `no_vad`** (la fine della frase la decide
 - **Android**: Wake Lock mentre ascolta; microfono chiuso dal sistema →
   stato "fermo", ripresa quando la pagina torna visibile.
 - **Impostazioni → Voce**: interruttore (`jarvis-parola` nel localStorage,
-  `{acceso}`), stato, misure (frame, ms per frame, carico, scatti), modello e
+  `{acceso, suono}` dalla v0.5.3), stato, misure (frame, ms per frame, carico, scatti), modello e
   licenza, verificatore; "Insegna a Jarvis la tua pronuncia" (20 esempi per
   persona, 60 s di parlato normale, «Impara la pronuncia»), cancellazioni con
   conferma che dice che non si recuperano.
-- **Prove**: il microfono finto di Chromium suona un tono, quindi la parola la
+- **Prove**: il microfono finto di Chromium (dalla v0.5.3 di serie un fruscio
+  bassissimo, `test/dati/audio/silenzio.wav`) non dice «Jarvis», quindi la parola la
   fa "sentire" un verificatore "sempre sì" servito da `parola.json`, con un
   ritardo del finto HA (`/__prova/file` con `ritardo`) che decide QUANDO parte
   il motore (dopo aver messo a riposo, dopo che il timer suona). Le altre prove
   partono con «Jarvis» spento (`stato-iniziale.json`). Il finto HA misura i
   byte arrivati nei primi 150 ms (`byteSubito`): la memoria arriva subito.
+
+### Il minuto prima e la conversazione continua (v0.5.3, 01/10)
+
+Requisito di Salvatore, "persona sempre presente"; lato server `jarvis_voce`
+0.2.7 (contesto a Gemini in automatico, aspetta la trascrizione fino a 6 s;
+dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
+
+- **Memoria di 60 s** (`SECONDI_MEMORIA`), solo RAM, svuotata con «Jarvis»
+  spento, a ogni avvio e dopo ogni scatto. La **richiesta** resta quella della
+  v0.5.2, ma cercata solo negli ultimi 10 s (`inizioRichiesta`,
+  `FINESTRA_FRASE_S`): senza limite un minuto senza pause diventerebbe una
+  "domanda" di 60 s.
+- **Contesto** (`contestoPrima`/`intervalloContesto`): l'audio PRIMA della
+  richiesta, senza il silenzio iniziale e finale (margine 0,25 s); voce con la
+  stessa energia di `inizioFrase`, soglia presa da tutta la memoria; sotto
+  0,5 s di parlato (`MINIMO_PARLATO_S`) non si manda. Parte **prima** della
+  richiesta e solo se la richiesta può partire (assistente non occupato).
+- **`Assistente.inviaContesto`**: pipeline a parte, `start_stage`/`end_stage`
+  `stt`, `input {sample_rate:16000, no_vad:true}`, `device_id
+  "<pannello>__contesto"` (`jarvis_pannello__contesto` senza stanza), niente
+  `conversation_id`. A run-start tutto l'audio a raffica (pezzi da 1024) e
+  subito il frame col solo id; il PCM si azzera appena inviato. Nessun turno,
+  nessuna interfaccia: errori solo come riga nel registro; della trascrizione
+  si scrive solo la lunghezza. Chiusa da run-end o dopo 30 s.
+- **Conversazione continua** (`Voce`): dopo ogni risposta finita da sola (non
+  interrotta), anche col tocco, il microfono si riapre per **8 s**
+  (`SEGUITO_MS`) senza parola: `ascoltoAncora`, «Ti ascolto ancora…», anello
+  tratteggiato che respira. **La pipeline verso HA parte solo se qui si sente
+  parlare** (`RilevaParlato`: RMS per pezzo ≥ max(150, min(3 × fondo, 1000)),
+  due pezzi di fila); si manda da ~0,5 s prima (8 pezzi). Stesso
+  conversation_id (lo tiene l'assistente), nessun contesto, nessuna
+  `wake_word_phrase`. Nessuno parla → chiusura in silenzio, nulla inviato,
+  nessun turno. `continue_conversation` di HA non apre più una pipeline
+  subito: il seguito è sempre questo.
+- **Reattività**: allo scatto il bip (se `suono`, di serie acceso) parte prima
+  di tutto e la fase "apertura" va a schermo subito; con «Jarvis» niente
+  secondo bip all'apertura (col tocco il bip resta). La coda si svuota appena
+  arriva run-start (`allinea`), non al pezzo dopo. Riga nel registro
+  `Reattività «Jarvis»: scatto, segnale (requestAnimationFrame), run-start,
+  primo audio` in ms dalla fine della parola (arrivo del pezzo).
+- **Strada veloce** (`sogliaPersonale`): addestrando la pronuncia, 10°
+  percentile dei punteggi finali più alti di ogni esempio × 0,8, al massimo
+  0,5, mai sotto 0,2 né a meno di 0,1 dal parlato normale; se non c'è spazio,
+  resta la soglia di serie. Salvata nel verificatore (`soglia`, facoltativa);
+  `parola.json` con `soglia` vince. Il modello su misura viene dopo, se
+  Salvatore lo conferma.
+- **`ASCOLTO_MASSIMO_MS` 35 s**: il pannello non taglia la frase prima del
+  server (30 s).
+- **Prove**: `discussione-poi-jarvis.wav` (Piper, 47 s: 40 s di discussione,
+  1,4 s di pausa, frase con «hey jarvis»), col modello vero in Vitest e come
+  microfono nel pannello: due pipeline nel finto HA, contesto (~40 s, a
+  raffica, chiuso subito) e richiesta (solo la frase). Il finto HA riconosce
+  il contesto dal device_id e registra `device_id`, `contesto`, `noVad`,
+  `msFine`. Conversazione continua col fruscio (si chiude) e con una frase in
+  loop (seconda domanda, stesso conversation_id).
 
 ## 6. Decisioni di prodotto (log)
 
@@ -1399,6 +1455,15 @@ se ne scrive una nuova che annulla la precedente.
   «Jarvis» all'inizio e alla fine della trascrizione, passa a Gemini la stanza
   del pannello dal device_id `jarvis_<area>` ("qui", "questa stanza"), frase
   massima 15 s. Il device_id del pannello resta `jarvis_<area_id>` esatto.
+
+- **2026-10-01** — **v0.5.3, "persona sempre presente"** (Salvatore). Annulla i
+  10 s della v0.5.2: memoria di **60 s**, sempre solo RAM e mai inviata senza
+  la parola. Il minuto prima va a HA come **contesto** su una pipeline a parte
+  (`…__contesto`, `no_vad`), la richiesta resta solo la frase. Dopo ogni
+  risposta **8 s di riascolto senza parola**; scelta di progetto: la pipeline
+  parte solo se il pannello sente parlare, così se nessuno parla non esce
+  niente (né audio né costi di trascrizione). Bip allo scatto acceso di serie,
+  si spegne in Impostazioni → Voce. Frase sulla privacy nella sezione Voce.
 
 ## 7. Convenzioni
 
@@ -1666,3 +1731,14 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   contare male. Contava i byte nei primi 150 ms dall'apertura (la frase arriva
   dopo l'id di HA) e, dopo la sua fine finta dell'ascolto (0,6 s di audio),
   buttava i byte senza contarli. Ora conta dal primo byte, a parte.
+- **Un turno "vecchio" ancora agganciato inganna chi lo segue.** Nel
+  riascolto la voce teneva l'id del turno appena risposto; appena partiva la
+  domanda nuova, l'assistente avvisava e `allinea` leggeva quel turno finito
+  come "pensa": la voce smetteva di mandare audio. La prova unitaria l'ha
+  preso (0 pezzi inviati). Prima di aprire un turno nuovo si stacca il
+  vecchio.
+- **Il microfono finto delle prove fa parte del comportamento.** Col tono
+  continuo di Chromium il riascolto di 8 s l'avrebbe preso per voce, e ogni
+  prova della voce sarebbe diventata una conversazione infinita. Il microfono
+  di serie delle prove è ora un fruscio: chi vuole voce la mette con
+  `microfonoDaFile`.

@@ -4,64 +4,98 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.2 (la frase intera con «Jarvis»). Release verificata._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.3 (persona sempre presente). Release: vedi sotto._
 
 ## Adesso
 
-- **Finito: v0.5.2, il contesto prima di «Jarvis»**, come chiesto:
-  1. memoria di **10 s**, solo in RAM: mai inviata se la parola non scatta,
-     svuotata con «Jarvis» spento e a ogni avvio;
-  2. allo scatto parte dall'**inizio della frase**: tornando indietro dalla
-     parola, la prima pausa di almeno **1,0 s** (il tuo silenzio_secondi)
-     segna l'inizio, con 0,25 s di margine; senza pause, tutti i 10 s.
-     Voce/silenzio a energia (RMS a 20 ms, soglia relativa al rumore di fondo),
-     niente dipendenze nuove. Nel dubbio vede silenzio (manda meno contesto),
-     mai il contrario (una pausa vera dentro farebbe chiudere te prima di
-     «Jarvis»);
-  3. «Jarvis» in fondo o in mezzo: il pannello non aspetta altra voce e non
-     dà errore; la fine la decidi tu. Se dopo la parola nessuno parla, chiude
-     in silenzio (già dalla v0.5.0);
-  4. l'Hub mostra la domanda intera, e se è lunga scorre;
-  5. prove con voci vere (Piper, inglese) e il modello vero: «hey jarvis» in
-     fondo a una frase di 3,4 s → partono 3,6-3,7 s; in mezzo → parte dalla
-     parola e il resto arriva dal vivo; frase + 1,6 s di pausa + frase con
-     «hey jarvis» → parte dopo la pausa. Nel finto HA si misurano i byte
-     arrivati tutti insieme prima dell'audio dal vivo. Controprove: con 1 s
-     fisso e con le pause ignorate le prove cadono.
-- Il device_id resta `jarvis_<area>` esatto (nessun cambiamento).
-- **Ricevuto**: `jarvis_voce` 0.2.5 (toglie «Jarvis» anche alla fine, stanza
-  del pannello a Gemini, frase fino a 15 s).
-- **Prossimo, come deciso**: colonna laterale + schermate Stanza e Meteo, poi
-  Musica (fase M).
-- **Da fare in casa (Salvatore)**: la prova della TV, "spegni la TV del
-  salotto" con la TV accesa; e la Prova dal vivo della v0.5.1.
+- **Finito: v0.5.3, "persona sempre presente"**, punto per punto:
+  1. memoria di **60 s**, solo in RAM: mai inviata se la parola non scatta,
+     svuotata con «Jarvis» spento, a ogni avvio e dopo ogni scatto;
+  2. allo scatto la **richiesta** è come oggi (inizio della frase: ultima
+     pausa ≥ 1 s, cercata negli ultimi 10 s, + audio dal vivo). In più, se
+     prima c'è parlato (energia, almeno 0,5 s), parte PRIMA la pipeline del
+     **contesto**: `assist_pipeline/run`, start/end `stt`, `input
+     {sample_rate:16000, no_vad:true}`, `device_id "<id pannello>__contesto"`
+     (es. `jarvis_cucina__contesto`; senza stanza `jarvis_pannello__contesto`),
+     niente conversation_id. Audio a raffica appena arriva run-start (il
+     silenzio iniziale e la pausa prima della frase tolti), poi subito il
+     frame vuoto. Niente UI, niente errori a schermo: se fallisce, una riga nel
+     registro ("Contesto non trascritto: …"); del testo trascritto il
+     registro scrive solo quanti caratteri. Nessun parlato prima → non si
+     manda;
+  3. il pannello non taglia la richiesta prima di te: chiude da solo solo
+     dopo **35 s**;
+  4. **conversazione continua**: finito il TTS (non interrotto), il pannello
+     riascolta **8 s senza parola**, stesso conversation_id, senza contesto
+     né wake_word_phrase; «Ti ascolto ancora…» con l'anello che respira.
+     **Scelta di progetto da sapere**: la pipeline verso di te parte solo
+     quando il pannello sente parlare (energia, ~130 ms), con ~0,5 s di audio
+     prima. Se nessuno parla in 8 s si chiude in silenzio e da noi non arriva
+     niente (nessuna pipeline vuota, nessun "non ho capito"). Vale anche dopo
+     una domanda fatta col tocco, e anche quando Gemini chiede
+     `continue_conversation` (prima riapriva subito una pipeline);
+  5. **reattività**: segnale a schermo nello stesso istante dello scatto e
+     bip breve (Impostazioni → Voce → "Suono quando sente «Jarvis»", acceso
+     di serie). Nel registro, a ogni «Jarvis»: `Reattività «Jarvis»: scatto
+     N ms, segnale N ms, run-start N ms, primo audio N ms (dalla fine della
+     parola)`. L'audio tenuto da parte parte appena arriva run-start;
+  6. **strada veloce**: con «Impara la pronuncia» il pannello calcola una
+     **soglia personale** dai 20 esempi + verificatore (10° percentile × 0,8,
+     tra 0,2 e 0,5, almeno 0,1 sopra il parlato normale; se non c'è spazio
+     resta 0,5). Si vede in Voce → "Come sta andando". Il **modello su
+     misura** aspetta la conferma di Salvatore.
+- Privacy, nella sezione Voce: "Il minuto prima resta solo nella memoria del
+  pannello e parte SOLO quando scatta «Jarvis», e solo verso il nostro Home
+  Assistant (che lo manda a Gemini per trascriverlo e capire il discorso)".
+- Prove: clip Piper di 47 s (40 s di discussione, 1,4 s di pausa, frase con
+  «hey jarvis») col modello vero e come microfono del pannello: nel finto HA
+  due pipeline, contesto (~40 s, no_vad, `…__contesto`, tutto in meno di 3 s)
+  e richiesta (solo la frase). Conversazione continua: risposta → riascolto →
+  seconda domanda senza parola → stesso conversation_id; col silenzio si
+  chiude in 8 s senza mandare niente. Controprove: con la memoria a 10 s,
+  senza il minimo di parlato, col contesto dopo la richiesta, col seguito
+  che apre subito la pipeline, senza invio del contesto, le prove cadono.
+- **Ricevuto**: `jarvis_voce` 0.2.7 (contesto a Gemini, attesa trascrizione
+  6 s, 3 s dopo «Jarvis» da solo, frase massima 30 s).
+- **Prossimo, come deciso**: colonna laterale + Stanza + Meteo, poi Musica.
 
 ## Ultima release del pannello
 
 | | |
 |---|---|
-| Versione | **v0.5.2**: la frase intera con «Jarvis» |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.2 |
-| sha256 dello zip | `faa4b89b9d5919fdc557e4bfd634dbe9457d447602a3b88034b6a1784da138ff` (6,8 MB, service worker 0.5.2, `parola/` con 5 file, nessun file delle prove; verificati) |
-| Precedente | v0.5.1, sha256 `1ccd83b8…2af5` |
+| Versione | **v0.5.3**: persona sempre presente |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.3 |
+| sha256 dello zip | _in arrivo dopo la release_ |
+| Precedente | v0.5.2, sha256 `faa4b89b9d5919fdc557e4bfd634dbe9457d447602a3b88034b6a1784da138ff` |
 
-## Da installare lato server: v0.5.2
+## Da installare lato server: v0.5.3
 
-Solo lo zip sopra `/config/www/jarvis/`. Lato HA serve `jarvis_voce` 0.2.5
-(già installato).
+Solo lo zip sopra `/config/www/jarvis/`. Lato HA serve `jarvis_voce` 0.2.7
+(già fatto).
 
-**Come provarla, dentro il pannello** (tablet della cucina; se «Jarvis» non
-scatta ancora, prima la Prova dal vivo della v0.5.1, qui sotto):
+**Come provarla, dentro il pannello** (tablet della cucina):
 
-1. Di' tutto di fila: «C'è un po' di freddo in questa stanza, cosa ne pensi,
-   Jarvis?». Nel riquadro (o nell'Hub, se il pannello era a riposo) deve
-   comparire la **frase intera**, e la risposta deve parlare della cucina.
-2. «Jarvis, accendi la TV del salotto» con una pausa breve dopo «Jarvis»:
-   deve arrivare tutto.
-3. Di' una frase qualsiasi, aspetta 2 secondi in silenzio, poi «che tempo fa
-   domani, Jarvis?»: deve arrivare solo la seconda frase.
-4. Diagnostica → registro: a ogni «Jarvis» c'è "mando N s di frase prima".
-   Dimmi i numeri dei punti 1 e 3.
+1. Parlate tra voi di qualcosa per mezzo minuto (per esempio delle vacanze),
+   poi fermatevi un attimo e dite «Jarvis, tu che ne pensi?». Deve sentirsi
+   il bip, e la risposta deve parlare di quello di cui parlavate.
+2. Subito dopo la risposta, senza dire «Jarvis», fai un'altra domanda («e per
+   il weekend?»): sotto la risposta compare «Ti ascolto ancora…», e deve
+   rispondere sapendo di cosa si parlava.
+3. Dopo una risposta resta in silenzio: «Ti ascolto ancora…» sparisce da solo
+   dopo 8 secondi, senza «Non ho capito».
+4. Impostazioni → Voce: la frase sul "minuto prima", l'interruttore del
+   suono (spegnilo e riprova il punto 1: niente bip, la luce sì).
+5. Diagnostica → registro: mandami le righe "«Jarvis» sentito (…) mando …
+   e … di contesto prima", "Contesto: … inviati in … ms", "Contesto:
+   trascritto da HA in … ms" e "Reattività «Jarvis»: …".
+6. Se avete già insegnato la pronuncia, rifate «Impara la pronuncia»: il
+   messaggio finale dice la soglia personale. Mandamela.
+
+## v0.5.2 (compresa nella v0.5.3)
+
+| | |
+|---|---|
+| sha256 dello zip | `faa4b89b9d5919fdc557e4bfd634dbe9457d447602a3b88034b6a1784da138ff` |
 
 ## Passi di prova della v0.5.1
 

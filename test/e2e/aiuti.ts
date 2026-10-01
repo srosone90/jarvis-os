@@ -30,7 +30,19 @@ export async function info(request: APIRequestContext): Promise<{
   richieste: Record<string, number>;
   chiamate: { servizio: string; dati: Record<string, unknown> }[];
   richiesteAssistente: RichiestaAssistente[];
-  audioVoce: { pipeline: number; byte: number; byteSubito: number; fine: boolean; sampleRate: number }[];
+  audioVoce: {
+    pipeline: number;
+    byte: number;
+    byteSubito: number;
+    fine: boolean;
+    sampleRate: number;
+    /** v0.5.3: device_id della pipeline, e se è quella del contesto (…__contesto, no_vad). */
+    device_id: string | null;
+    contesto: boolean;
+    noVad: boolean;
+    /** ms dalla richiesta al frame di fine audio. */
+    msFine: number | null;
+  }[];
   richiesteTts: string[];
   disiscrizioniPipeline: number;
   pipelineAperte: number;
@@ -109,3 +121,7 @@ export const microfonoDaFile = (file: string) => ({
     ...(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {}),
   },
 });
+
+/** v0.5.3: la pipeline del contesto prima di «Jarvis» (device_id «…__contesto»). */
+export const eContesto = (r: { device_id: string | null }): boolean =>
+  r.device_id?.endsWith("__contesto") === true;

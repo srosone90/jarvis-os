@@ -29,6 +29,7 @@ import {
   scegliPositivi,
   SOGLIA_BASE_PREDEFINITA,
   sogliaBaseConsigliata,
+  sogliaPersonale,
   type FrameRegistrato,
   type Verificatore,
 } from "./verificatore";
@@ -102,7 +103,8 @@ export class MotoreParola {
   private constructor(
     private readonly rilevatore: RilevatoreOpenWakeWord,
     readonly modello: DescrizioneModello,
-    readonly soglia: number,
+    /** Soglia scelta in parola.json: vince su quella personale. */
+    private readonly sogliaDaFile: number | undefined,
     private readonly archivio: ArchivioParola | null,
     /** Cosa si è letto da parola.json, in parole (per la diagnostica). */
     readonly fonteImpostazioni: string,
@@ -150,7 +152,7 @@ export class MotoreParola {
     const motore = new MotoreParola(
       rilevatore,
       modello,
-      impostazioni.soglia ?? SOGLIA_DI_SERIE,
+      impostazioni.soglia,
       archivio,
       fonte,
       performance.now() - t0,
@@ -179,6 +181,19 @@ export class MotoreParola {
 
   get parola(): string {
     return this.modello.parola;
+  }
+  /**
+   * Soglia di scatto: quella di parola.json, se c'è; altrimenti quella
+   * personale calcolata dagli esempi (v0.5.3, strada veloce); altrimenti 0,5.
+   */
+  get soglia(): number {
+    return this.sogliaDaFile ?? this.verificatore?.soglia ?? SOGLIA_DI_SERIE;
+  }
+  /** Da dove viene la soglia, in parole (Impostazioni → Voce). */
+  get origineSoglia(): string {
+    if (this.sogliaDaFile !== undefined) return "da parola.json";
+    if (this.verificatore?.soglia !== undefined) return "personale, dai vostri esempi";
+    return "di serie";
   }
   get inRegistrazione(): StatoRegistrazione | null {
     const r = this.registrazione;
@@ -224,7 +239,8 @@ export class MotoreParola {
     return (
       `${this.origineVerificatore}: ${i.positivi} esempi della parola` +
       `${i.persone.length ? ` (${i.persone.join(", ")})` : ""} e ${i.negativi} di parlato normale, ` +
-      `soglia base ${this.sogliaBase.toFixed(3).replace(".", ",")}`
+      `soglia base ${this.sogliaBase.toFixed(3).replace(".", ",")}, ` +
+      `soglia di scatto ${this.soglia.toFixed(2).replace(".", ",")} (${this.origineSoglia})`
     );
   }
 
@@ -322,14 +338,18 @@ export class MotoreParola {
     const esempi = await this.archivio.elenco();
     const positivi: Float32Array[] = [];
     const negativi: FrameRegistrato[] = [];
+    /** I frame di ogni esempio della parola, per la soglia personale. */
+    const perEsempio: FrameRegistrato[][] = [];
     for (const e of esempi) {
       const d = await this.archivio.dati(e.id);
       if (!d) continue;
       // punteggi di un altro modello base: si rifanno dalle caratteristiche
       if (e.modello !== this.modello.id)
         for (const f of d.frame) f.punteggio = await this.rilevatore.valuta(f.caratteristiche);
-      if (e.tipo === "parola") positivi.push(...scegliPositivi(d.frame, this.sogliaBase));
-      else negativi.push(...d.frame);
+      if (e.tipo === "parola") {
+        positivi.push(...scegliPositivi(d.frame, this.sogliaBase));
+        perEsempio.push(d.frame);
+      } else negativi.push(...d.frame);
     }
     if (!positivi.length) return "Registra prima gli esempi della parola.";
     if (!negativi.length) return "Registra prima un po' di parlato normale.";
@@ -345,10 +365,27 @@ export class MotoreParola {
         },
       },
     );
+    // strada veloce (v0.5.3): la soglia di scatto dai punteggi finali dei vostri esempi
+    const finale = (f: FrameRegistrato): number =>
+      punteggioFinale(f.punteggio, f.caratteristiche, v, this.sogliaBase).punteggio;
+    const massimiEsempi = perEsempio.map((frame) => Math.max(0, ...frame.map(finale)));
+    let negativoMassimo = 0;
+    for (const f of negativi) negativoMassimo = Math.max(negativoMassimo, finale(f));
+    const soglia = sogliaPersonale(massimiEsempi, negativoMassimo);
+    if (soglia !== null) v.soglia = soglia;
+    const f2 = (n: number): string => n.toFixed(2).replace(".", ",");
+    log.info(
+      `Parola: soglia personale ${soglia === null ? "non calcolabile (parlato normale troppo vicino), resta quella di serie" : f2(soglia)}; ` +
+        `esempi da ${f2(Math.min(...massimiEsempi))} a ${f2(Math.max(...massimiEsempi))}, parlato normale fino a ${f2(negativoMassimo)}`,
+    );
     await this.archivio.salvaVerificatore(v);
     this.impostaVerificatore(v, "addestrato su questo dispositivo");
     const secondi = ((performance.now() - t0) / 1000).toFixed(1).replace(".", ",");
-    const testo = `Pronuncia imparata in ${secondi} s: ${v.info.positivi} esempi della parola e ${v.info.negativi} di parlato normale, riconosciuti bene il ${Math.round(v.info.accuratezza * 100)}%.`;
+    const testo =
+      `Pronuncia imparata in ${secondi} s: ${v.info.positivi} esempi della parola e ${v.info.negativi} di parlato normale, riconosciuti bene il ${Math.round(v.info.accuratezza * 100)}%. ` +
+      (soglia === null
+        ? "Soglia di scatto di serie: il parlato normale somiglia troppo ai tuoi esempi."
+        : `Soglia di scatto personale: ${f2(soglia)}${this.sogliaDaFile !== undefined ? " (ma vale quella di parola.json)" : ""}.`);
     log.info(`Parola: ${testo}`);
     this.notifica();
     return testo;

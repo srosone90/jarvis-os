@@ -181,36 +181,59 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
       nonDisponibile: p.problema ? `${p.problema.titolo} ${p.problema.spiegazione}` : "Non disponibile qui.",
     };
     return html`<div class="voce">
-      <div>
-        <b>«Jarvis» sempre in ascolto</b>
-        <small
-          >Il microfono resta aperto e riconosce la parola qui sul pannello. A Home Assistant va solo la frase
-          in cui dici «Jarvis», anche se la parola è alla fine ("fa freddo qui, che dici, Jarvis?"), fino a 10
-          secondi prima; senza la parola non parte niente. Mentre suona un timer, «Jarvis, stop» lo
-          ferma.</small
-        >
-        <small
-          class=${p.stato === "fermo" || p.stato === "nonDisponibile" ? "avviso" : ""}
-          data-test="stato-parola"
-          data-stato=${p.stato}
-          >${testo[p.stato]}</small
-        >
+        <div>
+          <b>«Jarvis» sempre in ascolto</b>
+          <small
+            >Il microfono resta aperto e riconosce la parola qui sul pannello. Quando dici «Jarvis» va a Home
+            Assistant la frase intera, anche se la parola è alla fine ("fa freddo qui, che dici, Jarvis?").
+            Dopo la risposta Jarvis ti ascolta ancora per 8 secondi, senza bisogno di ridire «Jarvis». Mentre
+            suona un timer, «Jarvis, stop» lo ferma.</small
+          >
+          <small data-test="privacy-minuto"
+            ><b>Il minuto prima</b> resta solo nella memoria del pannello e parte SOLO quando scatta «Jarvis»,
+            e solo verso il nostro Home Assistant (che lo manda a Gemini per trascriverlo e capire il
+            discorso). Se «Jarvis» non scatta, non esce niente; spegnendo qui, la memoria si svuota.</small
+          >
+          <small
+            class=${p.stato === "fermo" || p.stato === "nonDisponibile" ? "avviso" : ""}
+            data-test="stato-parola"
+            data-stato=${p.stato}
+            >${testo[p.stato]}</small
+          >
+        </div>
+        ${
+          p.stato === "fermo"
+            ? html`<button data-test="parola-riprova" @click=${() => p.riprova()}>Riprova</button>`
+            : nothing
+        }
+        <label class="interruttore">
+          <input
+            type="checkbox"
+            data-test="parola-acceso"
+            aria-label="«Jarvis» sempre in ascolto"
+            .checked=${p.acceso}
+            @change=${(e: Event) => p.imposta((e.target as HTMLInputElement).checked)}
+          />
+        </label>
       </div>
-      ${
-        p.stato === "fermo"
-          ? html`<button data-test="parola-riprova" @click=${() => p.riprova()}>Riprova</button>`
-          : nothing
-      }
-      <label class="interruttore">
-        <input
-          type="checkbox"
-          data-test="parola-acceso"
-          aria-label="«Jarvis» sempre in ascolto"
-          .checked=${p.acceso}
-          @change=${(e: Event) => p.imposta((e.target as HTMLInputElement).checked)}
-        />
-      </label>
-    </div>`;
+      <div class="voce">
+        <div>
+          <b>Suono quando sente «Jarvis»</b>
+          <small
+            >Un «bip» breve appena scatta la parola, insieme alla luce a schermo: sai subito che ti ha
+            sentito.</small
+          >
+        </div>
+        <label class="interruttore">
+          <input
+            type="checkbox"
+            data-test="parola-suono"
+            aria-label="Suono quando sente «Jarvis»"
+            .checked=${p.suono}
+            @change=${(e: Event) => p.impostaSuono((e.target as HTMLInputElement).checked)}
+          />
+        </label>
+      </div>`;
   }
 
   private misure(): TemplateResult {
@@ -269,7 +292,8 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
           <small
             >Modello ${m.modello.id}
             (${m.modello.licenza}${m.modello.commerciale ? "" : ", solo uso non commerciale"}), soglia
-            ${numero(m.soglia, 2)}, ${m.fonteImpostazioni}. Pronuncia di casa:
+            <span data-test="soglia-scatto">${numero(m.soglia, 2)} (${m.origineSoglia})</span>,
+            ${m.fonteImpostazioni}. Pronuncia di casa:
             <span data-test="stato-verificatore">${m.descriviVerificatore()}</span>.</small
           >
           <small data-test="pronuncia-indirizzo"

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info, microfonoDaFile } from "./aiuti";
+import { accedi, apriImpostazioni, comando, eContesto, info, microfonoDaFile } from "./aiuti";
 
 /**
  * Contesto PRIMA di «Jarvis» (v0.5.2), nel pannello vero con la clip come
@@ -23,6 +23,7 @@ test("«Jarvis» in fondo alla frase: a HA arriva la frase intera, e l'Hub la mo
   page,
   request,
 }) => {
+  await comando(request, "reset");
   await comando(request, `assistente?trascrizione=${encodeURIComponent(DOMANDA)}`);
   // il motore parte dopo 9 s (parola.json in ritardo): intanto il pannello va a riposo
   await comando(request, "file", { nome: "parola.json", contenuto: "{}", ritardo: 9000 });
@@ -43,12 +44,21 @@ test("«Jarvis» in fondo alla frase: a HA arriva la frase intera, e l'Hub la mo
 
   // almeno uno scatto con tutta la frase: 3,4 s (110 KB), non 1 s né 10 s
   await expect
-    .poll(async () => Math.max(0, ...(await info(request)).audioVoce.map((a) => a.byteSubito)), {
-      timeout: 40_000,
-    })
+    .poll(
+      async () =>
+        Math.max(0, ...(await info(request)).audioVoce.filter((a) => !a.contesto).map((a) => a.byteSubito)),
+      {
+        timeout: 40_000,
+      },
+    )
     .toBeGreaterThanOrEqual(BYTE_FRASE);
-  for (const a of (await info(request)).audioVoce)
+  // (v0.5.3: la clip gira in loop, quindi possono esserci anche il contesto — la frase
+  // del giro prima — e i seguiti senza parola: qui contano le domande nate da «Jarvis»)
+  for (const a of (await info(request)).audioVoce.filter((a) => !a.contesto))
     expect(a.byteSubito).toBeLessThan(BYTE_FRASE + 32000 * 1.5);
-  for (const r of (await info(request)).richiesteAssistente)
-    expect(r).toMatchObject({ wake_word_phrase: "Jarvis", no_vad: null });
+  const daParola = (await info(request)).richiesteAssistente.filter(
+    (r) => !eContesto(r) && r.wake_word_phrase !== null,
+  );
+  expect(daParola.length).toBeGreaterThan(0);
+  for (const r of daParola) expect(r).toMatchObject({ wake_word_phrase: "Jarvis", no_vad: null });
 });

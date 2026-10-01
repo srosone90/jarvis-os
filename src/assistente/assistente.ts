@@ -81,6 +81,14 @@ export interface OpzioniParla {
   dopoTrascrizione?: (testo: string) => "fermato" | "continua";
 }
 
+/**
+ * Contesto prima di «Jarvis» (v0.5.3): pipeline a parte, solo trascrizione.
+ * Se HA non la chiude entro questo tempo, la si chiude da qui.
+ */
+export const CONTESTO_MASSIMO_MS = 30_000;
+/** Pezzi del contesto: come quelli del microfono (1024 campioni a 16 kHz). */
+const PEZZO_CONTESTO = 1024;
+
 /** Risposta scritta di un «Jarvis, stop» gestito sul pannello. */
 export const RISPOSTA_STOP = "Timer fermato.";
 
@@ -181,6 +189,109 @@ export class Assistente {
     this.avvia(conn, turno, { sampleRate, ...opzioni });
     this.notifica();
     return turno.id;
+  }
+
+  /**
+   * Il parlato del minuto PRIMA della frase con «Jarvis» (v0.5.3, "persona
+   * sempre presente"): una pipeline a parte, solo stt e con `no_vad`, col
+   * device_id `<pannello>__contesto`. jarvis_voce lo trascrive e lo dà a
+   * Gemini insieme alla domanda (aspetta la trascrizione fino a 6 s).
+   *
+   * Parte prima della richiesta, l'audio va tutto a raffica appena HA dà l'id
+   * e si chiude subito col frame vuoto. Indipendente dalla domanda: niente
+   * turno, niente interfaccia, e se fallisce solo una riga nel registro (la
+   * domanda va avanti lo stesso). Del testo trascritto si scrive solo la
+   * lunghezza: è il discorso di casa, non va nel registro.
+   * `pcm` (16 kHz) viene azzerato appena inviato. False se non è partita.
+   */
+  inviaContesto(pcm: Int16Array): boolean {
+    const conn = this.dip.conn();
+    if (!conn || !this.dip.collegato() || pcm.length === 0) {
+      pcm.fill(0);
+      return false;
+    }
+    const secondi = (pcm.length / 16000).toFixed(1).replace(".", ",");
+    const t0 = this.adesso();
+    let smetti: (() => Promise<void>) | null = null;
+    let finita = false;
+    const chiudi = (): void => {
+      if (finita) return;
+      finita = true;
+      clearTimeout(limite);
+      pcm.fill(0);
+      const s = smetti;
+      smetti = null;
+      if (s && this.dip.collegato())
+        s().catch((errore: unknown) => {
+          log.avviso(`Contesto: chiusura della pipeline non riuscita: ${descriviErrore(errore)}`);
+        });
+    };
+    const limite = setTimeout(() => {
+      log.avviso(`Contesto: HA non ha chiuso la trascrizione entro ${CONTESTO_MASSIMO_MS / 1000} s`);
+      chiudi();
+    }, CONTESTO_MASSIMO_MS);
+    const suEvento = (ev: EventoPipeline): void => {
+      if (finita) return;
+      const dati = ev.data ?? {};
+      if (ev.type === "run-start") {
+        const runner = dati["runner_data"] as { stt_binary_handler_id?: unknown } | undefined;
+        const id = runner?.stt_binary_handler_id;
+        if (typeof id !== "number") {
+          log.avviso("Contesto: HA non ha dato l'id per l'audio");
+          return chiudi();
+        }
+        for (let i = 0; i < pcm.length; i += PEZZO_CONTESTO) {
+          const pezzo = pcm.subarray(i, i + PEZZO_CONTESTO);
+          const frame = new Uint8Array(pezzo.byteLength + 1);
+          frame[0] = id;
+          frame.set(new Uint8Array(pezzo.buffer, pezzo.byteOffset, pezzo.byteLength), 1);
+          if (!this.dip.inviaBinario(frame.buffer)) {
+            log.avviso("Contesto: connessione persa durante l'invio");
+            return chiudi();
+          }
+        }
+        this.dip.inviaBinario(new Uint8Array([id]).buffer);
+        pcm.fill(0);
+        log.info(`Contesto: ${secondi} s inviati in ${this.adesso() - t0} ms`);
+      } else if (ev.type === "stt-end") {
+        const uscita = dati["stt_output"] as { text?: unknown } | undefined;
+        const n = typeof uscita?.text === "string" ? uscita.text.length : 0;
+        log.info(`Contesto: trascritto da HA in ${this.adesso() - t0} ms (${n} caratteri)`);
+      } else if (ev.type === "error") {
+        const codice = typeof dati["code"] === "string" ? dati["code"] : "errore";
+        log.avviso(`Contesto non trascritto: ${codice}`);
+      } else if (ev.type === "run-end") chiudi();
+    };
+    const dispositivo = this.dip.dispositivo?.() ?? "jarvis_pannello";
+    conn
+      .subscribeMessage<EventoPipeline>(
+        suEvento,
+        {
+          type: "assist_pipeline/run",
+          start_stage: "stt",
+          end_stage: "stt",
+          input: { sample_rate: 16000, no_vad: true },
+          device_id: `${dispositivo}__contesto`,
+          timeout: CONTESTO_MASSIMO_MS / 1000,
+        },
+        { resubscribe: false },
+      )
+      .then((s) => {
+        smetti = s;
+        // run-end arrivato insieme al risultato
+        if (finita) {
+          smetti = null;
+          if (this.dip.collegato())
+            s().catch((errore: unknown) => {
+              log.avviso(`Contesto: chiusura della pipeline non riuscita: ${descriviErrore(errore)}`);
+            });
+        }
+      })
+      .catch((errore: unknown) => {
+        log.avviso(`Contesto: richiesta rifiutata da HA: ${descriviErrore(errore)}`);
+        chiudi();
+      });
+    return true;
   }
 
   /** Toglie un turno a voce finito senza parole (seguito a cui nessuno ha risposto). */

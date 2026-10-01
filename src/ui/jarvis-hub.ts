@@ -96,6 +96,10 @@ export class JarvisHub extends RiquadroSicuro {
         font-size: 30px;
         margin-top: 8px;
       }
+      .aiuto.ancora {
+        margin-top: 8px;
+        color: var(--accento);
+      }
       .aiuto {
         color: var(--attenuato);
         font-size: 20px;
@@ -238,6 +242,13 @@ export class JarvisHub extends RiquadroSicuro {
           : t.risposta
             ? html`<div class="jv" data-test="hub-risposta">${t.risposta}</div>`
             : html`<div class="aiuto">${ascolto ? "Ti ascolto…" : "Sto pensando…"}</div>`
+      }
+      ${
+        v.ascoltoAncora
+          ? html`<div class="aiuto ancora" data-test="hub-ascolto-ancora">
+              Ti ascolto ancora… continua pure senza dire «Jarvis»
+            </div>`
+          : nothing
       }
     </div>`;
   }

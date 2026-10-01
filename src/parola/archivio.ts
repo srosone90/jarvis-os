@@ -144,6 +144,8 @@ export function verificatoreValido(v: unknown): v is Verificatore {
     x.pesi.length === x.scala.length &&
     x.pesi.every(Number.isFinite) &&
     typeof x.intercetta === "number" &&
-    Number.isFinite(x.intercetta)
+    Number.isFinite(x.intercetta) &&
+    // soglia personale (v0.5.3): facoltativa, ma se c'è dev'essere una soglia vera
+    (x.soglia === undefined || (typeof x.soglia === "number" && x.soglia > 0 && x.soglia < 1))
   );
 }

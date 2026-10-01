@@ -37,6 +37,11 @@ export interface Verificatore {
   scala: number[];
   pesi: number[];
   intercetta: number;
+  /**
+   * Soglia personale di scatto (v0.5.3, "strada veloce"), calcolata dai
+   * vostri esempi con `sogliaPersonale`. Assente = soglia di serie.
+   */
+  soglia?: number;
   /** Dati per la diagnostica: quanti esempi, quando, da chi. */
   info: {
     positivi: number;
@@ -307,4 +312,34 @@ async function lbfgs(
     if (avanzamento && k % 10 === 0) await avanzamento(k);
   }
   return { punto: x, iterazioni: k };
+}
+
+// --- Soglia personale (v0.5.3) -------------------------------------------------------
+
+/** Mai sotto: la soglia personale accelera lo scatto, non lo rende facile per chiunque. */
+export const SOGLIA_PERSONALE_MINIMA = 0.2;
+/** Mai sopra la soglia di serie: la strada veloce non rende «Jarvis» più duro d'orecchi. */
+export const SOGLIA_PERSONALE_MASSIMA = 0.5;
+/** Distanza minima dal punteggio più alto del parlato normale. */
+export const MARGINE_DAI_NEGATIVI = 0.1;
+
+/**
+ * Soglia personale di scatto (v0.5.3, "strada veloce" per «Jarvis» detto da
+ * solo): dai punteggi finali dei vostri esempi (il più alto di ognuno, col
+ * verificatore) e dal più alto del vostro parlato normale.
+ *
+ * Il 10° percentile degli esempi (uno storto su venti non conta) per 0,8: il
+ * punteggio sale lungo la parola, e una soglia più bassa di quella che la
+ * vostra pronuncia raggiunge scatta uno o due frame (80-160 ms) prima, e
+ * anche quando la dite più piano. Ma resta sopra il parlato normale di
+ * almeno 0,1 e mai sotto 0,2. Se non c'è spazio tra i due: null, si resta
+ * sulla soglia di serie (meglio lento che falsi scatti).
+ */
+export function sogliaPersonale(positivi: number[], negativoMassimo: number): number | null {
+  if (positivi.length === 0) return null;
+  const ordinati = [...positivi].sort((a, b) => a - b);
+  const p10 = ordinati[Math.floor(ordinati.length * 0.1)] ?? 0;
+  const proposta = Math.min(SOGLIA_PERSONALE_MASSIMA, Math.floor(p10 * 0.8 * 100) / 100);
+  const minimo = Math.max(SOGLIA_PERSONALE_MINIMA, negativoMassimo + MARGINE_DAI_NEGATIVI);
+  return proposta >= minimo ? proposta : null;
 }

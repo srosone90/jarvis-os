@@ -3,7 +3,7 @@ import { accedi, apriChat, comando, info } from "./aiuti";
 
 /**
  * Voce "tocca per parlare" (F5) contro il finto HA con la pipeline stt→tts di
- * HA 2026.9.3. Il microfono è quello finto di Chromium (un tono continuo), il
+ *  HA 2026.9.3. Il microfono è quello finto di Chromium (un fruscio bassissimo dalla v0.5.3), il
  * permesso è già concesso (playwright.config.ts).
  */
 
@@ -104,28 +104,27 @@ test("riquadro piccolo: sparisce da solo qualche secondo dopo la risposta", asyn
   await page.getByRole("button", { name: "Parla con Jarvis" }).click();
   const riquadro = page.getByTestId("riquadro-voce");
   await expect(riquadro.getByTestId("risposta")).toBeVisible();
-  await expect(riquadro).toHaveCount(0, { timeout: 12_000 });
+  // v0.5.3: prima 8 s di riascolto ("Ti ascolto ancora"), poi i 6 s del riquadro
+  await expect(riquadro.getByTestId("ascolto-ancora")).toBeVisible({ timeout: 5000 });
+  await expect(riquadro).toHaveCount(0, { timeout: 20_000 });
   // il microfono della barra torna disponibile
   await expect(page.getByRole("button", { name: "Parla con Jarvis" })).toBeEnabled();
 });
 
-test("seguito come un Echo: se HA chiede di continuare, il microfono si riapre da solo", async ({
+test("seguito quando HA chiede di continuare: come sempre dalla v0.5.3, si riascolta; nessuno parla, nessuna richiesta", async ({
   page,
   request,
 }) => {
+  // prima della v0.5.3 continue_conversation riapriva SUBITO una pipeline verso HA;
+  // ora il seguito è lo stesso riascolto di 8 s, e la pipeline parte solo se qualcuno parla
   await comando(request, "assistente?continua=1");
   await accedi(page);
   await apriChat(page);
   await page.getByRole("button", { name: "Parla", exact: true }).click();
-  await expect(page.getByTestId("risposta")).toHaveCount(2, { timeout: 15_000 });
-  const r = (await info(request)).richiesteAssistente;
-  expect(r).toHaveLength(2);
-  expect(r[1]?.start_stage).toBe("stt");
-  expect(r[1]?.conversation_id).toBe("conv-1");
-  // il secondo non chiede seguito: si ferma
-  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toBeVisible({ timeout: 10_000 });
-  await page.waitForTimeout(1000);
-  expect((await info(request)).richiesteAssistente).toHaveLength(2);
+  await expect(page.getByTestId("ascolto-ancora")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toBeVisible({ timeout: 12_000 });
+  await expect(page.getByTestId("risposta")).toHaveCount(1);
+  expect((await info(request)).richiesteAssistente).toHaveLength(1);
 });
 
 test("tocco per fermare: l'ascolto finisce quando lo dici tu, HA risponde a quello che ha sentito", async ({

@@ -1,3 +1,4 @@
+import type { Assistente } from "../assistente/assistente";
 import { messaggioMicrofono, problemaDaErrore, type MessaggioMicrofono } from "../assistente/messaggi";
 import { descriviErrore, log } from "../diagnostica/log";
 import type { Timer } from "../timer/timer";
@@ -6,17 +7,22 @@ import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";
 import type { DoveVoce, Voce } from "../voce/voce";
 import { MemoriaCircolare } from "./memoria";
 import type { EsitoParola, MotoreParola } from "./motore";
-import { inizioFrase } from "./inizio-frase";
+import { contestoPrima, inizioRichiesta } from "./inizio-frase";
 import { eComandoStop } from "./stop";
 
 /**
  * «Jarvis» sempre in ascolto (v0.5.0, decisioni del 30/09 in CLAUDE.md).
  *
  *  - Il microfono resta aperto e l'audio passa dal motore della parola, sul
- *    dispositivo. Una memoria circolare di 10 s, SOLO in RAM, tiene la frase
+ *    dispositivo. Una memoria circolare di 60 s, SOLO in RAM, tiene la frase
  *    in cui la parola è detta: allo scatto va a HA dal suo INIZIO (l'ultima
- *    pausa di almeno 1 s, `inizioFrase`) insieme all'audio dal vivo (v0.5.2:
- *    "C'è freddo qui, cosa ne pensi, Jarvis?" arriva intera).
+ *    pausa di almeno 1 s negli ultimi 10 s, `inizioRichiesta`) insieme
+ *    all'audio dal vivo (v0.5.2: "C'è freddo qui, cosa ne pensi, Jarvis?"
+ *    arriva intera).
+ *  - Il parlato PRIMA di quella frase (v0.5.3, "persona sempre presente") va
+ *    a HA solo allo scatto, con una pipeline a parte (`inviaContesto`): il
+ *    server lo trascrive e lo dà a Gemini come contesto. Se prima nessuno
+ *    parlava, non si manda niente.
  *  - Allo scatto parte la pipeline normale (stt → tts) SENZA `no_vad`: la
  *    fine della frase la decide jarvis_voce, tarato sul server.
  *  - Mentre suona un timer la parola zittisce la suoneria; «stop», «basta» o
@@ -30,11 +36,11 @@ export type StatoAscolto = "spento" | "carica" | "ascolta" | "fermo" | "nonDispo
 
 const CHIAVE = "jarvis-parola";
 /**
- * Memoria circolare: 10 s (v0.5.2, annulla il ~1 s del 30/09). Il contesto
+ * Memoria circolare: 60 s (v0.5.3, annulla i 10 s della v0.5.2). Il minuto
  * PRIMA di «Jarvis» è un requisito di Salvatore. Solo RAM, mai inviata se la
  * parola non scatta; si svuota con «Jarvis» spento e a ogni riavvio.
  */
-export const SECONDI_MEMORIA = 10;
+export const SECONDI_MEMORIA = 60;
 /** Dopo uno scatto, per quanto non se ne conta un altro (una frase = una domanda). */
 export const PAUSA_DOPO_SCATTO_MS = 2000;
 /** Dopo la risposta di Jarvis: la coda dell'audio dall'altoparlante non deve farlo ripartire. */
@@ -77,6 +83,8 @@ const RITARDO_MASSIMO_FRAME = 25;
 
 export interface DipendenzeAscolto {
   micro: Pick<MicrofonoCondiviso, "apriContinuo" | "chiudiContinuo" | "livello">;
+  /** Il contesto prima della frase va a HA da qui (v0.5.3). */
+  assistente: Pick<Assistente, "inviaContesto" | "occupato">;
   voce: Pick<Voce, "attiva" | "fase" | "ascolta" | "parla">;
   timer: Pick<Timer, "suonano" | "silenzia" | "ferma">;
   /** Carica il motore (di serie con un import() pigro: onnxruntime e modelli non sono nel bundle iniziale). */
@@ -105,6 +113,17 @@ export function leggiAcceso(grezzo: string | null): boolean {
   }
 }
 
+/** Suono breve allo scatto (v0.5.3): acceso di serie, come un Echo. */
+export function leggiSuono(grezzo: string | null): boolean {
+  if (grezzo === null) return true;
+  try {
+    return (JSON.parse(grezzo) as { suono?: unknown }).suono !== false;
+  } catch {
+    // già detto da leggiAcceso, che legge la stessa impostazione
+    return true;
+  }
+}
+
 /** Si può far partire uno scatto adesso? Logica pura, provata a parte. */
 export function puoScattare(
   e: Pick<EsitoParola, "punteggio">,
@@ -124,6 +143,7 @@ export class AscoltoParola {
   private statoAttuale: StatoAscolto = "spento";
   private problemaMic: MessaggioMicrofono | null = null;
   private voluto: boolean;
+  private suonoVoluto: boolean;
   private caricamento: Promise<MotoreParola> | null = null;
   private motoreCaricato: MotoreParola | null = null;
   private readonly memoria = new MemoriaCircolare(SECONDI_MEMORIA);
@@ -162,6 +182,7 @@ export class AscoltoParola {
       log.avviso(`Parola: impostazione non letta (${descriviErrore(errore)}): acceso di serie`);
     }
     this.voluto = leggiAcceso(letto);
+    this.suonoVoluto = leggiSuono(letto);
     dip.voce.ascolta(() => {
       const attiva = this.voceOccupata();
       if (this.eraAttiva && !attiva) this.fineVoce = this.adesso();
@@ -207,14 +228,31 @@ export class AscoltoParola {
     if (this.voluto) void this.accendi("avvio");
   }
 
-  /** Interruttore di Impostazioni → Voce (e della procedura guidata). */
-  imposta(acceso: boolean): void {
-    this.voluto = acceso;
+  /** Suono breve quando scatta «Jarvis». */
+  get suono(): boolean {
+    return this.suonoVoluto;
+  }
+
+  /** Interruttore del suono, in Impostazioni → Voce (v0.5.3). */
+  impostaSuono(suono: boolean): void {
+    this.suonoVoluto = suono;
+    this.salva();
+    log.info(`Suono quando scatta «Jarvis»: ${suono ? "acceso" : "spento"}`);
+    this.notifica();
+  }
+
+  private salva(): void {
     try {
-      localStorage.setItem(CHIAVE, JSON.stringify({ acceso }));
+      localStorage.setItem(CHIAVE, JSON.stringify({ acceso: this.voluto, suono: this.suonoVoluto }));
     } catch (errore) {
       log.avviso(`Parola: impostazione non salvata (${descriviErrore(errore)}): vale fino alla ricarica`);
     }
+  }
+
+  /** Interruttore di Impostazioni → Voce (e della procedura guidata). */
+  imposta(acceso: boolean): void {
+    this.voluto = acceso;
+    this.salva();
     log.info(`«Jarvis» sempre in ascolto: ${acceso ? "acceso" : "spento"}`);
     if (acceso) void this.accendi("acceso dalle impostazioni");
     else this.spegni("spento dalle impostazioni");
@@ -320,6 +358,8 @@ export class AscoltoParola {
   private async suPezzo(pcm: Int16Array, generazione: number): Promise<void> {
     const motore = this.motoreCaricato;
     if (!motore || generazione !== this.generazione) return;
+    // quando è arrivato l'audio: la "fine della parola" per la misura di reattività
+    const arrivo = performance.now();
     this.memoria.scrivi(pcm);
     // il dispositivo non sta al passo: meglio buttare audio vecchio che rispondere in ritardo
     if (this.inCoda * (pcm.length / 1280) > RITARDO_MASSIMO_FRAME) {
@@ -330,7 +370,7 @@ export class AscoltoParola {
     try {
       const esiti = await motore.elabora(pcm);
       if (generazione !== this.generazione) return;
-      for (const e of esiti) this.suEsito(e, motore);
+      for (const e of esiti) this.suEsito(e, motore, arrivo);
     } catch (errore) {
       log.errore(`Parola: errore del modello: ${descriviErrore(errore)}`);
     } finally {
@@ -338,7 +378,7 @@ export class AscoltoParola {
     }
   }
 
-  private suEsito(e: EsitoParola, motore: MotoreParola): void {
+  private suEsito(e: EsitoParola, motore: MotoreParola, arrivo: number): void {
     this.stat.frame += 1;
     this.tempi.push(e.ms);
     if (this.tempi.length > 250) this.tempi.shift();
@@ -363,7 +403,7 @@ export class AscoltoParola {
       )
     )
       return;
-    this.scatta(e, motore, adesso);
+    this.scatta(e, motore, adesso, arrivo);
   }
 
   /** Punteggio più alto degli ultimi 3 s e livello del microfono: Impostazioni → Voce e Diagnostica. */
@@ -398,20 +438,27 @@ export class AscoltoParola {
     this.riepilogo = { da: adesso, massimo: 0, base: 0, livello: 0, frame: 0 };
   }
 
-  private scatta(e: EsitoParola, motore: MotoreParola, adesso: number): void {
+  private scatta(e: EsitoParola, motore: MotoreParola, adesso: number, arrivo: number): void {
+    const scatto = performance.now();
     this.ultimoScatto = adesso;
     this.stat.scatti += 1;
     this.stat.ultimoScatto = adesso;
-    // la memoria va a HA una volta sola, dall'inizio della frase, e poi si azzera davvero
+    // la memoria va a HA una volta sola (frase e contesto), e poi si azzera davvero
     const memoria = this.memoria.ultimi();
-    const inizio = inizioFrase(memoria);
+    const inizio = inizioRichiesta(memoria);
     const preroll = memoria.slice(inizio);
+    // il contesto parte PRIMA della richiesta, e solo se la richiesta può partire
+    const contesto = this.dip.assistente.occupato ? null : contestoPrima(memoria, inizio);
     memoria.fill(0);
     this.memoria.svuota();
+    const contestoInviato = contesto ? this.dip.assistente.inviaContesto(contesto) : false;
     const suonava = this.dip.timer.suonano.length > 0;
+    const s = (n: number): string => (n / 16000).toFixed(1).replace(".", ",");
     log.info(
       `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ""}), ` +
-        `mando ${(preroll.length / 16000).toFixed(1)} s di frase prima${suonava ? "; suoneria zittita" : ""}`,
+        `mando ${s(preroll.length)} s di frase` +
+        `${contesto ? `${contestoInviato ? "" : " (contesto NON partito)"} e ${s(contesto.length)} s di contesto prima` : ", nessun parlato prima"}` +
+        `${suonava ? "; suoneria zittita" : ""}`,
     );
     if (suonava) this.dip.timer.silenzia(`«${motore.parola}» sentito`);
     const parola = motore.parola;
@@ -420,10 +467,11 @@ export class AscoltoParola {
       this.dip.timer.ferma(`«${testo}» a voce`);
       return "fermato";
     };
+    const opzioni = { preroll, parola, suono: this.suonoVoluto, tempi: { finePezzo: arrivo, scatto } };
     void this.dip.voce.parla(
       this.doveParlare(),
       false,
-      suonava ? { preroll, parola, dopoTrascrizione: fermaSeStop } : { preroll, parola },
+      suonava ? { ...opzioni, dopoTrascrizione: fermaSeStop } : opzioni,
     );
     this.notifica();
   }

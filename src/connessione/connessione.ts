@@ -114,7 +114,12 @@ export class Connessione {
     proprietarioTimer,
   );
   /** «Jarvis» sempre in ascolto (v0.5.0): dopo voce e timer, che usa. */
-  readonly parola = new AscoltoParola({ micro: this.microfono, voce: this.voce, timer: this.timer });
+  readonly parola = new AscoltoParola({
+    micro: this.microfono,
+    assistente: this.assistente,
+    voce: this.voce,
+    timer: this.timer,
+  });
 
   constructor() {
     window.addEventListener("online", this.suRetePresente);
