@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.5.7
+
+Le altre schermate del mockup: Timer, Clima, Scene, Spesa, Avvisi, e Altro.
+
+- **Colonna come nel mockup N2**: Casa, Musica, Meteo, Timer, Altro, e
+  l'Hub in fondo. **Altro** porta a tutte le schermate, alle impostazioni
+  (ora si aprono anche da lì, non solo tenendo premuto l'orologio) e all'Hub.
+- **Timer**: i timer di questo pannello col conto alla rovescia, e i
+  pulsanti per un timer nuovo (1, 3, 5, 10, 15, 30 minuti) e «Annulla».
+  Chiedono a Jarvis la stessa frase che si direbbe a voce, così il timer
+  suona qui.
+- **Clima**: le temperature delle ultime 24 ore di tutte le stanze con un
+  termometro, in un grafico solo; le stanze con temperatura, umidità e
+  percepita (un tocco apre la stanza); lo scaldabagno col suo programma. I
+  consumi compaiono solo se in Home Assistant c'è un sensore di potenza o
+  di energia (oggi non c'è).
+- **Scene**: Buonanotte, Esco e Rientro partono con un tocco, dalla
+  schermata Scene e dai tre pulsanti della Casa (non più «in arrivo»).
+  Mentre lo script gira, la scena è evidenziata col suo colore. Le routine
+  non si creano dal pannello.
+- **Lista della spesa**: quella di Home Assistant (`todo.shopping_list`),
+  la stessa che si riempie a voce: aggiungi, segna come presa, togli, togli
+  le cose prese. Se cambia da un'altra parte, cambia da sola anche qui.
+- **Avvisi ed eventi**: le batterie sotto il 20%, cosa è successo ai
+  dispositivi nelle ultime 24 ore (dal registro di Home Assistant:
+  accensioni, spegnimenti, modi del condizionatore, e chi li ha chiesti) e
+  le volte che Home Assistant non era raggiungibile da questo pannello.
+  Filtri: Tutti, Dispositivi, Batterie, Connessione.
+- **Impostazioni → Schermate**: ogni schermata nella colonna, solo in
+  Altro, o spenta; e cosa mostrano Timer (pulsanti), Clima (ore, consumi),
+  Scene (quali e in che ordine), Spesa (quale lista, cose prese) e Avvisi
+  (ore, soglia della batteria). Tutto col valore di serie e «Ripristina».
+
 ## v0.5.6
 
 Musica.

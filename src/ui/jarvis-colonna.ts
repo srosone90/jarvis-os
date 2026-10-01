@@ -1,20 +1,15 @@
-import { mdiCircleSlice8, mdiHome, mdiMusic, mdiWeatherPartlyCloudy } from "@mdi/js";
+import { mdiCircleSlice8 } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
 import { navigatore } from "../navigazione/istanza";
-import type { Principale } from "../navigazione/navigazione";
 import { vista } from "../vista/istanza";
 import { icona, RiquadroSicuro, stileBase } from "./base";
-
-const ICONE: Record<Principale, string> = {
-  casa: mdiHome,
-  musica: mdiMusic,
-  meteo: mdiWeatherPartlyCloudy,
-};
+import { ICONE_SCHERMATE } from "./icone-schermate";
 
 /**
  * Colonna di navigazione N2 (v0.5.5): le schermate principali, nell'ordine
  * scelto in Impostazioni → Schermate, e in fondo l'Hub. Sul telefono in
- * verticale diventa una riga in alto (non c'è spazio di lato).
+ * verticale diventa una riga in alto (non c'è spazio di lato). Una schermata
+ * aperta da «Altro» (che nella colonna non c'è) accende Altro.
  */
 export class JarvisColonna extends RiquadroSicuro {
   static override styles = [
@@ -27,12 +22,16 @@ export class JarvisColonna extends RiquadroSicuro {
         gap: 4px;
         padding: 8px 0;
         min-height: 0;
+        /* con tante voci scorre dentro, senza spingere fuori l'Hub */
+        overflow-y: auto;
+        overflow-x: hidden;
         background: #10131a;
         border-right: 1px solid #232834;
       }
       button {
         all: unset;
         box-sizing: border-box;
+        flex: none;
         width: 72px;
         min-height: 60px;
         padding: 6px 0;
@@ -64,18 +63,21 @@ export class JarvisColonna extends RiquadroSicuro {
       .hub {
         margin-top: auto;
       }
-      /* telefono in verticale: una riga in alto */
+      /* telefono in verticale: una riga in alto; con tante voci va su due righe (mai di lato) */
       @media (max-width: 699px) {
         :host {
           flex-direction: row;
+          flex-wrap: wrap;
           justify-content: space-around;
           padding: 4px;
+          overflow: visible;
           border-right: none;
           border-bottom: 1px solid #232834;
           border-radius: 14px;
         }
         button {
           flex: 1 1 0;
+          min-width: 52px;
           width: auto;
           min-height: 52px;
         }
@@ -83,13 +85,26 @@ export class JarvisColonna extends RiquadroSicuro {
           margin-top: 0;
         }
       }
+      /* telefono stretto: 6 voci (le 5 di serie + Hub) stanno in una riga sola */
+      @media (max-width: 379px) {
+        button {
+          min-width: 44px;
+          font-size: 11px;
+        }
+        .icona {
+          width: 24px;
+          height: 24px;
+        }
+      }
       /* tablet: stretta, lascia spazio alle stanze */
       @media (min-width: 900px) and (min-height: 560px) {
         :host {
           padding: 12px 6px;
         }
+        /* 52 px: anche con tutte le 9 schermate nella colonna l'Hub resta in vista */
         button {
           width: 62px;
+          min-height: 52px;
         }
       }
       @media (orientation: landscape) and (max-height: 559px) {
@@ -118,16 +133,19 @@ export class JarvisColonna extends RiquadroSicuro {
   private smetti: (() => void) | null = null;
 
   protected disegna(): TemplateResult {
-    const attuale = navigatore.principale;
+    const colonna = navigatore.colonna;
+    const principale = navigatore.principale;
+    // aperta da Altro: si accende Altro
+    const attuale = colonna.some((v) => v.id === principale) ? principale : "altro";
     return html`<nav aria-label="Schermate" style="display: contents">
-      ${navigatore.colonna.map(
+      ${colonna.map(
         (v) =>
           html`<button
             data-test="colonna-${v.id}"
             aria-current=${v.id === attuale ? "page" : "false"}
             @click=${() => navigatore.vai({ tipo: v.id }, "colonna")}
           >
-            ${icona(ICONE[v.id])}${v.titolo}
+            ${icona(ICONE_SCHERMATE[v.id])}${v.titolo}
           </button>`,
       )}
       <button class="hub" data-test="colonna-hub" @click=${() => vista.vai("hub", "colonna")}>

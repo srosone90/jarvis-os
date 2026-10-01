@@ -57,6 +57,7 @@ export abstract class RiquadroSicuro extends LitElement {
 /** Ridisegna l'host solo quando cambiano le entità indicate. */
 export class OsservaEntita implements ReactiveController {
   private smetti: (() => void) | null = null;
+  private chiave = "";
 
   constructor(
     private readonly host: ReactiveControllerHost,
@@ -66,12 +67,31 @@ export class OsservaEntita implements ReactiveController {
   }
 
   hostConnected(): void {
-    this.smetti = connessione.negozio.osserva(this.ids(), () => this.host.requestUpdate());
+    this.iscrivi();
+  }
+
+  /**
+   * L'elenco può cambiare dopo (v0.5.7): stanze arrivate dai registri dopo
+   * l'apertura, un sensore nuovo, le scene scelte. Se è diverso ci si iscrive
+   * di nuovo; uguale, non costa niente.
+   */
+  hostUpdated(): void {
+    this.iscrivi();
+  }
+
+  private iscrivi(): void {
+    const ids = this.ids();
+    const chiave = ids.join("|");
+    if (this.smetti && chiave === this.chiave) return;
+    this.smetti?.();
+    this.chiave = chiave;
+    this.smetti = connessione.negozio.osserva(ids, () => this.host.requestUpdate());
   }
 
   hostDisconnected(): void {
     this.smetti?.();
     this.smetti = null;
+    this.chiave = "";
   }
 }
 

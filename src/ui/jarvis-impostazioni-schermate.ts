@@ -12,12 +12,22 @@ import { connessione } from "../connessione/connessione";
 import { LIMITI_MUSICA, PREFERENZE_MUSICA_DI_SERIE, type PosizioneMini } from "../musica/musica";
 import { navigatore } from "../navigazione/istanza";
 import {
+  cambiaDove,
+  FISSE,
   LIMITI_NAVIGAZIONE,
   PREFERENZE_NAVIGAZIONE_DI_SERIE,
-  PRINCIPALI,
   spostaVoce,
+  titoloDi,
+  type Dove,
   type Principale,
 } from "../navigazione/navigazione";
+import {
+  durateDa,
+  LIMITI_SCHERMATE,
+  PREFERENZE_SCHERMATE_DI_SERIE,
+  sceneDa,
+  schermate,
+} from "../pagine/preferenze";
 import {
   caricaPreferenzeStorico,
   LIMITI_STORICO,
@@ -27,13 +37,21 @@ import {
 } from "../storico/storico";
 import { log } from "../diagnostica/log";
 import { icona, RiquadroSicuro, stileBase } from "./base";
-import { campoInterruttore, campoNumero, campoScelta, campoTesto, stileCampi } from "./campi";
+import {
+  campoInterruttore,
+  campoNumero,
+  campoScelta,
+  campoTesto,
+  campoTestoLungo,
+  stileCampi,
+} from "./campi";
 
 /**
- * Impostazioni → Schermate (v0.5.5): la colonna di navigazione (ordine,
- * visibilità, schermata iniziale, ritorno), la Musica (v0.5.6: mini-lettore,
- * rilettura, stanze), cosa mostra il Meteo e il grafico della Stanza. Tutto
- * di questo pannello, col valore di serie.
+ * Impostazioni → Schermate (v0.5.5): la colonna di navigazione (ordine, dove
+ * sta ogni schermata: colonna, Altro o spenta, schermata iniziale, ritorno),
+ * la Musica (v0.5.6: mini-lettore, rilettura, stanze), cosa mostrano Meteo,
+ * Stanza e (v0.5.7) Timer, Clima, Scene, Spesa e Avvisi. Tutto di questo
+ * pannello, col valore di serie.
  */
 export class JarvisImpostazioniSchermate extends RiquadroSicuro {
   static override styles = [
@@ -82,10 +100,19 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
         width: 22px;
         height: 22px;
       }
-      .voce-colonna input {
-        width: 26px;
-        height: 26px;
-        accent-color: var(--accento);
+      .voce-colonna select {
+        min-height: 44px;
+        max-width: 46%;
+        border-radius: 10px;
+        border: 1px solid #343a46;
+        background: var(--superficie);
+        color: var(--testo);
+        font: inherit;
+        font-size: 15px;
+      }
+      .voce-colonna .fissa {
+        color: var(--attenuato);
+        font-size: 14px;
       }
       .ripristina {
         margin-top: 8px;
@@ -110,6 +137,7 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
     this.smetti = [
       navigatore.ascolta(() => this.requestUpdate()),
       connessione.musica.ascolta(() => this.requestUpdate()),
+      schermate.ascolta(() => this.requestUpdate()),
     ];
   }
   override disconnectedCallback(): void {
@@ -144,25 +172,35 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
   private colonna(): TemplateResult {
     const p = navigatore.preferenze;
     const diSerie = JSON.stringify(p.voci) === JSON.stringify(PREFERENZE_NAVIGAZIONE_DI_SERIE.voci);
-    const titolo = (id: Principale) => PRINCIPALI.find((x) => x.id === id)?.titolo ?? id;
-    return html`<h2>Colonna di navigazione</h2>
+    const titolo = titoloDi;
+    const posti: readonly [Dove, string][] = [
+      ["colonna", "Nella colonna"],
+      ["altro", "Solo in Altro"],
+      ["spenta", "Spenta"],
+    ];
+    return html`<h2>Schermate e colonna</h2>
+      <div class="nota">
+        Ogni schermata può stare nella colonna, solo in Altro, o essere spenta. Casa e Altro restano nella
+        colonna: da lì si arriva a tutto, impostazioni comprese.
+      </div>
       ${p.voci.map(
         (v, i) =>
           html`<div class="voce-colonna" data-test="voce-colonna-${v.id}">
-            <input
-              type="checkbox"
-              aria-label="Mostra ${titolo(v.id)} nella colonna"
-              data-test="mostra-${v.id}"
-              .checked=${v.visibile}
-              ?disabled=${v.id === "casa"}
-              @change=${(e: Event) =>
-                navigatore.cambiaPreferenze({
-                  voci: p.voci.map((x) =>
-                    x.id === v.id ? { ...x, visibile: (e.target as HTMLInputElement).checked } : x,
-                  ),
-                })}
-            />
-            <span>${titolo(v.id)}${v.id === "casa" ? " (sempre)" : ""}</span>
+            <span>${titolo(v.id)}</span>
+            ${
+              FISSE.includes(v.id)
+                ? html`<span class="fissa">sempre nella colonna</span>`
+                : html`<select
+                    aria-label="Dove sta ${titolo(v.id)}"
+                    data-test="dove-${v.id}"
+                    @change=${(e: Event) =>
+                      navigatore.cambiaPreferenze({
+                        voci: cambiaDove(p.voci, v.id, (e.target as HTMLSelectElement).value as Dove),
+                      })}
+                  >
+                    ${posti.map(([d, t]) => html`<option value=${d} ?selected=${v.dove === d}>${t}</option>`)}
+                  </select>`
+            }
             <button
               aria-label="Sposta ${titolo(v.id)} su"
               data-test="su-${v.id}"
@@ -189,7 +227,7 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
               data-test="ripristina-colonna"
               @click=${() => navigatore.cambiaPreferenze({ voci: null })}
             >
-              Ripristina ordine e voci di serie
+              Ripristina ordine e posti di serie
             </button>`
       }
       ${campoScelta<Principale>({
@@ -198,7 +236,8 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
         spiegazione: "Quella che si vede all'apertura e a cui si torna senza tocchi.",
         valore: p.iniziale,
         diSerie: PREFERENZE_NAVIGAZIONE_DI_SERIE.iniziale,
-        opzioni: PRINCIPALI.map((x) => [x.id, x.titolo] as const),
+        // una schermata spenta non può essere quella iniziale
+        opzioni: p.voci.filter((x) => x.dove !== "spenta").map((x) => [x.id, titolo(x.id)] as const),
         cambia: (v) => navigatore.cambiaPreferenze({ iniziale: v }),
       })}
       ${campoNumero({
@@ -252,7 +291,7 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
         unita: "secondi",
         cambia: (v) => m.cambiaPreferenze({ intervalloSecondi: v }),
       })}
-      ${campoTesto({
+      ${campoTestoLungo({
         id: "musica-stanze",
         titolo: "Stanze per spostare la musica",
         spiegazione:
@@ -282,6 +321,113 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
             </button>`
           : html``
       }`;
+  }
+
+  private schermataTimer(): TemplateResult {
+    const v = schermate.valori;
+    return html`<h2>Timer</h2>
+      ${campoTesto({
+        id: "timer-durate",
+        titolo: "Pulsanti per un timer nuovo",
+        spiegazione: `Minuti, separati da virgole (al massimo ${LIMITI_SCHERMATE.quanteDurate}). Vuoto = nessun pulsante.`,
+        segnaposto: "1, 5, 10",
+        valore: v.timerDurate.join(", "),
+        diSerie: PREFERENZE_SCHERMATE_DI_SERIE.timerDurate.join(", "),
+        cambia: (t) => schermate.cambia({ timerDurate: t === null ? null : durateDa(t) }),
+      })}`;
+  }
+
+  private schermataClima(): TemplateResult {
+    const v = schermate.valori;
+    const d = PREFERENZE_SCHERMATE_DI_SERIE;
+    return html`<h2>Clima</h2>
+      ${campoNumero({
+        id: "clima-ore",
+        titolo: "Grafico delle temperature",
+        spiegazione: "Quante ore indietro, dal registro di Home Assistant.",
+        valore: v.climaOre,
+        diSerie: d.climaOre,
+        min: LIMITI_SCHERMATE.climaOre[0],
+        max: LIMITI_SCHERMATE.climaOre[1],
+        passo: 6,
+        unita: "ore",
+        cambia: (n) => schermate.cambia({ climaOre: n }),
+      })}
+      ${campoInterruttore({
+        id: "clima-consumi",
+        titolo: "Consumi",
+        spiegazione: "Solo se in Home Assistant c'è un sensore di potenza o di energia.",
+        valore: v.climaConsumi,
+        diSerie: d.climaConsumi,
+        cambia: (b) => schermate.cambia({ climaConsumi: b }),
+      })}`;
+  }
+
+  private schermataScene(): TemplateResult {
+    const v = schermate.valori;
+    return html`<h2>Scene</h2>
+      ${campoTestoLungo({
+        id: "scene",
+        titolo: "Quali scene, in ordine",
+        spiegazione:
+          "Script o scene di Home Assistant, separati da virgole. Le prime 3 stanno anche nella Casa.",
+        segnaposto: "script.jarvis_esco, scene.cena",
+        valore: v.scene.join(", "),
+        diSerie: PREFERENZE_SCHERMATE_DI_SERIE.scene.join(", "),
+        cambia: (t) => schermate.cambia({ scene: t === null ? null : sceneDa(t) }),
+      })}`;
+  }
+
+  private schermataSpesa(): TemplateResult {
+    const v = schermate.valori;
+    const d = PREFERENZE_SCHERMATE_DI_SERIE;
+    return html`<h2>Spesa</h2>
+      ${campoTesto({
+        id: "spesa-lista",
+        titolo: "Lista di Home Assistant",
+        spiegazione: "Un'entità todo. Di serie quella dell'integrazione «Lista della spesa».",
+        segnaposto: "todo.shopping_list",
+        valore: v.spesaLista,
+        diSerie: d.spesaLista,
+        cambia: (t) => schermate.cambia({ spesaLista: t === null || t === "" ? null : t }),
+      })}
+      ${campoInterruttore({
+        id: "spesa-presi",
+        titolo: "Anche le cose già prese",
+        spiegazione: "Barrate in fondo alla lista, finché non si tolgono.",
+        valore: v.spesaPresi,
+        diSerie: d.spesaPresi,
+        cambia: (b) => schermate.cambia({ spesaPresi: b }),
+      })}`;
+  }
+
+  private schermataAvvisi(): TemplateResult {
+    const v = schermate.valori;
+    const d = PREFERENZE_SCHERMATE_DI_SERIE;
+    return html`<h2>Avvisi</h2>
+      ${campoNumero({
+        id: "avvisi-ore",
+        titolo: "Eventi dei dispositivi",
+        spiegazione: "Quante ore indietro, dal registro di Home Assistant.",
+        valore: v.avvisiOre,
+        diSerie: d.avvisiOre,
+        min: LIMITI_SCHERMATE.avvisiOre[0],
+        max: LIMITI_SCHERMATE.avvisiOre[1],
+        passo: 1,
+        unita: "ore",
+        cambia: (n) => schermate.cambia({ avvisiOre: n }),
+      })}
+      ${campoNumero({
+        id: "avvisi-soglia",
+        titolo: "Batteria bassa sotto il",
+        valore: v.avvisiSogliaBatteria,
+        diSerie: d.avvisiSogliaBatteria,
+        min: LIMITI_SCHERMATE.avvisiSogliaBatteria[0],
+        max: LIMITI_SCHERMATE.avvisiSogliaBatteria[1],
+        passo: 5,
+        unita: "%",
+        cambia: (n) => schermate.cambia({ avvisiSogliaBatteria: n }),
+      })}`;
   }
 
   private schermataMeteo(): TemplateResult {
@@ -388,7 +534,9 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
   }
 
   protected disegna(): TemplateResult {
-    return html`${this.colonna()} ${this.schermataMusica()} ${this.schermataMeteo()} ${this.schermataStanza()}`;
+    return html`${this.colonna()} ${this.schermataMusica()} ${this.schermataMeteo()} ${this.schermataStanza()}
+    ${this.schermataTimer()} ${this.schermataClima()} ${this.schermataScene()} ${this.schermataSpesa()}
+    ${this.schermataAvvisi()}`;
   }
 }
 customElements.define("jarvis-impostazioni-schermate", JarvisImpostazioniSchermate);

@@ -95,12 +95,12 @@ test("Impostazioni → Schermate: ordine, voci nascoste, schermata iniziale, met
   await expect(page.getByTestId("pagina-meteo")).toBeVisible();
   await expect(page.getByTestId("meteo-pressione")).toContainText("1015 hPa");
   await expect(page.getByTestId("meteo-ora")).toHaveCount(6);
-  // nascondere Meteo lo toglie dalla colonna; Casa non si può nascondere
+  // Meteo solo in Altro: fuori dalla colonna; Casa resta sempre nella colonna
   // (le impostazioni si aprono dall'orologio, che sta in Casa)
   await page.getByTestId("colonna-casa").click();
   await apriImpostazioni(page, "schermate");
-  await expect(page.getByTestId("mostra-casa")).toBeDisabled();
-  await page.getByTestId("mostra-meteo").uncheck();
+  await expect(page.getByTestId("dove-casa")).toHaveCount(0);
+  await page.getByTestId("dove-meteo").selectOption("altro");
   await expect(page.getByTestId("colonna-meteo")).toHaveCount(0);
   // ripristino
   await page.getByTestId("ripristina-colonna").click();

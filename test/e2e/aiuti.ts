@@ -50,6 +50,9 @@ export async function info(request: APIRequestContext): Promise<{
   iscrittiAnnunci: number;
   /** Iscrizioni a jarvis_timer (una per pannello collegato). */
   iscrittiTimer: number;
+  /** v0.5.7: la lista della spesa del finto HA e chi la segue (todo/item/subscribe). */
+  spesa: { uid: string; summary: string; status: string }[];
+  iscrittiTodo: number;
 }> {
   return (await request.get(`${HA}/__prova/info`)).json();
 }

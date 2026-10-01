@@ -1377,6 +1377,63 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   durata; `controllo` con successivo/precedente (3 brani), alza/abbassa
   (±10), sposta; `playlist`; `riproduci` ("Primo brano di <playlist>").
 
+### Timer, Clima, Scene, Spesa, Avvisi, Altro (v0.5.7, 01/10)
+
+- **Navigazione**: `Principale` ha tutte le schermate del mockup; ogni voce
+  ha `dove` (`colonna` / `altro` / `spenta`) al posto di `visibile` (una
+  voce nascosta fino alla v0.5.6 diventa "altro"). `FISSE`: Casa e Altro,
+  sempre nella colonna. Una schermata spenta non si apre nemmeno
+  dall'indirizzo (`accesa()`), se era aperta si torna a Casa, e non può
+  essere l'iniziale. La colonna accende Altro per una schermata aperta da
+  lì. Con tante voci la colonna scorre dentro (tablet) o va su due righe
+  (telefono): mai di lato.
+- **Preferenze delle schermate** (`src/pagine/preferenze.ts`, istanza
+  `schermate`, chiave `jarvis-schermate`): durate dei timer, ore e consumi
+  del Clima, scene, lista della spesa, ore e soglia batteria degli Avvisi.
+- **Il `.gitignore` ha `schermate/`** (gli screenshot delle prove), che vale
+  per QUALUNQUE cartella con quel nome: il modulo stava in `src/schermate/`
+  e non sarebbe mai entrato nel commit (prettier, che segue il
+  `.gitignore`, lo saltava pure). Il `.gitignore` non si tocca: la cartella
+  si chiama `src/pagine/`. Prima di committare file nuovi:
+  `git status --short --ignored src test`.
+- **Timer** (`jarvis-pagina-timer`, `src/timer/frasi.ts`,
+  `src/assistente/chiedi.ts`): il server non ha un servizio per creare o
+  annullare i timer, quindi i pulsanti mandano a Jarvis la frase di voce
+  («Imposta un timer di 5 minuti», «Annulla il timer pasta» o «… di 10
+  minuti») con `assistente.chiedi`, cioè col device_id del pannello: il
+  timer suona qui. `chiediEAspetta` aspetta la fine del turno e dà l'errore
+  in parole (`messaggioErrore`). Il turno resta nella chat.
+- **Clima** (`jarvis-pagina-clima`, `src/clima/consumi.ts`): un grafico
+  per tutte le stanze con termometro con `scalaComune` (stessa scala, se no
+  le linee non si confrontano); consumi solo da sensori con `device_class`
+  power/energy (oggi nessuno); lo scaldabagno è la stessa
+  `jarvis-card-interruttore` della Casa.
+- **Scene** (`src/scene/scene.ts`, `src/scene/attiva.ts`): `script.turn_on`
+  o `scene.turn_on` con l'entità come target; si dice "avviata", mai
+  "fatta". Colori del mockup del 26/09. Le descrizioni dicono solo quello
+  che lo script fa oggi (Buonanotte: la modalità notte del pannello è F6,
+  non si promette). In Casa le prime 3 dell'elenco, non più "in arrivo".
+- **Spesa** (`src/spesa/spesa.ts`, `jarvis-pagina-spesa`):
+  `todo/item/subscribe` e servizi `todo.*` (verificati sul sorgente di HA
+  2026.9.3); niente stato ottimistico: la lista sullo schermo è sempre
+  quella che manda HA.
+- **Avvisi** (`src/eventi/eventi.ts`, `src/connessione/interruzioni.ts`,
+  `jarvis-pagina-avvisi`): `logbook/get_events` sulle entità delle card
+  (ultime N ore, `when` in secondi). Il registro salta i sensori che
+  cambiano di continuo: le batterie si leggono dallo stato di adesso.
+  Stati senza genere ("accensione", non "accesa": il nome può essere
+  maschile o femminile); "unknown" e passaggi intermedi saltati; "da
+  <script>" da `context_entity_id`, "da un utente" da `context_user_id`.
+  Le interruzioni le scrive il pannello (`jarvis-interruzioni`, le ultime
+  30): HA irraggiungibile non le può registrare.
+- **`OsservaEntita`** si iscrive di nuovo se l'elenco cambia
+  (`hostUpdated`): prima l'elenco calcolato all'apertura restava quello
+  (stanze arrivate dopo dai registri, sensori nuovi, scene scelte).
+- **Finto HA**: `todo.shopping_list` (+ `/__prova/spesa`),
+  `logbook/get_events` con un registro iniziale e ogni cambio di stato,
+  `script.jarvis_*` (stato "on" per 1,2 s), batterie con `device_class`.
+  Entità: 35.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -1614,6 +1671,10 @@ se ne scrive una nuova che annulla la precedente.
   apri…» rimandato (STATO.md, punti bloccati).
 - **2026-10-01** — **v0.5.6**: Musica nella colonna al secondo posto (come
   nel mockup N2); mini-lettore sotto l'orologio di serie, solo mentre suona.
+- **2026-10-01** — **v0.5.7**: colonna di serie come il mockup N2 (Casa,
+  Musica, Meteo, Timer, Altro); ogni schermata nella colonna, in Altro o
+  spenta. Scene attive anche in Casa. Timer dalla schermata passando da
+  Jarvis finché il server non ha un servizio apposta.
 - **2026-10-01** — **Workflow con 45 minuti di limite**: la release della
   v0.5.4 è stata annullata dai 20 minuti (verifica ~25 + Chromium 5).
 

@@ -46,6 +46,8 @@
  *   /__prova/jarvis-voce?installato=0  servizi jarvis_voce assenti (server vecchio)
  *   /__prova/annuncio            {pannello, testo, ascolta}: evento jarvis_annuncio (v0.5.4, come
  *                                jarvis_voce.annuncia del server 0.2.8)
+ *   /__prova/spesa               {items: [{uid, summary, status}]}: la lista todo.shopping_list
+ *                                (v0.5.7); chi è iscritto (todo/item/subscribe) la riceve subito
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -109,7 +111,23 @@ function entitaIniziali() {
     }),
     "switch.condizionatore": e("unknown"),
     "switch.tv_camera_da_letto": e("unknown", { friendly_name: "TV camera da letto" }),
-    "sensor.scaldabagno_batteria": e(100),
+    "sensor.scaldabagno_batteria": e(100, {
+      device_class: "battery",
+      unit_of_measurement: "%",
+      friendly_name: "Scaldabagno batteria",
+    }),
+    // v0.5.7: batteria scarica del meter della camera (Avvisi → Batterie)
+    "sensor.meter_letto_batteria": e(12, {
+      device_class: "battery",
+      unit_of_measurement: "%",
+      friendly_name: "Meter letto batteria",
+    }),
+    // v0.5.7: gli script delle scene del pacchetto jarvis.yaml
+    "script.jarvis_buonanotte": e("off", { friendly_name: "Jarvis · Buonanotte", icon: "mdi:weather-night" }),
+    "script.jarvis_esco": e("off", { friendly_name: "Jarvis · Esco", icon: "mdi:exit-run" }),
+    "script.jarvis_rientro": e("off", { friendly_name: "Jarvis · Rientro", icon: "mdi:home-import-outline" }),
+    // v0.5.7: lista della spesa (integrazione shopping_list); lo stato è quante cose da prendere
+    "todo.shopping_list": e(3, { friendly_name: "Lista della spesa", supported_features: 15 }),
     // dal pacchetto HA
     "binary_sensor.jarvis_scaldabagno_modalita_inverno": e("on"),
     "counter.jarvis_giorni_nuvolosi": e(2),
@@ -189,6 +207,7 @@ function registriIniziali() {
       { ei: "switch.tv_camera_da_letto", di: "d-tvc", pl: "switchbot_cloud" },
       { ei: "switch.scaldabagno", di: "d-bot", pl: "switchbot_cloud" },
       { ei: "sensor.scaldabagno_batteria", di: "d-bot", pl: "switchbot_cloud", ec: 1 },
+      { ei: "sensor.meter_letto_batteria", di: "d-meter-l", pl: "switchbot_cloud", ec: 1 },
       { ei: "weather.forecast_casa", pl: "met" },
     ],
   };
@@ -233,6 +252,36 @@ function previsione() {
   }));
 }
 
+/**
+ * Registro di HA (v0.5.7, logbook/get_events): righe come le manda HA 2026.9.3
+ * (processor.py), `when` in secondi. Una fuori dalle 24 ore, una "unknown"
+ * (infrarossi, da non mostrare), una chiesta da uno script e una a mano.
+ */
+function registroIniziale() {
+  const ora = Date.now() / 1000;
+  return [
+    { entity_id: "media_player.soggiorno_tv_salotto", state: "off", when: ora - 30 * 3600 },
+    { entity_id: "switch.scaldabagno", state: "off", when: ora - 20 * 3600 },
+    {
+      entity_id: "climate.condizionatore",
+      state: "fan_only",
+      when: ora - 5 * 3600,
+      context_entity_id: "script.jarvis_rientro",
+      context_event_type: "call_service",
+      context_domain: "climate",
+      context_service: "set_hvac_mode",
+    },
+    { entity_id: "switch.tv_camera_da_letto", state: "unknown", when: ora - 3 * 3600 },
+    {
+      entity_id: "media_player.soggiorno_tv_salotto",
+      state: "on",
+      when: ora - 2 * 3600,
+      context_user_id: "utente-prova",
+    },
+    { entity_id: "sensor.meter_salone_temperatura", state: "25.7", when: ora - 3600 },
+  ];
+}
+
 let stato;
 function reset() {
   stato = {
@@ -245,6 +294,16 @@ function reset() {
     fileVirtuali: new Map(), // nome → {contenuto, tipo}
     versioneServer: null, // nuova-versione?versione=x.y.z: VERSIONE diversa in sw.js
     musica: null, // jarvis_musica: {stato, stanza, volume, titolo}; null = non installato
+    // v0.5.7: todo.shopping_list (come l'integrazione shopping_list: uid, summary, status)
+    spesa: [
+      { uid: "s1", summary: "latte", status: "needs_action" },
+      { uid: "s2", summary: "pane", status: "needs_action" },
+      { uid: "s3", summary: "pasta", status: "needs_action" },
+      { uid: "s4", summary: "caffè", status: "completed" },
+    ],
+    prossimaSpesa: 5,
+    // v0.5.7: registro (logbook) — righe come logbook/get_events, when in secondi
+    registro: registroIniziale(),
     // jarvis_voce (lato server): timer in corso {id, nome, secondi_totali, scadenza, pannello}
     timerServer: new Map(),
     jarvisVoce: true, // false = servizi jarvis_voce non installati (server vecchio)
@@ -343,6 +402,29 @@ function timerDaAssistente(deviceId, stanza) {
 }
 let contatoreTimer = 0;
 
+/** La lista come la manda HA (todo/__init__.py, _serialize_todo_item). */
+const voceTodo = (v) => ({
+  summary: v.summary,
+  uid: v.uid,
+  status: v.status,
+  due: null,
+  description: null,
+  completed: null,
+});
+
+/** A ogni cambio della lista: lo stato dell'entità e un evento a ogni iscritto. */
+function trasmettiSpesa() {
+  impostaEntita(
+    "todo.shopping_list",
+    String(stato.spesa.filter((v) => v.status === "needs_action").length),
+    stato.entita["todo.shopping_list"]?.a,
+  );
+  for (const c of clienti)
+    for (const [id, entita] of c.abbonamentiTodo)
+      if (entita === "todo.shopping_list")
+        void invia(c, { id, type: "event", event: { items: stato.spesa.map(voceTodo) } });
+}
+
 function trasmettiEvento(tipo, dati) {
   for (const c of clienti)
     for (const [id, t] of c.abbonamentiEventi)
@@ -390,6 +472,15 @@ function impostaEntita(entity_id, s, a, contesto = nuovoContesto()) {
     lc: Date.now() / 1000,
   };
   stato.entita[entity_id] = n;
+  if (vecchia && vecchia.s !== n.s) {
+    const ctx = oggettoContesto(contesto);
+    stato.registro.push({
+      entity_id,
+      state: n.s,
+      when: n.lc,
+      ...(ctx.user_id ? { context_user_id: ctx.user_id } : {}),
+    });
+  }
   if (!vecchia) return trasmettiEntita({ a: { [entity_id]: n } });
   const dc = diffContesto(vecchia.c, contesto);
   trasmettiEntita({
@@ -863,6 +954,8 @@ const server = createServer(async (req, res) => {
         clienti: clienti.size,
         acceso: stato.acceso,
         musica: stato.musica,
+        spesa: stato.spesa,
+        iscrittiTodo: [...clienti].reduce((n, c) => n + c.abbonamentiTodo.size, 0),
         iscrittiTimer: [...clienti].reduce(
           (n, c) => n + [...c.abbonamentiEventi.values()].filter((t) => t === "jarvis_timer").length,
           0,
@@ -900,6 +993,15 @@ const server = createServer(async (req, res) => {
       if (q.has("tts")) a.tts = q.get("tts");
       if (q.has("continua")) a.continua = Number(q.get("continua"));
       if (q.has("doppione")) a.doppione = q.get("doppione") === "1";
+    } else if (comando === "spesa") {
+      // {items}: la lista cambiata da fuori (a voce, da un altro pannello)
+      const { items } = JSON.parse(await leggiCorpo(req));
+      stato.spesa = items.map((v) => ({
+        uid: v.uid,
+        summary: v.summary,
+        status: v.status ?? "needs_action",
+      }));
+      trasmettiSpesa();
     } else if (comando === "aggiungi") {
       // {area?, dispositivo?, entita, s, a}: un dispositivo nuovo in HA
       const { area, dispositivo, entita, s: st, a } = JSON.parse(await leggiCorpo(req));
@@ -1074,6 +1176,7 @@ function gestisci(ws, veloce) {
     invioProgrammato: false,
     abbonamentiEntita: new Set(),
     abbonamentiMeteo: new Map(),
+    abbonamentiTodo: new Map(), // v0.5.7: id → entità todo (todo/item/subscribe)
     dispositivi: new Map(), // id della pipeline → device_id mandato dal pannello
     pipeline: new Set(), // assist_pipeline/run in corso (o finite e non ancora disiscritte, come in HA)
     gestori: new Map(), // id (1 byte) → gestore dell'audio in arrivo, come async_register_binary_handler
@@ -1138,6 +1241,36 @@ function gestisci(ws, veloce) {
           event: { type: msg.forecast_type ?? "daily", forecast: oraria ? previsioneOraria() : previsione() },
         });
       }
+      case "todo/item/subscribe": {
+        // v0.5.7, come HA 2026.9.3: errore se l'entità non c'è, poi risultato e subito la lista
+        if (!stato.entita[msg.entity_id] || !msg.entity_id.startsWith("todo."))
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: false,
+            error: { code: "invalid_entity_id", message: `To-do list entity not found: ${msg.entity_id}` },
+          });
+        cliente.abbonamentiTodo.set(id, msg.entity_id);
+        void invia(cliente, { id, type: "result", success: true, result: null });
+        return invia(cliente, { id, type: "event", event: { items: stato.spesa.map(voceTodo) } });
+      }
+      case "logbook/get_events": {
+        // v0.5.7: Avvisi ed eventi. Come HA: in ordine di tempo, solo le entità chieste
+        const inizio = Date.parse(msg.start_time) / 1000;
+        const fine = msg.end_time ? Date.parse(msg.end_time) / 1000 : Date.now() / 1000;
+        if (!Number.isFinite(inizio))
+          return invia(cliente, {
+            id,
+            type: "result",
+            success: false,
+            error: { code: "invalid_start_time", message: "Invalid start_time" },
+          });
+        const filtro = Array.isArray(msg.entity_ids) ? new Set(msg.entity_ids) : null;
+        const result = stato.registro
+          .filter((r) => r.when >= inizio && r.when <= fine && (!filtro || filtro.has(r.entity_id)))
+          .sort((a, b) => a.when - b.when);
+        return invia(cliente, { id, type: "result", success: true, result });
+      }
       case "history/history_during_period": {
         // v0.5.5: grafico della stanza
         const inizio = Date.parse(msg.start_time);
@@ -1188,6 +1321,47 @@ function gestisci(ws, veloce) {
             success: true,
             result: { context: { id: "ctx" }, response },
           });
+        }
+        if (msg.domain === "todo") {
+          // v0.5.7: come components/todo (servizi con l'entità come target)
+          const errore = (message) =>
+            invia(cliente, {
+              id,
+              type: "result",
+              success: false,
+              error: { code: "service_validation_error", message },
+            });
+          if (![].concat(dati.entity_id ?? []).includes("todo.shopping_list"))
+            return errore(`Entity ${dati.entity_id} not found`);
+          const trova = (x) => stato.spesa.find((v) => v.uid === x || v.summary === x);
+          if (msg.service === "add_item") {
+            const testo = String(dati.item ?? "").trim();
+            if (!testo) return errore("Item must not be empty");
+            stato.spesa.push({ uid: `s${stato.prossimaSpesa++}`, summary: testo, status: "needs_action" });
+          } else if (msg.service === "update_item") {
+            const v = trova(dati.item);
+            if (!v) return errore(`Unable to find To-do item: ${dati.item}`);
+            if (dati.status) v.status = dati.status;
+            if (dati.rename) v.summary = dati.rename;
+          } else if (msg.service === "remove_item") {
+            const voci = [].concat(dati.item ?? []);
+            const trovate = voci.map(trova);
+            if (trovate.some((v) => !v)) return errore(`Unable to find To-do item: ${voci.join(", ")}`);
+            stato.spesa = stato.spesa.filter((v) => !trovate.includes(v));
+          } else if (msg.service === "remove_completed_items")
+            stato.spesa = stato.spesa.filter((v) => v.status !== "completed");
+          else return errore(`Service todo.${msg.service} not found`);
+          trasmettiSpesa();
+          return invia(cliente, { id, type: "result", success: true, result: { context: { id: "ctx" } } });
+        }
+        if (msg.domain === "script" && msg.service === "turn_on") {
+          // v0.5.7: lo script gira per poco più di un secondo (stato "on"), poi torna "off"
+          for (const s of [].concat(dati.entity_id ?? [])) {
+            if (!stato.entita[s]) continue;
+            impostaEntita(s, "on", stato.entita[s].a, nuovoContesto(UTENTE_PROVA));
+            setTimeout(() => impostaEntita(s, "off", stato.entita[s]?.a, nuovoContesto()), 1200);
+          }
+          return invia(cliente, { id, type: "result", success: true, result: { context: { id: "ctx" } } });
         }
         if (msg.domain === "jarvis_musica") {
           // come il componente vero: stato letto da Spotify, comandi confermati
@@ -1322,7 +1496,8 @@ function gestisci(ws, veloce) {
         const nota =
           cliente.abbonamentiEventi.delete(s) |
           cliente.abbonamentiEntita.delete(s) |
-          cliente.abbonamentiMeteo.delete(s);
+          cliente.abbonamentiMeteo.delete(s) |
+          cliente.abbonamentiTodo.delete(s);
         if (cliente.pipeline.delete(s)) stato.disiscrizioniPipeline++;
         else if (!nota)
           return invia(cliente, {

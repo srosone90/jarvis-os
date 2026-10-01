@@ -232,11 +232,11 @@ test("mini-lettore: nella barra o spento dalle impostazioni; la rilettura segue 
   await expect(page.locator("section.info").getByTestId("mini-lettore")).toBeVisible();
 });
 
-test("controprova: Musica nella colonna si può nascondere", async ({ page }) => {
+test("controprova: Musica si può togliere dalla colonna (resta in Altro)", async ({ page }) => {
   await accedi(page);
   await expect(page.getByTestId("colonna-musica")).toBeVisible();
   await apriImpostazioni(page, "schermate");
-  await page.getByTestId("mostra-musica").uncheck();
+  await page.getByTestId("dove-musica").selectOption("altro");
   await page.getByTestId("chiudi-impostazioni").click();
   await expect(page.getByTestId("colonna-musica")).toHaveCount(0);
 });

@@ -8,6 +8,7 @@ import {
   vento,
 } from "../../src/meteo/dettagli";
 import {
+  cambiaDove,
   hashDi,
   leggiPreferenzeNavigazione,
   Navigatore,
@@ -35,24 +36,34 @@ describe("indirizzo delle schermate", () => {
 });
 
 describe("preferenze della colonna", () => {
-  it("di serie: Casa e Meteo visibili, iniziale Casa, ritorno dopo 90 s", () => {
+  it("di serie: iniziale Casa, ritorno dopo 90 s", () => {
     expect(leggiPreferenzeNavigazione(null)).toEqual(PREFERENZE_NAVIGAZIONE_DI_SERIE);
     expect(PREFERENZE_NAVIGAZIONE_DI_SERIE.ritornoSecondi).toBe(90);
   });
-  it("ordine salvato rispettato; Casa sempre visibile; voci sconosciute ignorate, nuove aggiunte in fondo", () => {
+  it("ordine salvato rispettato; Casa sempre nella colonna; voci sconosciute ignorate, nuove al loro posto", () => {
     const p = leggiPreferenzeNavigazione(
       JSON.stringify({
         voci: [{ id: "meteo", visibile: false }, { id: "musica-vecchia" }, { id: "casa", visibile: false }],
       }),
     );
-    expect(p.voci).toEqual([
-      { id: "meteo", visibile: false },
-      { id: "casa", visibile: true },
-      { id: "musica", visibile: true },
+    // fino alla v0.5.6 "nascosta" voleva dire fuori dalla colonna: ora è "solo in Altro"
+    expect(p.voci.slice(0, 3)).toEqual([
+      { id: "meteo", dove: "altro" },
+      { id: "casa", dove: "colonna" },
+      { id: "musica", dove: "colonna" },
     ]);
-    const nuove = leggiPreferenzeNavigazione(JSON.stringify({ voci: [{ id: "meteo", visibile: true }] }));
-    expect(nuove.voci.map((v) => v.id)).toEqual(["meteo", "casa", "musica"]);
-    // chi ha salvato l'ordine con la v0.5.5 (senza Musica) la ritrova in fondo, visibile
+    expect(p.voci.map((v) => v.id)).toEqual([
+      "meteo",
+      "casa",
+      "musica",
+      "timer",
+      "clima",
+      "scene",
+      "spesa",
+      "avvisi",
+      "altro",
+    ]);
+    // chi ha salvato l'ordine con la v0.5.5 (senza Musica) la ritrova dopo le sue, nella colonna
     const vecchie = leggiPreferenzeNavigazione(
       JSON.stringify({
         voci: [
@@ -61,14 +72,36 @@ describe("preferenze della colonna", () => {
         ],
       }),
     );
-    expect(vecchie.voci.map((v) => v.id)).toEqual(["casa", "meteo", "musica"]);
+    expect(vecchie.voci.slice(0, 3)).toEqual([
+      { id: "casa", dove: "colonna" },
+      { id: "meteo", dove: "colonna" },
+      { id: "musica", dove: "colonna" },
+    ]);
   });
   it("sposta su e giù senza uscire dall'elenco", () => {
     const v = PREFERENZE_NAVIGAZIONE_DI_SERIE.voci;
-    expect(v.map((x) => x.id)).toEqual(["casa", "musica", "meteo"]);
-    expect(spostaVoce(v, "meteo", -1).map((x) => x.id)).toEqual(["casa", "meteo", "musica"]);
-    expect(spostaVoce(v, "meteo", 1).map((x) => x.id)).toEqual(["casa", "musica", "meteo"]);
-    expect(spostaVoce(v, "casa", -1).map((x) => x.id)).toEqual(["casa", "musica", "meteo"]);
+    expect(v.map((x) => x.id)).toEqual([
+      "casa",
+      "musica",
+      "meteo",
+      "timer",
+      "clima",
+      "scene",
+      "spesa",
+      "avvisi",
+      "altro",
+    ]);
+    expect(
+      spostaVoce(v, "meteo", -1)
+        .map((x) => x.id)
+        .slice(0, 3),
+    ).toEqual(["casa", "meteo", "musica"]);
+    expect(spostaVoce(v, "casa", -1).map((x) => x.id)[0]).toBe("casa");
+    expect(
+      spostaVoce(v, "altro", 1)
+        .map((x) => x.id)
+        .at(-1),
+    ).toBe("altro");
   });
 });
 
@@ -134,16 +167,13 @@ describe("navigatore", () => {
     n.cambiaPreferenze({ iniziale: null });
     expect(n.preferenze.iniziale).toBe("casa");
   });
-  it("una voce nascosta sparisce dalla colonna", () => {
+  it("una voce tolta dalla colonna sparisce dalla colonna e resta in Altro", () => {
     const { n } = navigatore();
     n.cambiaPreferenze({
-      voci: [
-        { id: "casa", visibile: true },
-        { id: "musica", visibile: false },
-        { id: "meteo", visibile: false },
-      ],
+      voci: cambiaDove(cambiaDove(n.preferenze.voci, "musica", "altro"), "meteo", "altro"),
     });
-    expect(n.colonna.map((c) => c.id)).toEqual(["casa"]);
+    expect(n.colonna.map((c) => c.id)).toEqual(["casa", "timer", "altro"]);
+    expect(n.altro.map((c) => c.id)).toContain("meteo");
   });
 });
 

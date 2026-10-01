@@ -36,7 +36,8 @@ test("primo accesso: login OAuth, dati reali di HA, indirizzo ripulito, login ri
   await expect(page.getByText("non trovato")).toHaveCount(0);
   await apriDiagnostica(page);
   // 17 della casa + 12 del pacchetto annunci (v0.5.4) + sun.sun (v0.5.5)
-  await expect(page.getByTestId("entita-ricevute")).toHaveText("30");
+  // 30 + (v0.5.7) batteria del meter, 3 script delle scene, lista della spesa
+  await expect(page.getByTestId("entita-ricevute")).toHaveText("35");
   await page.getByTestId("chiudi-impostazioni").click();
 
   // ricaricando non si rifà il login
@@ -243,7 +244,7 @@ test("aggiornamento come sul tablet: ricarica su indirizzo lento, diagnostica ap
   });
 });
 
-test("layout del mockup approvato: zone delle fasi future presenti ma dichiarate non attive", async ({
+test("layout del mockup approvato: stanze, scene attive (v0.5.7), barra dell'assistente", async ({
   page,
   request,
 }) => {
@@ -252,11 +253,11 @@ test("layout del mockup approvato: zone delle fasi future presenti ma dichiarate
   await expect(page.getByTestId("stanza")).toHaveCount(3);
   await expect(stanza(page, "Veranda")).toBeVisible();
   await expect(stanza(page, "Soggiorno").getByTestId("stanza-temp")).toHaveText("25,7°");
-  // zone future (scene F3): si vedono, dicono "in arrivo" e non contengono niente di toccabile
+  // scene (v0.5.7, prima "in arrivo"): tre pulsanti veri, nell'ordine del mockup
   const scene = page.getByTestId("zona-scene");
-  await expect(scene).toContainText("Buonanotte");
-  await expect(scene).toContainText("in arrivo");
-  await expect(scene.locator("button, input, a, [role=button]")).toHaveCount(0);
+  await expect(scene.getByRole("button")).toHaveText(["Buonanotte", "Esco", "Rientro"]);
+  await expect(scene).not.toContainText("in arrivo");
+  for (const b of await scene.getByRole("button").all()) await expect(b).toBeEnabled();
   // barra: assistente testuale (F4) e microfono (F5), entrambi attivi
   const assistente = page.getByTestId("zona-assistente");
   await expect(assistente.locator("button, input, a, [role=button]")).toHaveCount(2);

@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.6 (Musica). Piano autonomo in corso._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.7 (Timer, Clima, Scene, Spesa, Avvisi). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -13,7 +13,7 @@ _Ultimo aggiornamento: 01/10/2026 — v0.5.6 (Musica). Piano autonomo in corso._
 | 2. Falsi scatti con la TV + annunci | v0.5.4 | **fatto** (sotto) |
 | 3. Navigazione N2 + Stanza + Meteo | v0.5.5 | **fatto** |
 | 4. Musica | v0.5.6 | **fatto** |
-| 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | da fare |
+| 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | **fatto** |
 | 6. Giro della personalizzazione + esporta/importa | v0.5.8 | da fare |
 | 7. Fotocamera | v0.6.0 | da fare |
 | 8. Modello su misura | — | da fare |
@@ -44,9 +44,8 @@ Ogni riga: cosa, perché, dove si cambia.
   riascolto dopo le risposte (8 di serie). Impostazioni → Voce → Ti ascolto
   ancora.
 
-- **Nella colonna solo Casa, Meteo e Hub** (v0.5.5): Musica, Timer e Altro
-  arrivano con le loro versioni; mai voci che non portano da nessuna parte.
-  Impostazioni → Schermate.
+- **Nella colonna solo le schermate che esistono** (v0.5.5): dalla v0.5.7
+  ci sono tutte, come nel mockup N2.
 - **Ritorno alla schermata iniziale dopo 90 s** senza tocchi (il "~90 s" del
   mockup). Impostazioni → Schermate.
 - **Pioggia solo quando c'è**: met.no manda i millimetri e non la
@@ -74,9 +73,31 @@ Ogni riga: cosa, perché, dove si cambia.
   altre (Impostazioni → Schermate → Musica). Vedi la proposta sotto.
 - **Volume ±10** coi pulsanti: è `alza`/`abbassa` di `jarvis_musica`, il
   passo lo decide lui.
-- **Le impostazioni si aprono ancora tenendo premuto l'orologio**, che sta
-  in Casa: dalle altre schermate si torna prima su Casa. Con "Altro"
-  (v0.5.7) ci sarà anche lì.
+- **Le impostazioni si aprono tenendo premuto l'orologio** (in Casa) **e
+  da Altro** (v0.5.7).
+
+- **Colonna di serie come il mockup N2**: Casa, Musica, Meteo, Timer,
+  Altro (+ Hub). Clima, Scene, Spesa e Avvisi stanno in Altro; ognuna si
+  porta nella colonna o si spegne. Impostazioni → Schermate.
+- **Altro mostra tutte le schermate accese** (anche quelle già nella
+  colonna), più Impostazioni e Hub, come il menu del mockup.
+- **Timer nuovi e annullati passando da Jarvis** (la frase di voce): il
+  server non ha un servizio per farlo. Il turno resta nella chat. Pulsanti
+  di serie: 1, 3, 5, 10, 15, 30 minuti. Impostazioni → Schermate → Timer.
+- **Scene attive anche nella Casa** (prima «in arrivo»): le prime 3
+  dell'elenco, con un tocco e senza conferma, come nel mockup. Si dice
+  «avviata»: cosa fa davvero lo script si vede nelle card.
+- **Buonanotte descritta senza la modalità notte del pannello**: lo script
+  manda `jarvis_buonanotte`, ma il pannello non lo ascolta ancora (F6).
+- **Clima: un grafico solo per tutte le stanze**, stessa scala, 24 ore.
+- **Consumi accesi di serie**, ma si vedono solo se c'è un sensore: oggi in
+  casa non c'è.
+- **Spesa: le cose prese restano barrate in fondo** finché non si tolgono.
+- **Avvisi: ultime 24 ore, batteria bassa sotto il 20%**, solo i
+  dispositivi del pannello (un'entità per card). Chi ha chiesto il cambio:
+  «da <script>» o «da un utente» (il nome della persona chiede permessi da
+  amministratore: non li uso).
+- **Interruzioni della connessione salvate sul pannello** (le ultime 30).
 
 ## Punti bloccati e cosa serve
 
@@ -88,6 +109,12 @@ Ogni riga: cosa, perché, dove si cambia.
   timer (ma solo mentre si ascolta, e con il rischio di non mandare a
   Gemini domande vere). **Proposta: (a)**, più pulita. Fatto al posto: tocco
   sul meteo e sul nome della stanza, e `#meteo` nell'indirizzo.
+
+- **Timer**: `jarvis_voce.timer_avvia {minuti, nome?, pannello}` e
+  `jarvis_voce.timer_annulla {id}`. Con questi i pulsanti della schermata
+  Timer non passerebbero da Gemini.
+- **Sveglie e promemoria**: la parte della schermata Timer si accende
+  quando il server li avrà.
 
 ## Personalizzabile (elenco che cresce a ogni versione)
 
@@ -103,6 +130,10 @@ Ogni riga: cosa, perché, dove si cambia.
   ritorno dopo N secondi (0 = mai); Meteo: ore, giorni, umidità, vento,
   unità del vento, pressione, pioggia, alba e tramonto; Stanza: ore del
   grafico, umidità nel grafico.
+- **Schermate v0.5.7** (pannello): dove sta ogni schermata (colonna, solo
+  in Altro, spenta); Timer: pulsanti; Clima: ore del grafico, consumi;
+  Scene: quali e in che ordine (le prime 3 anche in Casa); Spesa: quale
+  lista, cose prese; Avvisi: ore, soglia della batteria.
 - **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
   rilettura ogni N secondi, stanze per spostarla, playlist preferite (la
   stella; «Togli le preferite»).
@@ -110,6 +141,24 @@ Ogni riga: cosa, perché, dove si cambia.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.5.7, le altre schermate del mockup N2**:
+  1. colonna di serie Casa, Musica, Meteo, Timer, Altro (+ Hub); ogni
+     schermata nella colonna, in Altro o spenta; **Altro** porta a tutto,
+     impostazioni e Hub compresi;
+  2. **Timer**: elenco col conto alla rovescia, pulsanti per uno nuovo e
+     «Annulla» (passano da Jarvis con la frase di voce);
+  3. **Clima**: tutte le stanze in un grafico, stanze, scaldabagno; consumi
+     solo con un sensore;
+  4. **Scene**: script del pacchetto con un tocco, anche dalla Casa;
+  5. **Spesa**: `todo.shopping_list` con aggiungi / segna / togli;
+  6. **Avvisi**: batterie basse, eventi dei dispositivi dal registro di HA,
+     interruzioni della connessione, con i filtri.
+  Controprove: stato «unknown» degli infrarossi mostrato, schermata spenta
+  aperta dall'indirizzo, interruzioni non registrate: le prove cadono.
+  Trovato e corretto strada facendo: un campo vuoto delle durate dava un
+  pulsante «1 min»; la cartella `src/schermate/` era ignorata da Git (vedi
+  CLAUDE.md).
 
 - **Finito: v0.5.6, Musica** (mockup M1):
   1. **schermata Musica** nella colonna: copertina, titolo, artisti, dove
@@ -177,15 +226,39 @@ Ogni riga: cosa, perché, dove si cambia.
 
 | | |
 |---|---|
-| Versione | **v0.5.6**: Musica |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.6 |
+| Versione | **v0.5.7**: Timer, Clima, Scene, Spesa, Avvisi, Altro |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.7 |
 | sha256 dello zip | _in arrivo dopo la release_ |
-| Precedente | v0.5.5, sha256 `a7f9985a76aefd1feb19f4d4af523ef76252c4ec46d74bd745ef2a31a75ed4a6` (6,9 MB, service worker 0.5.5, `parola/` con 5 file, nessun file delle prove; verificati) |
+| Precedente | v0.5.6, sha256 `00c61e2ba43304f21e8b4af1d4d236f8afe536530de556ab93a3c2eee93fcda6` (6,9 MB, service worker 0.5.6, `parola/` con 5 file, nessun file delle prove; verificati). La prima release della v0.5.6 era caduta in CI su 3 prove degli annunci che dipendevano dall'ora (vedi CLAUDE.md); ripubblicata dopo la correzione (commit `d39777b`) |
 
-## Da installare lato server: v0.5.6
+## Da installare lato server: v0.5.7
 
-Solo lo zip sopra `/config/www/jarvis/` (contiene anche la v0.5.5 e la
-v0.5.4). Lato HA serve `jarvis_musica` **0.4.0** (copertina, posizione,
+Solo lo zip sopra `/config/www/jarvis/` (contiene anche la v0.5.6, la v0.5.5
+e la v0.5.4). Lato HA niente di nuovo: usa la lista della spesa
+(`todo.shopping_list`, integrazione «Lista della spesa»), il registro, gli
+script delle scene del pacchetto `jarvis.yaml` e i sensori di batteria che
+ci sono già. Se la lista della spesa non c'è, la schermata Spesa lo dice.
+
+**Come provare la v0.5.7, dentro il pannello** (tablet della cucina):
+
+1. La colonna è Casa, Musica, Meteo, Timer, Altro. Tocca **Altro**: ci
+   sono tutte le schermate, Impostazioni e Hub.
+2. **Timer**: tocca «5 min». Jarvis crea il timer, che compare
+   nell'elenco col conto alla rovescia (e suona qui). «Annulla» lo toglie.
+   Dimmi se Gemini capisce sempre le due frasi.
+3. **Clima**: il grafico con Soggiorno e Camera; tocca una stanza; c'è lo
+   scaldabagno.
+4. **Scene**: dalla Casa tocca **Esco**: spegne TV del salotto e
+   condizionatore e ti manda la notifica sul telefono.
+5. **Spesa**: aggiungi «uova», segnala come presa; poi a voce «Jarvis,
+   aggiungi il latte alla lista della spesa»: compare da sola.
+6. **Avvisi**: batterie basse (se ce ne sono) ed eventi di oggi. Spegni il
+   Wi-Fi del tablet per 30 secondi e riaccendilo: in Connessione compare
+   l'interruzione.
+
+## Prima: v0.5.6
+
+Lato HA serve `jarvis_musica` **0.4.0** (copertina, posizione,
 `playlist`), che c'è già.
 
 **Come provare la v0.5.6, dentro il pannello** (tablet della cucina):

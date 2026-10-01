@@ -25,7 +25,8 @@ orizzontale acceso 24/7.
 | Meno falsi scatti con la TV, annunci («Jarvis parla per primo»), tutto personalizzabile | **v0.5.4** |
 | Navigazione a colonna, schermate Meteo e Stanza | **v0.5.5** |
 | Musica: schermata con playlist e stanze, mini-lettore nella Casa | **v0.5.6** |
-| Timer, Clima, Scene, Spesa, Avvisi | Prossima |
+| Timer, Clima, Scene, Spesa, Avvisi, e Altro con tutte le schermate | **v0.5.7** |
+| Giro della personalizzazione, esporta/importa le impostazioni | Prossima |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
 

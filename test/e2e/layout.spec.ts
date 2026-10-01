@@ -738,3 +738,82 @@ for (const v of MISURE) {
     expect(controlla(await misura(page), v.width, v.height, v.unica), "mini nella barra").toEqual([]);
   });
 }
+
+// --- v0.5.7: Timer, Clima, Scene, Spesa, Avvisi, Altro a tutte le misure ---
+const SCHERMATE_V057 = [
+  { id: "timer", attesa: "timer-attivo" },
+  { id: "clima", attesa: "clima-legenda" },
+  { id: "scene", attesa: "scena" },
+  { id: "spesa", attesa: "spesa-voce" },
+  { id: "avvisi", attesa: "avviso-dispositivo" },
+  { id: "altro", attesa: "altro-griglia" },
+] as const;
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.7: Timer, Clima, Scene, Spesa, Avvisi, Altro`, async ({ page, request }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    // casi lunghi: nome del timer, voci della spesa, molte voci
+    await comando(request, "timer", {
+      tipo: "started",
+      id: "t-lungo",
+      nome: "lasagne al forno per la cena di domenica",
+      secondi_totali: 5400,
+      secondi_rimasti: 5300,
+    });
+    await comando(request, "spesa", {
+      items: [
+        "latte",
+        "pane",
+        "detersivo per i piatti al limone, quello grande",
+        "pasta",
+        "uova",
+        "caffè",
+        "mozzarella",
+        "pomodori",
+        "olio extravergine",
+        "carta da forno",
+      ].map((summary, i) => ({ uid: `l${i}`, summary, status: i > 7 ? "completed" : "needs_action" })),
+    });
+    await accedi(page);
+    const colonna = ["jarvis-app", "jarvis-colonna"];
+    const parti = v.unica ? [colonna, ["jarvis-app", ".pagina"]] : [colonna];
+    for (const s of SCHERMATE_V057) {
+      if (s.id === "timer" || s.id === "altro") await page.getByTestId(`colonna-${s.id}`).click();
+      else {
+        await page.getByTestId("colonna-altro").click();
+        await page.getByTestId(`altro-${s.id}`).click();
+      }
+      await expect(page.getByTestId(`pagina-${s.id}`)).toBeVisible();
+      await expect(page.getByTestId(s.attesa).first()).toBeVisible();
+      await page.screenshot({ path: `schermate/layout/${s.id}-${v.nome}.png`, fullPage: true });
+      expect(
+        [...(await controllaParti(page, v, parti)), ...(await problemiTesto(page, v.width))],
+        s.id,
+      ).toEqual([]);
+    }
+  });
+}
+
+// --- v0.5.7: la colonna con tutte le schermate dentro (il caso più lungo) ---
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.7: colonna con tutte le schermate`, async ({ page }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    const colonna = ["jarvis-app", "jarvis-colonna"];
+    await accedi(page);
+    await apriImpostazioni(page, "schermate");
+    for (const s of ["clima", "scene", "spesa", "avvisi"])
+      await page.getByTestId(`dove-${s}`).selectOption("colonna");
+    await page.screenshot({ path: `schermate/layout/impostazioni-schermate-${v.nome}.png`, fullPage: true });
+    expect(await problemiTesto(page, v.width), "impostazioni").toEqual([]);
+    await page.getByTestId("chiudi-impostazioni").click();
+    await expect(page.locator("jarvis-colonna button")).toHaveCount(10);
+    await page.screenshot({ path: `schermate/layout/colonna-piena-${v.nome}.png` });
+    expect(
+      [...controlla(await misura(page), v.width, v.height, v.unica), ...(await problemiTesto(page, v.width))],
+      "casa",
+    ).toEqual([]);
+    // la colonna resta nello schermo; l'Hub in fondo si raggiunge sempre
+    expect(await controllaParti(page, v, [colonna]), "colonna").toEqual([]);
+    await page.getByTestId("colonna-hub").click();
+    await expect(page.getByTestId("vista-hub")).toBeVisible();
+  });
+}

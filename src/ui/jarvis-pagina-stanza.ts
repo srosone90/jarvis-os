@@ -155,7 +155,7 @@ export class JarvisPaginaStanza extends RiquadroSicuro {
     return html`<div class="grafico" data-test="grafico-stanza">
       <h2>Ultime ${pref.ore} ore</h2>
       <svg
-        viewBox="0 0 ${W} ${H}"
+        viewBox="0 -4 ${W} ${H + 8}"
         preserveAspectRatio="none"
         role="img"
         aria-label="Temperatura, ultime ${pref.ore} ore"

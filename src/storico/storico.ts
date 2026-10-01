@@ -50,23 +50,39 @@ export async function leggiStorico(
   return Object.fromEntries(entita.map((e) => [e, puntiDa(r, e)]));
 }
 
-/** Linea per un SVG largo `w` e alto `h`: segmenti separati dove mancano i valori. */
+/** Minimo e massimo, allargati a 1 grado se la linea è quasi piatta (non sembri un'altalena). */
+function allarga(valori: readonly number[]): { min: number; max: number } {
+  let min = Math.min(...valori);
+  let max = Math.max(...valori);
+  if (max - min < 1) {
+    const centro = (max + min) / 2;
+    min = centro - 0.5;
+    max = centro + 0.5;
+  }
+  return { min, max };
+}
+
+/** Una scala sola per più linee (v0.5.7, Clima: le stanze si confrontano a occhio). null = meno di 2 valori. */
+export function scalaComune(linee: readonly (readonly Punto[])[]): { min: number; max: number } | null {
+  const valori = linee.flatMap((l) => l.flatMap((p) => (p.v === null ? [] : [p.v])));
+  return valori.length < 2 ? null : allarga(valori);
+}
+
+/**
+ * Linea per un SVG largo `w` e alto `h`: segmenti separati dove mancano i
+ * valori. Con `scala` usa quella (più linee nello stesso grafico).
+ */
 export function linea(
   punti: readonly Punto[],
   da: number,
   a: number,
   w: number,
   h: number,
+  scala?: { min: number; max: number },
 ): { tratti: string[]; min: number; max: number } | null {
   const validi = punti.filter((p): p is { t: number; v: number } => p.v !== null);
   if (validi.length < 2) return null;
-  let min = Math.min(...validi.map((p) => p.v));
-  let max = Math.max(...validi.map((p) => p.v));
-  if (max - min < 1) {
-    const centro = (max + min) / 2;
-    min = centro - 0.5;
-    max = centro + 0.5;
-  }
+  const { min, max } = scala ?? allarga(validi.map((p) => p.v));
   const x = (t: number) => (((Math.max(da, Math.min(a, t)) - da) / (a - da)) * w).toFixed(1);
   const y = (v: number) => (h - ((v - min) / (max - min)) * h).toFixed(1);
   const tratti: string[] = [];

@@ -11,6 +11,7 @@ import {
 import { Annunci } from "../annunci/annunci";
 import { Assistente } from "../assistente/assistente";
 import { Musica } from "../musica/musica";
+import { RegistroInterruzioni } from "./interruzioni";
 import { PausaMusica } from "../voce/pausa-musica";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { dispositivoPannello, proprietarioTimer } from "../timer/pannello";
@@ -143,6 +144,9 @@ export class Connessione {
     chiama: (servizio, dati) => this.chiamaServizio("jarvis_musica", servizio, dati),
     collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
   });
+
+  /** Le volte che HA non era raggiungibile da qui (v0.5.7, Avvisi → Connessione). */
+  readonly interruzioni = new RegistroInterruzioni();
 
   /** <dominio>.<servizio> con la risposta: jarvis_musica (stato vero di Spotify) e jarvis_voce (timer). */
   private async chiamaServizio(
@@ -280,6 +284,8 @@ export class Connessione {
       versioneHA: this.conn?.haVersion ?? null,
     });
     if (this.info.riconnessioni > 0) log.info("Riconnesso a Home Assistant");
+    // chiude l'interruzione aperta (anche una rimasta aperta da prima di una ricarica)
+    this.interruzioni.fine(Date.now());
     void this.misuraLatenza();
     // chi guardava la musica mentre HA non c'era la ritrova subito, non al giro dopo
     this.musica.alCollegamento();
@@ -287,6 +293,7 @@ export class Connessione {
 
   private readonly suDisconnessa = (): void => {
     log.avviso("Connessione a Home Assistant persa");
+    this.interruzioni.inizio(Date.now());
     this.imposta({
       stato: "riconnessione",
       disconnessoDa: Date.now(),

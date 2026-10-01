@@ -1,10 +1,13 @@
-import { mdiExitRun, mdiHomeImportOutline, mdiMicrophone, mdiWeatherNight } from "@mdi/js";
+import { mdiMicrophone } from "@mdi/js";
 import { css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from "lit";
 import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { PREFERENZE } from "../configurazione";
 import { connessione } from "../connessione/connessione";
 import { costruisciStanze } from "../registri/modello";
-import { icona, OsservaConnessione, SCHERMATA_UNICA } from "./base";
+import { attivaScena } from "../scene/attiva";
+import { sceneDa } from "../scene/scene";
+import { schermate } from "../pagine/preferenze";
+import { icona, OsservaConnessione, OsservaEntita, SCHERMATA_UNICA } from "./base";
 import "./jarvis-avvisi";
 import "./jarvis-orologio";
 import "./jarvis-meteo";
@@ -17,12 +20,19 @@ import "./jarvis-hub";
 import { ascoltaGuida, mostraGuida } from "./jarvis-guida";
 import { quandoPuoRiposare, vista } from "../vista/istanza";
 import { navigatore } from "../navigazione/istanza";
+import type { Principale } from "../navigazione/navigazione";
 import "./jarvis-chat";
 import "./jarvis-colonna";
 import "./jarvis-mini-lettore";
+import "./jarvis-pagina-altro";
+import "./jarvis-pagina-avvisi";
+import "./jarvis-pagina-clima";
 import "./jarvis-pagina-meteo";
 import "./jarvis-pagina-musica";
+import "./jarvis-pagina-scene";
+import "./jarvis-pagina-spesa";
 import "./jarvis-pagina-stanza";
+import "./jarvis-pagina-timer";
 import "./jarvis-voce-riquadro";
 import "./jarvis-timer";
 
@@ -132,12 +142,8 @@ class OsservaVista implements ReactiveController {
   }
 }
 
-/** Scene decise il 26/09 (CLAUDE.md): arrivano con la F3, qui solo il posto. */
-const SCENE = [
-  { nome: "Buonanotte", icona: mdiWeatherNight },
-  { nome: "Esco", icona: mdiExitRun },
-  { nome: "Rientro", icona: mdiHomeImportOutline },
-];
+/** Nella Casa ci sono i posti per 3 scene (mockup approvato): le prime 3 scelte (v0.5.7). */
+const SCENE_IN_CASA = 3;
 
 /**
  * Schermata principale, con la struttura del mockup approvato (docs/mockup.html).
@@ -255,11 +261,16 @@ export class JarvisApp extends LitElement {
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 10px;
     }
+    /* le scene (v0.5.7): pulsanti veri, col colore d'accento del mockup */
     .scena {
+      all: unset;
+      box-sizing: border-box;
       min-height: 72px;
+      min-width: 0;
       padding: 6px 4px;
       border-radius: var(--raggio);
-      border: 1px dashed #343a46;
+      border: 1px solid #2b303a;
+      background: var(--superficie);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -268,11 +279,23 @@ export class JarvisApp extends LitElement {
       font-size: 16px;
       font-weight: 500;
       text-align: center;
-      color: var(--attenuato);
+      overflow-wrap: break-word;
+      cursor: pointer;
+      touch-action: manipulation;
     }
-    .scena small {
-      font-size: 12px;
-      font-weight: 400;
+    .scena .icona {
+      color: var(--c);
+    }
+    .scena[aria-pressed="true"] {
+      border-color: var(--c);
+      background: color-mix(in srgb, var(--c) 18%, var(--superficie));
+    }
+    .scena:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .scena:focus-visible {
+      outline: 2px solid var(--accento);
     }
     .destra {
       grid-area: destra;
@@ -428,13 +451,7 @@ export class JarvisApp extends LitElement {
         width: 20px;
         height: 20px;
       }
-      .scena small {
-        font-size: 11px;
-        white-space: nowrap;
-      }
-      .scena .fase {
-        display: none;
-      }
+
       .destra {
         gap: 8px;
       }
@@ -446,6 +463,14 @@ export class JarvisApp extends LitElement {
       .mic {
         height: 48px;
         width: 64px;
+      }
+    }
+
+    /* telefono stretto (v0.5.7): tre scene in fila lasciano ~84 px a pulsante */
+    @media (max-width: 379px) {
+      .scena {
+        font-size: 14px;
+        padding: 6px 2px;
       }
     }
 
@@ -476,6 +501,11 @@ export class JarvisApp extends LitElement {
       .pagina {
         grid-row: 1 / 3;
         padding-top: 22px; /* sotto il pallino di connessione */
+      }
+      /* scene (v0.5.7): nei 290 px della colonna «Buonanotte» deve stare intera */
+      .scena {
+        font-size: 14px;
+        padding: 6px 2px;
       }
       .stato {
         position: absolute;
@@ -579,6 +609,9 @@ export class JarvisApp extends LitElement {
       mini = adesso;
       this.requestUpdate();
     });
+    // scene della Casa (v0.5.7): evidenziate mentre lo script gira; quali, dalle impostazioni
+    new OsservaEntita(this, () => schermate.valori.scene.slice(0, SCENE_IN_CASA));
+    schermate.ascolta(() => this.requestUpdate());
     // la voce decide se mostrare il riquadro piccolo
     new OsservaVoce(this);
     new OsservaTimer(this);
@@ -686,9 +719,7 @@ export class JarvisApp extends LitElement {
               ${
                 pagina.tipo === "stanza"
                   ? html`<jarvis-pagina-stanza .areaId=${pagina.area}></jarvis-pagina-stanza>`
-                  : pagina.tipo === "musica"
-                    ? html`<jarvis-pagina-musica></jarvis-pagina-musica>`
-                    : html`<jarvis-pagina-meteo></jarvis-pagina-meteo>`
+                  : this.pagina(pagina.tipo)
               }
             </main>`
           : this.casa(offline, chatAperta, stanze, scollegato, bannerNellaBarra)
@@ -699,6 +730,30 @@ export class JarvisApp extends LitElement {
   }
 
   /** La schermata Casa: orologio, timer, meteo, scene, stanze (e la chat sul tablet). */
+  /** Una schermata principale (non la Stanza): un componente per schermata. Casa non passa di qui. */
+  private pagina(tipo: Principale): TemplateResult {
+    switch (tipo) {
+      case "casa":
+        return html``;
+      case "musica":
+        return html`<jarvis-pagina-musica></jarvis-pagina-musica>`;
+      case "meteo":
+        return html`<jarvis-pagina-meteo></jarvis-pagina-meteo>`;
+      case "timer":
+        return html`<jarvis-pagina-timer></jarvis-pagina-timer>`;
+      case "clima":
+        return html`<jarvis-pagina-clima></jarvis-pagina-clima>`;
+      case "scene":
+        return html`<jarvis-pagina-scene></jarvis-pagina-scene>`;
+      case "spesa":
+        return html`<jarvis-pagina-spesa></jarvis-pagina-spesa>`;
+      case "avvisi":
+        return html`<jarvis-pagina-avvisi></jarvis-pagina-avvisi>`;
+      case "altro":
+        return html`<jarvis-pagina-altro></jarvis-pagina-altro>`;
+    }
+  }
+
   private casa(
     offline: boolean,
     chatAperta: boolean,
@@ -726,12 +781,18 @@ export class JarvisApp extends LitElement {
           .senzaGiorni=${this.schermata.unica && (connessione.timer.attivi.length > 0 || miniSottoOrologio())}
         ></jarvis-meteo>
       </section>
-      <div class="scene" role="group" aria-label="Scene, in arrivo" data-test="zona-scene">
-        ${SCENE.map(
+      <div class="scene" role="group" aria-label="Scene" data-test="zona-scene">
+        ${sceneDa(schermate.valori.scene.slice(0, SCENE_IN_CASA), connessione.negozio.tutte).map(
           (s) =>
-            html`<div class="scena" aria-disabled="true">
-              ${icona(s.icona)}${s.nome}<small>in arrivo<span class="fase"> (F3)</span></small>
-            </div>`,
+            html`<button
+              class="scena"
+              style="--c: ${s.colore}"
+              aria-pressed=${s.inCorso ? "true" : "false"}
+              ?disabled=${scollegato || (connessione.negozio.pronto && !s.esiste)}
+              @click=${() => void attivaScena(s)}
+            >
+              ${icona(s.icona)}${s.nome}
+            </button>`,
         )}
       </div>
       ${

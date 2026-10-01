@@ -61,6 +61,24 @@ export const stileCampi = css`
   .campo input[type="text"] {
     width: 220px;
   }
+  /* elenchi (v0.5.7): vanno a capo, si legge tutto */
+  .campo textarea {
+    box-sizing: border-box;
+    width: 320px;
+    max-width: 100%;
+    min-height: 72px;
+    border-radius: 12px;
+    border: 1px solid #343a46;
+    background: var(--superficie);
+    color: var(--testo);
+    font: inherit;
+    font-size: 16px;
+    padding: 10px 12px;
+    resize: vertical;
+  }
+  .campo .comandi {
+    max-width: 100%;
+  }
   .campo .unita {
     color: var(--attenuato);
     font-size: 15px;
@@ -234,6 +252,23 @@ export function campoTesto(o: Base<string> & { segnaposto?: string }): TemplateR
       ?disabled=${o.disattivo}
       @change=${(e: Event) => o.cambia((e.target as HTMLInputElement).value.trim())}
     />`,
+    (v) => (v === "" ? "vuoto" : `«${v}»`),
+  );
+}
+
+/** Testo che può essere lungo (elenchi separati da virgole): va a capo invece di scorrere di lato. */
+export function campoTestoLungo(o: Base<string> & { segnaposto?: string }): TemplateResult {
+  return riga(
+    o,
+    html`<textarea
+      data-test="campo-${o.id}"
+      aria-label=${o.titolo}
+      rows="2"
+      placeholder=${o.segnaposto ?? ""}
+      .value=${o.valore}
+      ?disabled=${o.disattivo}
+      @change=${(e: Event) => o.cambia((e.target as HTMLTextAreaElement).value.trim())}
+    ></textarea>`,
     (v) => (v === "" ? "vuoto" : `«${v}»`),
   );
 }
