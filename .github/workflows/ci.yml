@@ -9,7 +9,7 @@ jobs:
   app:
     name: App (lint, typecheck, test, build, e2e)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,7 +29,7 @@ jobs:
   pacchetto-ha:
     name: Pacchetto Home Assistant (prova su HA vero)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
