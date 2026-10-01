@@ -74,6 +74,11 @@ function entitaIniziali() {
     "weather.forecast_casa": e("partlycloudy", {
       temperature: 22.4,
       humidity: 60,
+      pressure: 1015,
+      pressure_unit: "hPa",
+      wind_speed: 14.4,
+      wind_speed_unit: "km/h",
+      wind_bearing: 225,
       cloud_coverage: 40,
       temperature_unit: "°C",
       friendly_name: "Forecast Casa",
@@ -120,6 +125,12 @@ function entitaIniziali() {
     "input_datetime.jarvis_annuncio_buongiorno_da": e("06:00:00", { has_date: false, has_time: true }),
     "input_datetime.jarvis_annuncio_buongiorno_a": e("11:00:00", { has_date: false, has_time: true }),
     "binary_sensor.jarvis_annunci_in_silenzio": e("off"),
+    // alba e tramonto (v0.5.5, schermata Meteo)
+    // orari di Roma (le prove girano con timezoneId Europe/Rome, il server in UTC)
+    "sun.sun": e("above_horizon", {
+      next_rising: `${new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}T07:08:00+02:00`,
+      next_setting: `${new Date().toISOString().slice(0, 10)}T18:53:00+02:00`,
+    }),
   };
 }
 
@@ -179,6 +190,33 @@ function registriIniziali() {
       { ei: "weather.forecast_casa", pl: "met" },
     ],
   };
+}
+
+/** Previsione ora per ora (v0.5.5), come met.no: precipitazione in mm, niente probabilità. */
+function previsioneOraria() {
+  const ora = new Date();
+  ora.setMinutes(0, 0, 0);
+  const cond = ["sunny", "sunny", "partlycloudy", "partlycloudy", "cloudy", "rainy"];
+  return Array.from({ length: 24 }, (_, i) => ({
+    datetime: new Date(ora.getTime() + i * 3_600_000).toISOString(),
+    condition: cond[i % cond.length],
+    temperature: 22 - Math.round(i / 3),
+    precipitation: i % 6 === 5 ? 1.2 : 0,
+  }));
+}
+
+/**
+ * Storico di un sensore (history/history_during_period, formato compresso):
+ * un punto ogni 30 minuti attorno al valore di adesso, e un buco "unavailable".
+ */
+function storico(entityId, inizio, fine) {
+  const e = stato.entita[entityId];
+  const base = Number(e?.s);
+  if (!Number.isFinite(base)) return [];
+  const punti = [];
+  for (let t = inizio, i = 0; t <= fine; t += 30 * 60_000, i++)
+    punti.push({ s: i === 10 ? "unavailable" : (base + Math.sin(i / 6) * 1.2).toFixed(1), lu: t / 1000 });
+  return punti;
 }
 
 function previsione() {
@@ -1086,7 +1124,19 @@ function gestisci(ws, veloce) {
           });
         cliente.abbonamentiMeteo.set(id, msg.entity_id);
         void invia(cliente, { id, type: "result", success: true, result: null });
-        return invia(cliente, { id, type: "event", event: { type: "daily", forecast: previsione() } });
+        const oraria = msg.forecast_type === "hourly";
+        return invia(cliente, {
+          id,
+          type: "event",
+          event: { type: msg.forecast_type ?? "daily", forecast: oraria ? previsioneOraria() : previsione() },
+        });
+      }
+      case "history/history_during_period": {
+        // v0.5.5: grafico della stanza
+        const inizio = Date.parse(msg.start_time);
+        const fine = Date.parse(msg.end_time ?? new Date().toISOString());
+        const result = Object.fromEntries((msg.entity_ids ?? []).map((e) => [e, storico(e, inizio, fine)]));
+        return invia(cliente, { id, type: "result", success: true, result });
       }
       case "subscribe_events":
         cliente.abbonamentiEventi.set(id, msg.event_type);

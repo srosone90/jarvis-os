@@ -4,14 +4,14 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.4 (falsi scatti, annunci). Piano autonomo in corso._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.5 (navigazione, Meteo, Stanza). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
 | Punto | Versione | Stato |
 |---|---|---|
 | 2. Falsi scatti con la TV + annunci | v0.5.4 | **fatto** (sotto) |
-| 3. Navigazione N2 + Stanza + Meteo | v0.5.5 | da fare |
+| 3. Navigazione N2 + Stanza + Meteo | v0.5.5 | **fatto** |
 | 4. Musica | v0.5.6 | da fare |
 | 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | da fare |
 | 6. Giro della personalizzazione + esporta/importa | v0.5.8 | da fare |
@@ -44,9 +44,35 @@ Ogni riga: cosa, perché, dove si cambia.
   riascolto dopo le risposte (8 di serie). Impostazioni → Voce → Ti ascolto
   ancora.
 
+- **Nella colonna solo Casa, Meteo e Hub** (v0.5.5): Musica, Timer e Altro
+  arrivano con le loro versioni; mai voci che non portano da nessuna parte.
+  Impostazioni → Schermate.
+- **Ritorno alla schermata iniziale dopo 90 s** senza tocchi (il "~90 s" del
+  mockup). Impostazioni → Schermate.
+- **Pioggia solo quando c'è**: met.no manda i millimetri e non la
+  probabilità; "0 mm" su ogni ora era rumore. Impostazioni → Schermate →
+  Pioggia.
+- **Pressione spenta di serie**, umidità, vento, alba e tramonto accesi.
+  Impostazioni → Schermate.
+- **Grafico della stanza: 24 ore, solo temperatura** (umidità attivabile).
+  Impostazioni → Schermate → Stanza.
+- **Sul tablet la colonna informazioni è a 290 px** (prima 330) e
+  l'orologio un po' più piccolo, per far stare la colonna senza che le card
+  della camera escano. Fisso nel layout.
+- **Le impostazioni si aprono ancora tenendo premuto l'orologio**, che sta
+  in Casa: dalle altre schermate si torna prima su Casa. Con "Altro"
+  (v0.5.7) ci sarà anche lì.
+
 ## Punti bloccati e cosa serve
 
-- Nessuno per ora.
+- **«Jarvis, apri il meteo»** (dal mockup N2): oggi la frase va a Gemini, e
+  il pannello non sa che deve cambiare schermata. Serve uno di questi due:
+  (a) lato server, `jarvis_voce` manda un evento `jarvis_apri {pannello,
+  schermata}` quando Gemini usa uno strumento "apri"; (b) lato pannello,
+  riconoscere la frase dal testo trascritto prima di Gemini, come «stop» col
+  timer (ma solo mentre si ascolta, e con il rischio di non mandare a
+  Gemini domande vere). **Proposta: (a)**, più pulita. Fatto al posto: tocco
+  sul meteo e sul nome della stanza, e `#meteo` nell'indirizzo.
 
 ## Personalizzabile (elenco che cresce a ogni versione)
 
@@ -58,10 +84,33 @@ Ogni riga: cosa, perché, dove si cambia.
 - **Annunci** (casa, entità di HA): interruttore generale, caldo in camera,
   buongiorno, soglia del caldo, stanza, orari del silenzio, del caldo e del
   buongiorno. (Pannello): volume degli annunci, solo testo.
+- **Schermate** (pannello): ordine e voci della colonna, schermata iniziale,
+  ritorno dopo N secondi (0 = mai); Meteo: ore, giorni, umidità, vento,
+  unità del vento, pressione, pioggia, alba e tramonto; Stanza: ore del
+  grafico, umidità nel grafico.
 - **Schermo a riposo**: attesa, notte dalle/alle. **Audio**: audio sveglio.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.5.5, navigazione + Meteo + Stanza** (mockup N2):
+  1. colonna a sinistra con Casa, Meteo e l'Hub in fondo; sul telefono in
+     verticale è una riga in alto. `#meteo` e `#stanza/<area>`
+     nell'indirizzo, Indietro di Android, ritorno alla schermata iniziale
+     dopo 90 s senza tocchi;
+  2. **Meteo**: adesso (umidità, vento con direzione, alba e tramonto da
+     `sun.sun`), 12 ore, 5 giorni; pioggia solo quando c'è;
+  3. **Stanza**: dal nome della stanza; temperatura delle ultime 24 ore da
+     `history/history_during_period`, poi i dispositivi. La cucina non ha
+     termometro: niente grafico, niente invenzioni;
+  4. **Impostazioni → Schermate**: tutto quello sopra si sceglie.
+  Controprove: senza ritorno, Stanza senza livello in cronologia, "0 mm",
+  vento non convertito, linea senza buchi, colonna che ignora le voci
+  nascoste: le prove cadono.
+- Il **CI** aveva un limite di 20 minuti e ha annullato la release della
+  v0.5.4: ora 45.
+
+## v0.5.4 — riepilogo
 
 - **Finito: v0.5.4, falsi scatti + annunci**:
   1. **Falsi scatti** — misura con 20 minuti di "TV" sintetica (frasi Piper
@@ -92,12 +141,39 @@ Ogni riga: cosa, perché, dove si cambia.
 
 | | |
 |---|---|
-| Versione | **v0.5.4**: falsi scatti con la TV, annunci |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.4 |
+| Versione | **v0.5.5**: navigazione, Meteo, Stanza |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.5 |
 | sha256 dello zip | _in arrivo dopo la release_ |
-| Precedente | v0.5.3, sha256 `a3151043dd44c0a39d88aafab9e06b0b652baf5f77aa645a56d030e60663d149` |
+| Precedente | v0.5.4, sha256 `1801d56881394b01905160adbaf82535bbb4b7ce58cf65e4460eeca1c32cc85a` (6,8 MB, service worker 0.5.4, `parola/` con 5 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.5.4
+## Da installare lato server: v0.5.5
+
+Solo lo zip sopra `/config/www/jarvis/` (contiene anche la v0.5.4). Lato HA
+niente di nuovo.
+
+**Come provarla, dentro il pannello** (tablet della cucina):
+
+1. A sinistra c'è la colonna: Casa, Meteo, e l'Hub in fondo. Tocca
+   **Meteo**: adesso, prossime 12 ore e 5 giorni. Alba e tramonto ci sono se
+   in HA c'è `sun.sun`.
+2. Torna su **Casa** e tocca il nome **Camera da letto**: si apre la
+   stanza con la temperatura delle ultime 24 ore e i dispositivi. Il tasto
+   Indietro di Android torna a Casa.
+3. Lascia il pannello sul Meteo senza toccarlo: dopo 90 secondi torna da
+   solo su Casa.
+4. Tieni premuto l'orologio → **Schermate**: sposta Meteo in cima, scegli
+   "Schermata iniziale: Meteo", accendi la pressione. Ricarica: il pannello
+   si apre sul Meteo. Poi «Ripristina».
+5. Dimmi se il grafico della camera è giusto (forma e valori minimi e
+   massimi) rispetto alla cronologia di HA.
+
+## v0.5.4 (compresa nella v0.5.5)
+
+| | |
+|---|---|
+| sha256 dello zip | `1801d56881394b01905160adbaf82535bbb4b7ce58cf65e4460eeca1c32cc85a` |
+
+### Passi di prova della v0.5.4
 
 Solo lo zip sopra `/config/www/jarvis/`. Lato HA: `jarvis_voce` 0.2.8 e il
 pacchetto annunci (già fatti).

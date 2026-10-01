@@ -1294,6 +1294,42 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
 - **Finto HA**: entità del pacchetto, servizi `input_*`, pipeline tts→tts,
   `/__prova/annuncio`.
 
+### Navigazione, Meteo, Stanza (v0.5.5, 01/10)
+
+- **`Navigatore`** (`src/navigazione/navigazione.ts`, istanza in
+  `navigazione/istanza.ts`, avviato da `main.ts`): pagina attuale (`casa`,
+  `meteo`, `{stanza, area}`), `#nome` nell'indirizzo (`hashDi`,
+  `paginaDaHash`). Le principali fanno `replaceState`, la Stanza
+  `pushState` (secondo livello: Indietro torna a Casa); `popstate` senza
+  chat/impostazioni aperte e `hashchange` passano da `suIndirizzo`. Dopo
+  `ritornoSecondi` (90) senza tocchi si torna alla schermata iniziale.
+  A ogni cambio `window.scrollTo(0, 0)` (sul telefono la pagina restava
+  scorsa giù e la riga di navigazione fuori schermo).
+- **Solo schermate vere nella colonna**: `PRINCIPALI` cresce con le
+  versioni (Musica, Timer, Altro arrivano dopo). Le preferenze salvate con
+  voci sconosciute le scartano, le voci nuove si aggiungono in fondo.
+- **Layout** (`jarvis-app`): area `nav` a sinistra (sticky nei modi che
+  scorrono), riga in alto sotto i 700 px; sul tablet la colonna è attaccata
+  al bordo, info a 290 px e orologio a 104 px (con 330 px le card della
+  camera uscivano dalla stanza). Una schermata va in `.pagina` (colonne
+  2→fine) e sul tablet scorre dentro il suo spazio. Le impostazioni si
+  aprono ancora dall'orologio, che sta in Casa.
+- **Meteo** (`jarvis-pagina-meteo`, `src/meteo/dettagli.ts`): previsione
+  `daily` e `hourly` (`osservaPrevisione` col tipo), `sun.sun` per alba e
+  tramonto. Pioggia: probabilità se c'è, altrimenti mm, mai "0". Vento
+  convertito solo tra km/h e m/s. Pressione senza separatore delle migliaia.
+  Preferenze `jarvis-meteo`.
+- **Stanza** (`jarvis-pagina-stanza`, `src/storico/storico.ts`):
+  `history/history_during_period` (`minimal_response`, `no_attributes`,
+  formato compresso `s`/`lu`), stati non numerici = buchi nella linea,
+  l'ultimo valore prosegue fino ad adesso. Poi `jarvis-stanza` con
+  `senzaTitolo`. Il nome della stanza nella Casa è un pulsante (evento
+  `apri-stanza`), con l'area da toccare allargata dal padding (alzare la
+  riga faceva uscire le card della camera). Preferenze `jarvis-storico`.
+- **Finto HA**: previsione oraria (met.no: mm, niente probabilità), storico
+  a 30 minuti con un buco, `sun.sun` con orari di Roma, meteo con
+  pressione e vento.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -1525,6 +1561,12 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-10-01** — **v0.5.4**: conferma su 2 frame, soglia che si adatta e
   apprendimento dai falsi scatti, tutti accesi di serie (misurati). Annunci:
   di notte e nell'ora del silenzio niente voce, scritti a riposo.
+
+- **2026-10-01** — **v0.5.5**: nella colonna solo le schermate che esistono
+  (Casa, Meteo + Hub); Musica, Timer e Altro con le loro versioni. «Jarvis,
+  apri…» rimandato (STATO.md, punti bloccati).
+- **2026-10-01** — **Workflow con 45 minuti di limite**: la release della
+  v0.5.4 è stata annullata dai 20 minuti (verifica ~25 + Chromium 5).
 
 ## 7. Convenzioni
 
@@ -1812,3 +1854,7 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   era solo perché la frase finiva dopo la parola ("hey jarvis, what time is
   it"): la finestra partiva dalla fine della frase. Riconoscimento contato
   sull'intervallo della frase intera.
+- **Un job annullato non è un job fallito, ma la release non c'è.** La
+  v0.5.4 risultava "in corso" e poi spariva: il workflow era stato
+  annullato dal limite di tempo. Dopo ogni push di versione si controlla la
+  release per tag, non solo che il workflow sia partito.

@@ -4,6 +4,7 @@ import { avviaRicaricaNotturna, registraServiceWorker } from "./pwa/aggiornament
 import { passaAllOrigineVeloce, sorvegliaRitorno } from "./pwa/origine";
 import "./ui/jarvis-app";
 import { audioSveglio } from "./voce/audio-sveglio";
+import { avviaNavigatore } from "./navigazione/istanza";
 import { vista } from "./vista/istanza";
 
 // Nessun errore deve sparire in silenzio: tutto finisce nel log diagnostico.
@@ -20,6 +21,7 @@ document.body.append(document.createElement("jarvis-app"));
 if (import.meta.env.PROD) void registraServiceWorker();
 // fase G: riposo dopo i minuti senza tocchi, Hub, pannello completo
 vista.avvia();
+avviaNavigatore();
 // audio impercettibile per l'Echo in Bluetooth (v0.4.5): parte subito o al primo tocco
 audioSveglio.avvia();
 // «Jarvis» sempre in ascolto (v0.5.0): acceso di serie, si spegne in Impostazioni → Voce

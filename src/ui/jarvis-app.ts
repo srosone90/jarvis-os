@@ -16,7 +16,11 @@ import "./jarvis-riposo";
 import "./jarvis-hub";
 import { ascoltaGuida, mostraGuida } from "./jarvis-guida";
 import { quandoPuoRiposare, vista } from "../vista/istanza";
+import { navigatore } from "../navigazione/istanza";
 import "./jarvis-chat";
+import "./jarvis-colonna";
+import "./jarvis-pagina-meteo";
+import "./jarvis-pagina-stanza";
 import "./jarvis-voce-riquadro";
 import "./jarvis-timer";
 
@@ -171,13 +175,13 @@ export class JarvisApp extends LitElement {
       display: grid;
       min-height: 100dvh;
       box-sizing: border-box;
-      grid-template-columns: 300px minmax(0, 1fr);
+      grid-template-columns: auto 300px minmax(0, 1fr);
       grid-template-rows: auto;
       grid-template-areas:
-        "stato stato"
-        "info destra"
-        "scene destra"
-        "barra barra";
+        "nav stato stato"
+        "nav info destra"
+        "nav scene destra"
+        "nav barra barra";
       align-content: start;
       gap: 16px;
       padding: 16px;
@@ -196,6 +200,29 @@ export class JarvisApp extends LitElement {
       height: 28px;
       fill: currentColor;
       flex: none;
+    }
+    /* navigazione N2 (v0.5.5): colonna a sinistra, ferma mentre la pagina scorre */
+    jarvis-colonna {
+      grid-area: nav;
+      align-self: start;
+      position: sticky;
+      top: 16px;
+      height: calc(100dvh - 32px);
+      border-radius: 18px;
+    }
+    /* una schermata (Meteo, Stanza) al posto di info, scene e stanze */
+    .pagina {
+      grid-column: 2 / -1;
+      grid-row: 2 / 4;
+      min-width: 0;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    /* sul tablet la schermata scorre dentro il suo spazio, mai sotto la barra */
+    .pagina > * {
+      flex: 1;
+      min-height: 0;
     }
     .stato {
       grid-area: stato;
@@ -322,6 +349,7 @@ export class JarvisApp extends LitElement {
       :host {
         grid-template-columns: minmax(0, 1fr);
         grid-template-areas:
+          "nav"
           "stato"
           "info"
           "destra"
@@ -329,6 +357,14 @@ export class JarvisApp extends LitElement {
           "barra";
         padding: 12px;
         --dimensione-ora: 64px;
+      }
+      jarvis-colonna {
+        position: static;
+        height: auto;
+      }
+      .pagina {
+        grid-column: 1;
+        grid-row: 3 / 6;
       }
       .destra {
         grid-template-columns: minmax(0, 1fr);
@@ -348,10 +384,14 @@ export class JarvisApp extends LitElement {
     /* ---- compatto: schermi orizzontali bassi (telefono), la pagina scorre ---- */
     @media (orientation: landscape) and (max-height: 559px) {
       :host {
-        grid-template-columns: 240px minmax(0, 1fr);
+        grid-template-columns: auto 240px minmax(0, 1fr);
         gap: 8px;
         padding: 8px;
         --dimensione-ora: 72px;
+      }
+      jarvis-colonna {
+        top: 8px;
+        height: calc(100dvh - 16px);
       }
       .info {
         gap: 6px;
@@ -395,13 +435,27 @@ export class JarvisApp extends LitElement {
         height: 100dvh;
         overflow: hidden;
         position: relative;
-        grid-template-columns: 330px minmax(0, 1fr);
+        grid-template-columns: auto 290px minmax(0, 1fr);
         grid-template-rows: minmax(0, 1fr) auto 60px;
+        column-gap: 12px;
+        padding-left: 0;
         grid-template-areas:
-          "info destra"
-          "scene destra"
-          "barra barra";
-        --dimensione-ora: 108px;
+          "nav info destra"
+          "nav scene destra"
+          "nav barra barra";
+        --dimensione-ora: 104px;
+      }
+      /* tablet: la colonna attaccata al bordo, come nel mockup N2 */
+      jarvis-colonna {
+        position: static;
+        height: auto;
+        align-self: stretch;
+        margin: -16px 0;
+        border-radius: 0;
+      }
+      .pagina {
+        grid-row: 1 / 3;
+        padding-top: 22px; /* sotto il pallino di connessione */
       }
       .stato {
         position: absolute;
@@ -428,7 +482,7 @@ export class JarvisApp extends LitElement {
       }
       /* chat al posto delle stanze (e della barra, se non c'è il banner) */
       jarvis-chat {
-        grid-column: 2;
+        grid-column: 3;
         grid-row: 1 / -1;
         margin-top: 22px; /* sotto il pallino di connessione */
       }
@@ -486,6 +540,16 @@ export class JarvisApp extends LitElement {
       return "riquadro";
     };
     new OsservaRegistri(this);
+    // navigazione N2 (v0.5.5): schermate e stanza aperta col tocco sul nome
+    navigatore.ascolta(() => {
+      // una schermata nuova si apre dall'alto (sul telefono la pagina era scorsa giù)
+      window.scrollTo(0, 0);
+      this.requestUpdate();
+    });
+    this.addEventListener("apri-stanza", (e) => {
+      const area = (e as CustomEvent<string>).detail;
+      navigatore.vai({ tipo: "stanza", area }, "tocco sulla stanza");
+    });
     // la voce decide se mostrare il riquadro piccolo
     new OsservaVoce(this);
     new OsservaTimer(this);
@@ -500,7 +564,11 @@ export class JarvisApp extends LitElement {
         this.ignoraIndietro = false;
         return;
       }
-      if (!this.voceCronologia) return;
+      // niente chat né impostazioni aperte: è la navigazione (la Stanza ha la sua voce)
+      if (!this.voceCronologia) {
+        navigatore.suIndirizzo(location.hash);
+        return;
+      }
       this.voceCronologia = false;
       // prima ciò che sta sopra: le impostazioni coprono anche la chat
       if (this.impostazioni) this.impostazioni = false;
@@ -569,6 +637,9 @@ export class JarvisApp extends LitElement {
         : nothing;
     if (chatAperta && !this.schermata.unica)
       return html`<jarvis-avvisi></jarvis-avvisi><jarvis-chat class="intera"></jarvis-chat>${sovrapposti}`;
+    // navigazione N2 (v0.5.5): una schermata al posto della casa (la chat sul tablet resta sulla casa)
+    const pagina = navigatore.pagina;
+    const suPagina = pagina.tipo !== "casa" && !chatAperta;
     return html`
       <jarvis-avvisi></jarvis-avvisi>
       <div class="stato">
@@ -579,10 +650,42 @@ export class JarvisApp extends LitElement {
         }
         <jarvis-connessione parte="pallino"></jarvis-connessione>
       </div>
+      <jarvis-colonna></jarvis-colonna>
+      ${
+        suPagina
+          ? html`<main class="pagina" data-test="pagina-${pagina.tipo}">
+              ${
+                pagina.tipo === "stanza"
+                  ? html`<jarvis-pagina-stanza .areaId=${pagina.area}></jarvis-pagina-stanza>`
+                  : html`<jarvis-pagina-meteo></jarvis-pagina-meteo>`
+              }
+            </main>`
+          : this.casa(offline, chatAperta, stanze, scollegato, bannerNellaBarra)
+      }
+      ${suPagina ? this.barra(bannerNellaBarra, scollegato) : nothing}
+      ${chatAperta && bannerNellaBarra ? this.barra(true, scollegato) : nothing} ${riquadro} ${sovrapposti}
+    `;
+  }
+
+  /** La schermata Casa: orologio, timer, meteo, scene, stanze (e la chat sul tablet). */
+  private casa(
+    offline: boolean,
+    chatAperta: boolean,
+    stanze: ReturnType<typeof costruisciStanze>,
+    scollegato: boolean,
+    bannerNellaBarra: boolean,
+  ): TemplateResult {
+    return html`
       <section class="info">
         <jarvis-orologio></jarvis-orologio>
         <jarvis-timer .massimo=${this.schermata.unica ? TIMER_SUL_TABLET : Infinity}></jarvis-timer>
         <jarvis-meteo
+          role="button"
+          tabindex="0"
+          aria-label="Apri il meteo"
+          data-test="apri-meteo"
+          style="cursor: pointer"
+          @click=${() => navigatore.vai({ tipo: "meteo" }, "tocco sul meteo")}
           .nonAggiornato=${offline}
           .senzaGiorni=${this.schermata.unica && connessione.timer.attivi.length > 0}
         ></jarvis-meteo>
@@ -600,7 +703,6 @@ export class JarvisApp extends LitElement {
           ? html`<jarvis-chat class=${bannerNellaBarra ? "sopra-banner" : ""}></jarvis-chat>`
           : this.stanzeEBarra(stanze, offline, scollegato, bannerNellaBarra)
       }
-      ${chatAperta && bannerNellaBarra ? this.barra(true, scollegato) : nothing} ${riquadro} ${sovrapposti}
     `;
   }
 

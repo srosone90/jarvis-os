@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.5.5
+
+Navigazione, schermate Meteo e Stanza.
+
+- **Colonna a sinistra** (mockup N2): Casa, Meteo e in fondo l'Hub. Sul
+  telefono in verticale diventa una riga in alto. Ogni schermata ha il suo
+  indirizzo (`…/index.html#meteo`), il tasto Indietro di Android torna
+  indietro, e dopo 90 secondi senza tocchi si torna alla schermata iniziale.
+- **Meteo**: adesso (temperatura, umidità, vento con la direzione, alba e
+  tramonto), le prossime 12 ore e i prossimi 5 giorni, con la pioggia solo
+  quando c'è. Solo dati veri di `weather.forecast_casa` (e `sun.sun`). Si
+  apre dalla colonna o toccando il meteo della casa.
+- **Stanza**: si apre toccando il nome di una stanza. Temperatura delle
+  ultime 24 ore dal registro di Home Assistant (i buchi restano buchi), poi
+  tutti i dispositivi della stanza, comandabili. Dove non c'è un termometro
+  (la cucina) il grafico non c'è.
+- **Impostazioni → Schermate**: ordine e voci della colonna, schermata
+  iniziale, dopo quanto si torna lì; cosa mostra il meteo (ore, giorni,
+  umidità, vento e la sua unità, pressione, pioggia, alba e tramonto); ore
+  del grafico della stanza e umidità nel grafico. Tutto col valore di serie
+  e «Ripristina».
+
 ## v0.5.4
 
 Meno falsi scatti con la TV accesa, e Jarvis che parla per primo.

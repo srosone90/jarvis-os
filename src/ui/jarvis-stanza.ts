@@ -1,9 +1,10 @@
+import { mdiChevronRight } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import type { StanzaVista } from "../registri/modello";
 import { connessione } from "../connessione/connessione";
 import { log } from "../diagnostica/log";
 import { numero } from "../meteo/testi";
-import { OsservaEntita, RiquadroSicuro, stileBase } from "./base";
+import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
 import "./jarvis-card-clima";
 import "./jarvis-card-generica";
 import "./jarvis-card-interruttore";
@@ -45,6 +46,26 @@ export class JarvisStanza extends RiquadroSicuro {
         font-size: 18px;
         font-weight: 600;
         white-space: nowrap;
+      }
+      /* il nome apre la schermata della stanza (v0.5.5) */
+      .apri {
+        all: unset;
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        /* area da toccare più grande del testo, senza alzare la riga */
+        padding: 8px 6px;
+        margin: -8px -6px;
+        cursor: pointer;
+        border-radius: 10px;
+      }
+      .apri:focus-visible {
+        outline: 2px solid var(--accento);
+      }
+      .apri .icona {
+        width: 18px;
+        height: 18px;
+        color: var(--attenuato);
       }
       .clima {
         font-size: 15px;
@@ -116,11 +137,14 @@ export class JarvisStanza extends RiquadroSicuro {
     nonAggiornato: { type: Boolean },
     offline: { type: Boolean },
     caricati: { type: Boolean },
+    senzaTitolo: { type: Boolean },
   };
   declare stanza: StanzaVista;
   declare nonAggiornato: boolean;
   declare offline: boolean;
   declare caricati: boolean;
+  /** Dentro la schermata della stanza: il titolo c'è già sopra. */
+  declare senzaTitolo: boolean;
   private readonly segnalate = new Set<string>();
 
   constructor() {
@@ -128,6 +152,7 @@ export class JarvisStanza extends RiquadroSicuro {
     this.nonAggiornato = false;
     this.offline = false;
     this.caricati = false;
+    this.senzaTitolo = false;
     new OsservaEntita(this, () => {
       const c = this.stanza?.clima;
       return c ? [c.temperatura, c.umidita, c.percepita] : [];
@@ -193,10 +218,25 @@ export class JarvisStanza extends RiquadroSicuro {
         )
       : [];
     return html`<div class="stanza" data-test="stanza">
-      <header>
-        <h2>${s.nome}</h2>
-        ${this.disegnaClima()}
-      </header>
+      ${
+        this.senzaTitolo
+          ? nothing
+          : html`<header>
+              <button
+                class="apri"
+                data-test="apri-stanza"
+                aria-label="Apri ${s.nome}"
+                @click=${() =>
+                  this.dispatchEvent(
+                    new CustomEvent("apri-stanza", { detail: s.areaId, bubbles: true, composed: true }),
+                  )}
+              >
+                <h2>${s.nome}</h2>
+                ${icona(mdiChevronRight)}
+              </button>
+              ${this.disegnaClima()}
+            </header>`
+      }
       ${
         mancanti.length
           ? html`<div class="nota" role="status">Sensore non trovato: ${mancanti.join(", ")}</div>`

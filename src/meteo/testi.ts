@@ -57,6 +57,10 @@ export interface PrevisioneGiorno {
   condition?: string;
   temperature?: number;
   templow?: number;
+  /** mm (met.no e quasi tutte le integrazioni). */
+  precipitation?: number;
+  /** % (solo alcune integrazioni). */
+  precipitation_probability?: number;
 }
 
 export interface GiornoMostrato {

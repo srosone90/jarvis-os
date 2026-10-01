@@ -37,7 +37,8 @@ test("il modello di serie lo sente: parte la domanda con wake_word_phrase, e la 
   await expect(registro).toContainText(/Microfono aperto \(elaborazione: solo-eco\): AudioContext a \d+ Hz/);
   await expect(registro).toContainText("rumore no, guadagno automatico no");
   await expect(registro).toContainText(
-    /«Jarvis» sentito \(punteggio 0\.9\d, modello di base, soglia 0\.50\)/,
+    // con la conferma su 2 frame (v0.5.4) lo scatto è sul secondo frame sopra soglia: 0,5-1,0
+    /«Jarvis» sentito \(punteggio (0\.[5-9]\d|1\.00), modello di base, soglia 0\.50\)/,
   );
   // e la barra dal vivo, nelle impostazioni: sopra la soglia mentre la clip dice «hey jarvis»
   await page.getByTestId("sezione-voce").click();

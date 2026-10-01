@@ -490,7 +490,7 @@ for (const v of MISURE) {
     await page.getByTestId("hub-completo").click();
 
     // 4. impostazioni, sezione per sezione
-    for (const s of ["stanza", "voce", "annunci", "riposo", "audio", "diagnostica"]) {
+    for (const s of ["stanza", "schermate", "voce", "annunci", "riposo", "audio", "diagnostica"]) {
       if (s === "stanza") await page.getByTestId("ora").click({ delay: 3300 });
       await page.getByTestId(`sezione-${s}`).click();
       await page.screenshot({ path: `schermate/layout/impostazioni-${s}-${v.nome}.png` });
@@ -623,6 +623,48 @@ for (const v of MISURE) {
         ...(await problemiTesto(page, v.width)),
       ],
       "impostazioni voce",
+    ).toEqual([]);
+  });
+}
+
+// --- v0.5.5: navigazione N2, Meteo, Stanza a tutte le misure ---
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.5: colonna, Meteo, Stanza, impostazioni Schermate`, async ({ page }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await accedi(page);
+    const colonna = ["jarvis-app", "jarvis-colonna"];
+    // casa con la colonna: la colonna non copre niente
+    await page.screenshot({ path: `schermate/layout/casa-colonna-${v.nome}.png` });
+    expect(
+      [
+        // negli altri modi la pagina scorre: la barra sta in fondo, anche sotto lo schermo
+        ...(await controllaParti(page, v, v.unica ? [colonna, ["jarvis-app", ".barra"]] : [colonna])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "casa",
+    ).toEqual([]);
+    // Meteo
+    await page.getByTestId("colonna-meteo").click();
+    await expect(page.getByTestId("meteo-ora").first()).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/meteo-${v.nome}.png`, fullPage: true });
+    expect(
+      [
+        ...(await controllaParti(page, v, v.unica ? [colonna, ["jarvis-app", ".pagina"]] : [colonna])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "meteo",
+    ).toEqual([]);
+    // Stanza
+    await page.getByTestId("colonna-casa").click();
+    await page.getByTestId("apri-stanza").filter({ hasText: "Camera da letto" }).click();
+    await expect(page.getByTestId("grafico-stanza")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/stanza-${v.nome}.png`, fullPage: true });
+    expect(
+      [
+        ...(await controllaParti(page, v, v.unica ? [colonna, ["jarvis-app", ".pagina"]] : [colonna])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "stanza",
     ).toEqual([]);
   });
 }

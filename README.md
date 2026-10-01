@@ -23,6 +23,7 @@ orizzontale acceso 24/7.
 | «Jarvis»: la frase intera, anche con la parola alla fine | **v0.5.2** |
 | «Jarvis»: il minuto prima come contesto, conversazione continua, bip e soglia personale | **v0.5.3** |
 | Meno falsi scatti con la TV, annunci («Jarvis parla per primo»), tutto personalizzabile | **v0.5.4** |
+| Navigazione a colonna, schermate Meteo e Stanza | **v0.5.5** |
 | Navigazione laterale e schermate Stanza, Meteo, poi Musica | Prossima |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |

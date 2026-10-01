@@ -16,15 +16,16 @@ export async function osservaPrevisione(
   conn: Connection,
   entita: string,
   f: (previsione: PrevisioneGiorno[]) => void,
+  tipo: "daily" | "hourly" = "daily",
 ): Promise<(() => Promise<void>) | null> {
   try {
     return await conn.subscribeMessage<EventoPrevisione>((evento) => f(evento.forecast ?? []), {
       type: "weather/subscribe_forecast",
       entity_id: entita,
-      forecast_type: "daily",
+      forecast_type: tipo,
     });
   } catch (errore) {
-    log.errore(`Previsione meteo non disponibile per ${entita}: ${descriviErrore(errore)}`);
+    log.errore(`Previsione meteo (${tipo}) non disponibile per ${entita}: ${descriviErrore(errore)}`);
     return null;
   }
 }
