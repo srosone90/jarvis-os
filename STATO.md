@@ -4,56 +4,70 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.1 («Jarvis»: prova dal vivo, microfono meno elaborato). Release verificata._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.2 (la frase intera con «Jarvis»). Release: vedi sotto._
 
 ## Adesso
 
-- **Finito: v0.5.1**, la risposta al problema «Jarvis non scatta mai».
-  Verificato in quest'ordine, come chiedevi:
-  1. **Scala dell'audio: è giusta.** Il worklet converte in int16 (±32768) e
-     il rilevatore passa al melspettrogramma quei valori, come `utils.py`.
-     Misurato anche il contrario: il modello **regge il volume** (la clip
-     divisa per 32768 in virgola mobile dà ancora 0,999). Quello che lo rompe
-     è la scala float messa in interi (silenzio): controprova fatta, la prova
-     nuova cade.
-  2. **Ricampionamento e ordine dei pezzi: giusti.** «hey jarvis» vero
-     (Piper) dà 0,9988 a 16 kHz, 0,9988 da 48 kHz e 0,9989 da 44,1 kHz
-     ricampionati come sul pannello; il rumore 0,0035. E nel **pannello vero**,
-     con la clip usata come microfono di Chromium (getUserMedia, worklet,
-     microfono condiviso, modelli), «Jarvis» scatta con 0,98-1,00 e parte la
-     pipeline con `wake_word_phrase`.
-  3. **Elaborazione del microfono**: di serie ora solo cancellazione dell'eco,
-     senza riduzione del rumore né volume automatico; scelta in Impostazioni →
-     Voce ("nessuna" e "tutta" per confronto). Il registro scrive frequenza
-     dell'AudioContext e `getSettings()` effettive.
-  4. **Pronuncia "nessuno"**: l'addestramento funziona e regge la ricarica
-     (provato con la clip come microfono: 160 esempi, salvato, ritrovato).
-     Causa più probabile: **esempi e pronuncia stanno nella memoria del
-     browser dell'indirizzo in uso**, e veloce e riserva sono due indirizzi
-     diversi. Se Salvatore ha insegnato la pronuncia su uno e poi il pannello è
-     passato all'altro, lì risulta "nessuno". Ora il registro all'avvio dice
-     quanti esempi ci sono su quell'indirizzo, e la sezione Voce lo avvisa.
-  - Quindi il percorso è giusto: sul tablet resta da capire se la pronuncia
-    italiana («Giàrvis») o il microfono tengono basso il punteggio. Lo dice
-    la **Prova dal vivo** (Impostazioni → Voce, e in Diagnostica).
-- **Risposta ricevuta (domanda 12)**: `jarvis_voce` 0.2.4 toglie «Jarvis» /
-  «Ehi Jarvis» dall'inizio della trascrizione; «Jarvis» da solo diventa
-  `stt-no-text-recognized`, che il pannello chiude in silenzio. Grazie.
+- **Finito: v0.5.2, il contesto prima di «Jarvis»**, come chiesto:
+  1. memoria di **10 s**, solo in RAM: mai inviata se la parola non scatta,
+     svuotata con «Jarvis» spento e a ogni avvio;
+  2. allo scatto parte dall'**inizio della frase**: tornando indietro dalla
+     parola, la prima pausa di almeno **1,0 s** (il tuo silenzio_secondi)
+     segna l'inizio, con 0,25 s di margine; senza pause, tutti i 10 s.
+     Voce/silenzio a energia (RMS a 20 ms, soglia relativa al rumore di fondo),
+     niente dipendenze nuove. Nel dubbio vede silenzio (manda meno contesto),
+     mai il contrario (una pausa vera dentro farebbe chiudere te prima di
+     «Jarvis»);
+  3. «Jarvis» in fondo o in mezzo: il pannello non aspetta altra voce e non
+     dà errore; la fine la decidi tu. Se dopo la parola nessuno parla, chiude
+     in silenzio (già dalla v0.5.0);
+  4. l'Hub mostra la domanda intera, e se è lunga scorre;
+  5. prove con voci vere (Piper, inglese) e il modello vero: «hey jarvis» in
+     fondo a una frase di 3,4 s → partono 3,6-3,7 s; in mezzo → parte dalla
+     parola e il resto arriva dal vivo; frase + 1,6 s di pausa + frase con
+     «hey jarvis» → parte dopo la pausa. Nel finto HA si misurano i byte
+     arrivati tutti insieme prima dell'audio dal vivo. Controprove: con 1 s
+     fisso e con le pause ignorate le prove cadono.
+- Il device_id resta `jarvis_<area>` esatto (nessun cambiamento).
+- **Ricevuto**: `jarvis_voce` 0.2.5 (toglie «Jarvis» anche alla fine, stanza
+  del pannello a Gemini, frase fino a 15 s).
 - **Prossimo, come deciso**: colonna laterale + schermate Stanza e Meteo, poi
   Musica (fase M).
 - **Da fare in casa (Salvatore)**: la prova della TV, "spegni la TV del
-  salotto" con la TV accesa.
+  salotto" con la TV accesa; e la Prova dal vivo della v0.5.1.
 
 ## Ultima release del pannello
 
 | | |
 |---|---|
-| Versione | **v0.5.1**: «Jarvis» con prova dal vivo e microfono meno elaborato |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.1 |
-| sha256 dello zip | `1ccd83b880568a821b6e3221da9c0c80beeedac42840a2c2994ab178ed282af5` (6,8 MB, service worker 0.5.1, `parola/` con 5 file, nessun file delle prove; verificati) |
-| Precedente | v0.5.0, sha256 `563587ec…e843` |
+| Versione | **v0.5.2**: la frase intera con «Jarvis» |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.2 |
+| sha256 dello zip | _in arrivo: lo scrivo appena la release è pronta e verificata_ |
+| Precedente | v0.5.1, sha256 `1ccd83b8…2af5` |
 
-## Da installare lato server: v0.5.1
+## Da installare lato server: v0.5.2
+
+Solo lo zip sopra `/config/www/jarvis/`. Lato HA serve `jarvis_voce` 0.2.5
+(già installato).
+
+**Come provarla, dentro il pannello** (tablet della cucina; se «Jarvis» non
+scatta ancora, prima la Prova dal vivo della v0.5.1, qui sotto):
+
+1. Di' tutto di fila: «C'è un po' di freddo in questa stanza, cosa ne pensi,
+   Jarvis?». Nel riquadro (o nell'Hub, se il pannello era a riposo) deve
+   comparire la **frase intera**, e la risposta deve parlare della cucina.
+2. «Jarvis, accendi la TV del salotto» con una pausa breve dopo «Jarvis»:
+   deve arrivare tutto.
+3. Di' una frase qualsiasi, aspetta 2 secondi in silenzio, poi «che tempo fa
+   domani, Jarvis?»: deve arrivare solo la seconda frase.
+4. Diagnostica → registro: a ogni «Jarvis» c'è "mando N s di frase prima".
+   Dimmi i numeri dei punti 1 e 3.
+
+## Passi di prova della v0.5.1
+
+| | |
+|---|---|
+| sha256 dello zip | `1ccd83b880568a821b6e3221da9c0c80beeedac42840a2c2994ab178ed282af5` |
 
 Solo lo zip sopra `/config/www/jarvis/`, come sempre. Lato HA niente.
 

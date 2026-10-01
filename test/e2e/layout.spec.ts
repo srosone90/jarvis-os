@@ -540,8 +540,14 @@ test("layout riposo di notte (tablet e telefono verticale)", async ({ page, requ
 for (const v of MISURE) {
   test(`layout ${v.nome} «Jarvis»: indicatore nel pannello, a riposo, nell'Hub; sezione Voce`, async ({
     page,
+    request,
   }) => {
     await page.setViewportSize({ width: v.width, height: v.height });
+    // v0.5.2: la domanda è una frase intera (il contesto prima di «Jarvis»): l'Hub non la taglia
+    await comando(
+      request,
+      `assistente?trascrizione=${encodeURIComponent("C'è un po' di freddo in questa stanza, cosa ne pensi, Jarvis? Secondo te accendo il condizionatore o metto un maglione?")}`,
+    );
     await page.addInitScript(() => {
       localStorage.setItem("jarvis-parola", JSON.stringify({ acceso: true }));
       localStorage.setItem("jarvis-riposo", JSON.stringify({ attesaMin: 2, notteDa: 0, notteA: 0 }));
@@ -588,6 +594,7 @@ for (const v of MISURE) {
           [...h, ".angolo"],
           [...h, "button.griglia"],
           [...h, "jarvis-sfera"],
+          [...h, ".sott"],
         ])),
         ...(await problemiTesto(page, v.width)),
       ],

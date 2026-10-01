@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.5.2
+
+La frase intera, anche con «Jarvis» alla fine.
+
+- "C'è un po' di freddo in questa stanza, cosa ne pensi, Jarvis?" ora arriva
+  **tutta**: il pannello tiene in memoria fino a 10 secondi (solo in RAM, mai
+  inviati se la parola non c'è) e allo scatto manda la frase **dal suo
+  inizio**, non solo il secondo prima di «Jarvis».
+- L'inizio della frase è dopo l'ultima pausa di almeno 1 secondo (la stessa
+  soglia di fine frase del server): una pausa vera prima non viene mandata,
+  così il server non chiude la frase prima di «Jarvis».
+- «Jarvis» alla fine o in mezzo ("Jarvis… accendi la TV"): nessuna attesa né
+  errore sul pannello; la fine della frase la decide il server.
+- L'Hub mostra la domanda intera: se è lunga, scorre invece di essere tagliata.
+- Prove con voci vere (Piper) e il modello vero: frase con «hey jarvis» in
+  fondo, in mezzo, e con una pausa di 1,6 s prima.
+
 ## v0.5.1
 
 «Jarvis» col microfono vero: strumenti per capire perché non scatta, e

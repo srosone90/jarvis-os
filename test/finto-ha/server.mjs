@@ -595,10 +595,16 @@ async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTes
   const gestore = cliente.prossimoGestore++;
   const token = `tts-${id}-${Date.now()}`;
   const url = `/api/tts_proxy/${token}.wav`;
-  // byteSubito: arrivati nei primi 150 ms. Con «Jarvis» c'è la memoria di ~1 s (32000 byte)
-  // mandata tutta insieme; col solo audio dal vivo in 150 ms arrivano al massimo 2-3 pezzi
-  const inizio = Date.now();
+  // byteSubito: arrivati entro 300 ms dal PRIMO byte, contati anche dopo la fine finta
+  // dell'ascolto (0,6 s di audio). Con «Jarvis» c'è la frase prima della parola (v0.5.2:
+  // fino a 10 s, 320 KB) mandata tutta insieme appena HA dà l'id; col solo audio dal
+  // vivo in 300 ms arrivano al massimo 5 pezzi (10 KB)
   const registro = { pipeline: id, byte: 0, byteSubito: 0, fine: false, sampleRate };
+  let inizio = 0;
+  cliente.misure.set(gestore, (n) => {
+    if (inizio === 0) inizio = Date.now();
+    if (Date.now() - inizio < 300) registro.byteSubito += n;
+  });
   stato.audioVoce.push(registro);
   // stt=manuale: nessun VAD, l'ascolto finisce solo col frame di fine (tocco su "ferma")
   const sogliaVad = a.stt === "manuale" ? Infinity : sampleRate * 2 * 0.6;
@@ -607,7 +613,6 @@ async function voceAssistente(cliente, id, conversationId, sampleRate, { soloTes
       dati(n) {
         if (registro.byte === 0 && n > 0) void evento("stt-vad-start", { timestamp: 0 });
         registro.byte += n;
-        if (Date.now() - inizio < 150) registro.byteSubito += n;
         if (registro.byte >= sogliaVad) ris("vad");
       },
       fine() {
@@ -944,6 +949,8 @@ function gestisci(ws, veloce) {
     dispositivi: new Map(), // id della pipeline → device_id mandato dal pannello
     pipeline: new Set(), // assist_pipeline/run in corso (o finite e non ancora disiscritte, come in HA)
     gestori: new Map(), // id (1 byte) → gestore dell'audio in arrivo, come async_register_binary_handler
+    // id → misura dei byte "subito" (v0.5.2): resta anche dopo la fine finta dell'ascolto
+    misure: new Map(),
     prossimoGestore: 1,
   };
   clienti.add(cliente);
@@ -954,6 +961,7 @@ function gestisci(ws, veloce) {
   ws.on("message", async (grezzo, binario) => {
     if (binario) {
       // come websocket_api/http.py: primo byte = id del gestore, il resto è audio; solo l'id = fine
+      if (grezzo.length > 1) cliente.misure.get(grezzo[0])?.(grezzo.length - 1);
       const g = cliente.gestori.get(grezzo[0]);
       if (!g) return;
       if (grezzo.length === 1) g.fine();

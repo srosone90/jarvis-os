@@ -184,8 +184,10 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
       <div>
         <b>«Jarvis» sempre in ascolto</b>
         <small
-          >Il microfono resta aperto e riconosce la parola qui sul pannello: a Home Assistant va solo quello
-          che dici dopo «Jarvis», più il secondo prima. Mentre suona un timer, «Jarvis, stop» lo ferma.</small
+          >Il microfono resta aperto e riconosce la parola qui sul pannello. A Home Assistant va solo la frase
+          in cui dici «Jarvis», anche se la parola è alla fine ("fa freddo qui, che dici, Jarvis?"), fino a 10
+          secondi prima; senza la parola non parte niente. Mentre suona un timer, «Jarvis, stop» lo
+          ferma.</small
         >
         <small
           class=${p.stato === "fermo" || p.stato === "nonDisponibile" ? "avviso" : ""}

@@ -1,0 +1,82 @@
+{
+  "contesto-fine": {
+    "campioni": 102893,
+    "segmenti": [
+      {
+        "testo": null,
+        "da": 0,
+        "a": 24000
+      },
+      {
+        "testo": "It is a bit cold in this room, what do you think, hey jarvis?",
+        "da": 24000,
+        "a": 78893
+      },
+      {
+        "testo": null,
+        "da": 78893,
+        "a": 102893
+      }
+    ]
+  },
+  "jarvis-in-mezzo": {
+    "campioni": 99270,
+    "segmenti": [
+      {
+        "testo": null,
+        "da": 0,
+        "a": 24000
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 24000,
+        "a": 36010
+      },
+      {
+        "testo": null,
+        "da": 36010,
+        "a": 42410
+      },
+      {
+        "testo": "turn on the TV in the living room please",
+        "da": 42410,
+        "a": 75270
+      },
+      {
+        "testo": null,
+        "da": 75270,
+        "a": 99270
+      }
+    ]
+  },
+  "pausa-prima": {
+    "campioni": 133601,
+    "segmenti": [
+      {
+        "testo": null,
+        "da": 0,
+        "a": 24000
+      },
+      {
+        "testo": "I was watching the news earlier today.",
+        "da": 24000,
+        "a": 53519
+      },
+      {
+        "testo": null,
+        "da": 53519,
+        "a": 79119
+      },
+      {
+        "testo": "what is the weather tomorrow, hey jarvis",
+        "da": 79119,
+        "a": 109601
+      },
+      {
+        "testo": null,
+        "da": 109601,
+        "a": 133601
+      }
+    ]
+  }
+}

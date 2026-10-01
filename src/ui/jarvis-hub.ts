@@ -77,10 +77,15 @@ export class JarvisHub extends RiquadroSicuro {
         cursor: pointer;
         touch-action: manipulation;
       }
+      /* la domanda può essere una frase intera (v0.5.2: il contesto prima di «Jarvis»): mai tagliata,
+         se non entra scorre lei e la sfera resta dov'è */
       .sott {
         max-width: 820px;
         min-height: 3em;
         line-height: 1.35;
+        flex: 0 1 auto;
+        overflow-y: auto;
+        overscroll-behavior: contain;
       }
       .io {
         color: var(--attenuato);

@@ -124,6 +124,7 @@ In casa **non ci sono luci smart**.
 | `src/voce/microfono-condiviso.ts` | Un solo microfono per la parola e per la voce, sempre a 16 kHz (v0.5.0) |
 | `src/ui/jarvis-indicatore-parola.ts`, `src/ui/jarvis-impostazioni-voce.ts` | Indicatore del microfono (accanto a "Connesso" e a riposo); Impostazioni → Voce con "Insegna a Jarvis la tua pronuncia" |
 | `test/dati/audio/` (+ `LICENZA.md`), `test/unit/parola-audio-vero.test.ts`, `test/e2e/parola-audio-vero.spec.ts`, `test/e2e/parola-rumore-vero.spec.ts` | v0.5.1: «hey jarvis» vero (Piper) e rumore generato; modello VERO, e nel browser la clip come microfono (`--use-file-for-fake-audio-capture`, aiuto `microfonoDaFile`) |
+| `src/parola/inizio-frase.ts`, `test/unit/parola-contesto.test.ts`, `test/e2e/parola-{contesto-fine,pausa-prima,in-mezzo}.spec.ts` | v0.5.2: dove comincia la frase (ultima pausa ≥ 1 s, energia a 20 ms) e le prove con frasi vere (Piper) col «hey jarvis» in fondo, in mezzo e dopo una pausa |
 | `src/ui/jarvis-parola-dal-vivo.ts` | Indicatore dal vivo (punteggio degli ultimi 3 s, soglia, livello del microfono) in Impostazioni → Voce e Diagnostica |
 | `test/e2e/parola.spec.ts`, `test/unit/parola-ascolto.test.ts` | «Jarvis» col motore vero e un verificatore finto "sempre sì" servito da `parola.json` con ritardo; stop, ricampionamento, regole dello scatto, pipeline in due tempi, microfono condiviso |
 | `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
@@ -1141,8 +1142,18 @@ parola, pipeline normale **senza `no_vad`** (la fine della frase la decide
   fine della risposta (la coda dell'audio dall'altoparlante), mai durante la
   registrazione degli esempi. Se il dispositivo resta indietro di oltre 25
   frame si butta l'audio vecchio (e si conta).
-- **Allo scatto**: la memoria (fino a 1 s) va a HA tutta insieme appena HA dà
-  l'id, poi l'audio dal vivo; poi la memoria si azzera davvero. Si manda
+- **Allo scatto (v0.5.2)**: la memoria è di **10 s** (solo RAM, svuotata con
+  «Jarvis» spento e a ogni avvio). Si manda dall'**inizio della frase**
+  (`inizioFrase`): tornando indietro dalla parola, la prima pausa di almeno
+  1,0 s (la soglia di fine frase di `jarvis_voce`) segna l'inizio, con 0,25 s
+  di margine; senza pause, tutti i 10 s. Voce/silenzio con l'RMS a finestre
+  da 20 ms, soglia = max(150, 3 × il 10° percentile della memoria): nel
+  dubbio si vede silenzio (meno contesto), mai una pausa vera come voce (il
+  server chiuderebbe prima di «Jarvis»). Il silenzio dopo la parola non
+  conta. La frase va a HA tutta insieme appena HA dà l'id, poi l'audio dal
+  vivo; poi la memoria si azzera davvero. La voce tiene da parte fino a 400
+  pezzi (~25 s) prima dell'id: col vecchio limite (160) l'audio dopo la parola
+  si sarebbe perso. Si manda
   `input.wake_word_phrase: "Jarvis"`: HA 2026.9.3 scarta un secondo risveglio
   con la stessa parola entro 2 s (`WAKE_WORD_COOLDOWN`, errore
   `duplicate_wake_up_detected`, letto in `pipeline.py`). Sul pannello che
@@ -1379,6 +1390,15 @@ se ne scrive una nuova che annulla la precedente.
   secondo modello, che non c'è. (2) «Jarvis» **acceso di serie** su ogni
   pannello, si spegne in Impostazioni → Voce (annulla il "spento di default"
   pensato per la prova).
+
+- **2026-10-01** — **Il contesto PRIMA di «Jarvis» è un requisito di Salvatore**
+  ("C'è un po' di freddo in questa stanza, cosa ne pensi, Jarvis?" arriva
+  intera). Annulla la memoria di ~1 s "solo per la parola" del 30/09: ora 10 s,
+  sempre solo in RAM e mai inviata senza la parola, e si manda dall'inizio
+  della frase (ultima pausa ≥ 1,0 s). Lato server (`jarvis_voce` 0.2.5): toglie
+  «Jarvis» all'inizio e alla fine della trascrizione, passa a Gemini la stanza
+  del pannello dal device_id `jarvis_<area>` ("qui", "questa stanza"), frase
+  massima 15 s. Il device_id del pannello resta `jarvis_<area_id>` esatto.
 
 ## 7. Convenzioni
 
@@ -1640,3 +1660,9 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   interi (diventa silenzio): la controprova che conta è nel worklet, e la prova
   e2e con audio vero la prende. Un'ipotesi plausibile si misura prima di
   scriverci una prova sopra.
+- **Prima di dare la colpa al codice, controlla lo strumento di misura.** Le
+  prove del contesto cadevano: nel finto HA arrivavano 1,4 s invece di 3,4 s.
+  Il registro del pannello diceva "mando 3,6 s" ogni volta: era il finto HA a
+  contare male. Contava i byte nei primi 150 ms dall'apertura (la frase arriva
+  dopo l'id di HA) e, dopo la sua fine finta dell'ascolto (0,6 s di audio),
+  buttava i byte senza contarli. Ora conta dal primo byte, a parte.

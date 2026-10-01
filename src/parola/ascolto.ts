@@ -6,14 +6,17 @@ import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";
 import type { DoveVoce, Voce } from "../voce/voce";
 import { MemoriaCircolare } from "./memoria";
 import type { EsitoParola, MotoreParola } from "./motore";
+import { inizioFrase } from "./inizio-frase";
 import { eComandoStop } from "./stop";
 
 /**
  * «Jarvis» sempre in ascolto (v0.5.0, decisioni del 30/09 in CLAUDE.md).
  *
  *  - Il microfono resta aperto e l'audio passa dal motore della parola, sul
- *    dispositivo. Una memoria circolare di ~1 s, SOLO in RAM, serve a non
- *    perdere la parola: allo scatto va a HA insieme all'audio dal vivo.
+ *    dispositivo. Una memoria circolare di 10 s, SOLO in RAM, tiene la frase
+ *    in cui la parola è detta: allo scatto va a HA dal suo INIZIO (l'ultima
+ *    pausa di almeno 1 s, `inizioFrase`) insieme all'audio dal vivo (v0.5.2:
+ *    "C'è freddo qui, cosa ne pensi, Jarvis?" arriva intera).
  *  - Allo scatto parte la pipeline normale (stt → tts) SENZA `no_vad`: la
  *    fine della frase la decide jarvis_voce, tarato sul server.
  *  - Mentre suona un timer la parola zittisce la suoneria; «stop», «basta» o
@@ -26,8 +29,12 @@ import { eComandoStop } from "./stop";
 export type StatoAscolto = "spento" | "carica" | "ascolta" | "fermo" | "nonDisponibile";
 
 const CHIAVE = "jarvis-parola";
-/** Memoria circolare: solo quanto serve a riconoscere la parola (decisione del 30/09). */
-export const SECONDI_MEMORIA = 1;
+/**
+ * Memoria circolare: 10 s (v0.5.2, annulla il ~1 s del 30/09). Il contesto
+ * PRIMA di «Jarvis» è un requisito di Salvatore. Solo RAM, mai inviata se la
+ * parola non scatta; si svuota con «Jarvis» spento e a ogni riavvio.
+ */
+export const SECONDI_MEMORIA = 10;
 /** Dopo uno scatto, per quanto non se ne conta un altro (una frase = una domanda). */
 export const PAUSA_DOPO_SCATTO_MS = 2000;
 /** Dopo la risposta di Jarvis: la coda dell'audio dall'altoparlante non deve farlo ripartire. */
@@ -395,12 +402,16 @@ export class AscoltoParola {
     this.ultimoScatto = adesso;
     this.stat.scatti += 1;
     this.stat.ultimoScatto = adesso;
-    // la memoria va a HA una volta sola e poi si azzera davvero
-    const preroll = this.memoria.ultimi();
+    // la memoria va a HA una volta sola, dall'inizio della frase, e poi si azzera davvero
+    const memoria = this.memoria.ultimi();
+    const inizio = inizioFrase(memoria);
+    const preroll = memoria.slice(inizio);
+    memoria.fill(0);
     this.memoria.svuota();
     const suonava = this.dip.timer.suonano.length > 0;
     log.info(
-      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ""})${suonava ? ": suoneria zittita" : ""}`,
+      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ""}), ` +
+        `mando ${(preroll.length / 16000).toFixed(1)} s di frase prima${suonava ? "; suoneria zittita" : ""}`,
     );
     if (suonava) this.dip.timer.silenzia(`«${motore.parola}» sentito`);
     const parola = motore.parola;

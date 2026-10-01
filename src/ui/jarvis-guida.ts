@@ -300,9 +300,9 @@ export class JarvisGuida extends RiquadroSicuro {
     ];
     return html`<h1>Jarvis ti ascolta quando dici «Jarvis»?</h1>
       <p>
-        Il microfono resta aperto e riconosce la parola qui sul pannello: a Home Assistant va solo quello che
-        dici dopo «Jarvis». In alto compare sempre il simbolo del microfono. Per insegnargli la tua pronuncia:
-        Impostazioni → Voce.
+        Il microfono resta aperto e riconosce la parola qui sul pannello: a Home Assistant va solo la frase in
+        cui dici «Jarvis», anche se la parola è alla fine. In alto compare sempre il simbolo del microfono.
+        Per insegnargli la tua pronuncia: Impostazioni → Voce.
       </p>
       <div class="scelte" role="group" aria-label="«Jarvis» sempre in ascolto">
         ${scelte.map(

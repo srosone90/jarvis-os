@@ -39,8 +39,13 @@ export const APERTURA_MASSIMA_MS = 10_000;
 export const PENSA_MASSIMO_MS = 30_000;
 /** Il riquadro resta in vista così a lungo dopo la risposta, poi sparisce. */
 export const RIQUADRO_DOPO_MS = 6_000;
-/** Audio tenuto da parte prima che HA dia l'id: al massimo ~10 s. */
-const CODA_MASSIMA = 160;
+/**
+ * Audio tenuto da parte prima che HA dia l'id: al massimo ~25 s. Con «Jarvis»
+ * ci sono fino a 10 s di frase PRIMA della parola (v0.5.2), più l'audio dal
+ * vivo che arriva mentre HA risponde: con il vecchio limite (~10 s) si
+ * sarebbe buttato proprio l'audio dopo la parola.
+ */
+const CODA_MASSIMA = 400;
 
 /** Domanda nata dalla parola «Jarvis» (v0.5.0). */
 export interface OpzioniVoce extends OpzioniParla {

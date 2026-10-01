@@ -90,8 +90,8 @@ describe("quando scatta «Jarvis»", () => {
     expect(puoScattare(e, 0.5, 10_000, -Infinity, false, 10_000 - PAUSA_DOPO_VOCE_MS + 1, false)).toBe(false);
     expect(puoScattare(e, 0.5, 10_000, -Infinity, false, 10_000 - PAUSA_DOPO_VOCE_MS, false)).toBe(true);
   });
-  it("memoria di circa 1 s, e acceso di serie", () => {
-    expect(SECONDI_MEMORIA).toBe(1);
+  it("memoria di 10 s per il contesto prima della parola (v0.5.2), e acceso di serie", () => {
+    expect(SECONDI_MEMORIA).toBe(10);
     expect(leggiAcceso(null)).toBe(true);
     expect(leggiAcceso('{"acceso":false}')).toBe(false);
     expect(leggiAcceso('{"acceso":true}')).toBe(true);
@@ -271,6 +271,20 @@ describe("voce: domanda nata da «Jarvis»", () => {
     const lunghezze = f.binari.map((b) => (b.length - 1) / 2);
     expect(lunghezze).toEqual([1024, 1024, 452, 2]);
     expect(f.binari.every((b) => b[0] === 5)).toBe(true);
+  });
+
+  it("10 s di frase prima della parola più l'audio dal vivo: nessun pezzo buttato prima dell'id di HA", async () => {
+    const f = connessioneFinta();
+    const v = vocePer(f);
+    const preroll = new Int16Array(160000); // 10 s = 157 pezzi
+    await v.parla("riquadro", false, { preroll, parola: "Jarvis" });
+    // l'audio dal vivo continua mentre HA prepara la pipeline
+    for (let i = 0; i < 20; i++)
+      (v as unknown as { suPezzo(p: ArrayBuffer): void }).suPezzo(new Int16Array(1024).buffer);
+    await Promise.resolve();
+    f.ultima().callback({ type: "run-start", data: { runner_data: { stt_binary_handler_id: 5 } } });
+    (v as unknown as { suPezzo(p: ArrayBuffer): void }).suPezzo(new Int16Array(1024).buffer);
+    expect(f.binari).toHaveLength(157 + 20 + 1);
   });
 
   it("doppio risveglio: la voce si spegne in silenzio e il turno sparisce", async () => {
