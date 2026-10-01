@@ -198,5 +198,255 @@
         "a": 753220
       }
     ]
+  },
+  "sottofondo-parlato": {
+    "campioni": 1241940,
+    "segmenti": [
+      {
+        "testo": "Good evening, here are tonight's main stories from around the country.",
+        "da": 0,
+        "a": 51377
+      },
+      {
+        "testo": "Buonasera, ecco le notizie principali di questa sera.",
+        "da": 59359,
+        "a": 113422
+      },
+      {
+        "testo": "Travis Davis scored twice in the second half of the match.",
+        "da": 120069,
+        "a": 166877
+      },
+      {
+        "testo": "The harvest this year was better than expected in the north.",
+        "da": 174293,
+        "a": 216307
+      },
+      {
+        "testo": "Il servizio di Marco Gervasi da Palermo.",
+        "da": 223674,
+        "a": 267133
+      },
+      {
+        "testo": "Hey Chris, are you coming to the party on Saturday?",
+        "da": 276206,
+        "a": 313794
+      },
+      {
+        "testo": "Paris is getting ready for the marathon this weekend.",
+        "da": 317458,
+        "a": 354341
+      },
+      {
+        "testo": "Jars of honey and fresh bread, now on sale at your local market.",
+        "da": 363630,
+        "a": 424885
+      },
+      {
+        "testo": "La partita si giocherà domenica sera allo stadio Barbera.",
+        "da": 429107,
+        "a": 487138
+      },
+      {
+        "testo": "He was nervous before the interview, but it went very well.",
+        "da": 490154,
+        "a": 535093
+      },
+      {
+        "testo": "Javier, can you pass me the salt please?",
+        "da": 544615,
+        "a": 582889
+      },
+      {
+        "testo": "Le previsioni del tempo per domani: sole al nord, nuvole al sud.",
+        "da": 589623,
+        "a": 658665
+      },
+      {
+        "testo": "The service will resume at nine o'clock tomorrow morning.",
+        "da": 662886,
+        "a": 709598
+      },
+      {
+        "testo": "Hey everybody, welcome back to the show!",
+        "da": 716870,
+        "a": 756311
+      },
+      {
+        "testo": "Jervis Bay is one of the most beautiful beaches in Australia.",
+        "da": 764543,
+        "a": 808643
+      },
+      {
+        "testo": "Per informazioni chiamate il numero verde.",
+        "da": 813151,
+        "a": 851781
+      },
+      {
+        "testo": "Harvey and Mavis have been married for fifty years.",
+        "da": 858934,
+        "a": 899156
+      },
+      {
+        "testo": "Thank you for watching, and see you tomorrow at the same time.",
+        "da": 908453,
+        "a": 953707
+      },
+      {
+        "testo": "Garbage collection will be on Tuesday this week.",
+        "da": 959242,
+        "a": 996687
+      },
+      {
+        "testo": "Hey, Jarred, did you see the news?",
+        "da": 1001269,
+        "a": 1030893
+      },
+      {
+        "testo": "Arrivano i saldi di fine stagione, sconti fino al cinquanta per cento.",
+        "da": 1036523,
+        "a": 1110632
+      },
+      {
+        "testo": "The jury will announce the verdict on Friday.",
+        "da": 1114440,
+        "a": 1147351
+      },
+      {
+        "testo": "Charles and Travis are driving to the coast.",
+        "da": 1156563,
+        "a": 1188417
+      },
+      {
+        "testo": "Ecco a voi il vincitore della gara di questa sera!",
+        "da": 1197576,
+        "a": 1241939
+      }
+    ]
+  },
+  "hey-jarvis-varianti": {
+    "campioni": 939206,
+    "segmenti": [
+      {
+        "testo": "hey jarvis",
+        "da": 16000,
+        "a": 27511
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 51511,
+        "a": 62686
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 86686,
+        "a": 98070
+      },
+      {
+        "testo": "hey jarvis.",
+        "da": 122070,
+        "a": 132535
+      },
+      {
+        "testo": "hey, jarvis",
+        "da": 156535,
+        "a": 172899
+      },
+      {
+        "testo": "hey jarvis!",
+        "da": 196899,
+        "a": 208078
+      },
+      {
+        "testo": "hey jarvis?",
+        "da": 232078,
+        "a": 242348
+      },
+      {
+        "testo": "hey jarvis, what time is it",
+        "da": 266348,
+        "a": 289248
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 313248,
+        "a": 325464
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 349464,
+        "a": 360676
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 384676,
+        "a": 396210
+      },
+      {
+        "testo": "hey jarvis.",
+        "da": 420210,
+        "a": 432287
+      },
+      {
+        "testo": "hey, jarvis",
+        "da": 456287,
+        "a": 473456
+      },
+      {
+        "testo": "hey jarvis!",
+        "da": 497456,
+        "a": 509844
+      },
+      {
+        "testo": "hey jarvis?",
+        "da": 533844,
+        "a": 546423
+      },
+      {
+        "testo": "hey jarvis, what time is it",
+        "da": 570423,
+        "a": 592631
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 616631,
+        "a": 629311
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 653311,
+        "a": 668033
+      },
+      {
+        "testo": "hey jarvis",
+        "da": 692033,
+        "a": 704918
+      },
+      {
+        "testo": "hey jarvis.",
+        "da": 728918,
+        "a": 740487
+      },
+      {
+        "testo": "hey, jarvis",
+        "da": 764487,
+        "a": 790221
+      },
+      {
+        "testo": "hey jarvis!",
+        "da": 814221,
+        "a": 825380
+      },
+      {
+        "testo": "hey jarvis?",
+        "da": 849380,
+        "a": 861308
+      },
+      {
+        "testo": "hey jarvis, what time is it",
+        "da": 885308,
+        "a": 915206
+      }
+    ]
   }
 }

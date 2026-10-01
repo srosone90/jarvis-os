@@ -256,9 +256,9 @@ test("spento dalle impostazioni: microfono chiuso e indicatore via, anche dopo u
   expect(await tracce()).toBe(0);
   await page.getByTestId("chiudi-impostazioni").click();
   await expect(indicatore(page)).toHaveCount(0);
-  expect(await page.evaluate(() => localStorage.getItem("jarvis-parola"))).toBe(
-    '{"acceso":false,"suono":true}',
-  );
+  expect(
+    JSON.parse((await page.evaluate(() => localStorage.getItem("jarvis-parola"))) ?? "{}"),
+  ).toMatchObject({ acceso: false, suono: true });
 });
 
 test("Insegna a Jarvis la tua pronuncia: inviti a tempo, annullabile, e senza esempi non si addestra", async ({

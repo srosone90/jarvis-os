@@ -18,6 +18,15 @@ import { SEGUITO_MS, Voce } from "../../src/voce/voce";
  */
 
 const FR = 16000;
+/** Quello che l'ascolto usa del motore, allo scatto. */
+const MOTORE_FINTO = {
+  sogliaSerie: 0.5,
+  sogliaPersonale: null,
+  inRegistrazione: null,
+  parola: "Jarvis",
+  istantanea: () => [],
+  imparaDaFalsoScatto: () => Promise.resolve(),
+};
 const voce = (sec: number) =>
   Int16Array.from({ length: Math.round(sec * FR) }, (_, i) =>
     Math.round(4000 * Math.sin(i / 3) * Math.sin(i / 900)),
@@ -187,11 +196,9 @@ describe("ascolto: allo scatto il contesto parte PRIMA della richiesta", () => {
       suEsito(e: unknown, m: unknown, t: number): void;
     };
     interna.memoria.scrivi(memoria);
-    interna.suEsito(
-      { punteggio: 0.9, base: 0.9, verificato: false, ms: 5 },
-      { soglia: 0.5, inRegistrazione: null, parola: "Jarvis" },
-      0,
-    );
+    // due frame di fila sopra soglia: la conferma (v0.5.4)
+    for (let k = 0; k < 2; k++)
+      interna.suEsito({ punteggio: 0.9, base: 0.9, verificato: false, ms: 5 }, MOTORE_FINTO, 0);
     return { ordine, memoriaDopo: interna.memoria.ultimi().length };
   }
 
@@ -199,6 +206,18 @@ describe("ascolto: allo scatto il contesto parte PRIMA della richiesta", () => {
     const { ordine, memoriaDopo } = scatto(unisci(silenzio(2), voce(40), silenzio(1.5), voce(3)));
     expect(ordine).toEqual(["contesto 40.5", "richiesta 3.3 suono true"]);
     expect(memoriaDopo).toBe(0);
+  });
+  it("discorso di prima spento: solo la richiesta; accorciato a 10 s: solo gli ultimi 10", () => {
+    const m = unisci(silenzio(2), voce(40), silenzio(1.5), voce(3));
+    localStorage.setItem("jarvis-parola", JSON.stringify({ contesto: false }));
+    try {
+      expect(scatto(m).ordine).toEqual(["richiesta 3.3 suono true"]);
+      localStorage.setItem("jarvis-parola", JSON.stringify({ secondiContesto: 10 }));
+      // i 10 s prima dell'inizio della richiesta, meno la pausa di 1,5 s (resta il margine di 0,25)
+      expect(scatto(m).ordine[0]).toBe("contesto 9.0");
+    } finally {
+      localStorage.removeItem("jarvis-parola");
+    }
   });
   it("nessuno parlava prima: solo la richiesta", () => {
     expect(scatto(unisci(silenzio(20), voce(3))).ordine).toEqual(["richiesta 3.3 suono true"]);
@@ -332,6 +351,32 @@ describe("conversazione continua: 8 s di riascolto dopo la risposta", () => {
     // e il timer degli 8 s non chiude più niente
     vi.advanceTimersByTime(SEGUITO_MS * 2);
     expect(p.v.fase).toBe("ascolto");
+  });
+
+  it("riascolto a 0 secondi (Impostazioni → Voce): dopo la risposta si chiude, come prima della v0.5.3", async () => {
+    const p = prepara();
+    p.v.cambiaPreferenze({ riascoltoSecondi: 0 });
+    try {
+      await domandaERisposta(p);
+      expect(p.v.fase).toBe("spenta");
+      expect(p.aperto()).toBe(false);
+    } finally {
+      p.v.cambiaPreferenze({ riascoltoSecondi: null });
+    }
+    expect(p.v.preferenze.riascoltoSecondi).toBe(8);
+  });
+
+  it("riascolto a 3 secondi: si chiude dopo 3", async () => {
+    const p = prepara();
+    p.v.cambiaPreferenze({ riascoltoSecondi: 3 });
+    try {
+      await domandaERisposta(p);
+      expect(p.v.ascoltoAncora).toBe(true);
+      vi.advanceTimersByTime(3000);
+      expect(p.v.fase).toBe("spenta");
+    } finally {
+      p.v.cambiaPreferenze({ riascoltoSecondi: null });
+    }
   });
 
   it("tocco sul pulsante durante il riascolto: chiude e basta", async () => {

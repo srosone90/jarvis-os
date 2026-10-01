@@ -7,7 +7,14 @@ import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";
 import type { DoveVoce, Voce } from "../voce/voce";
 import { MemoriaCircolare } from "./memoria";
 import type { EsitoParola, MotoreParola } from "./motore";
+import { DecisioneScatto, type CambioSoglia, type Soglie } from "./decisione";
 import { contestoPrima, inizioRichiesta } from "./inizio-frase";
+import {
+  leggiPreferenzeParola,
+  opzioniDecisione,
+  PREFERENZE_PAROLA_DI_SERIE,
+  type PreferenzeParola,
+} from "./preferenze";
 import { eComandoStop } from "./stop";
 
 /**
@@ -103,25 +110,12 @@ export interface Statistiche {
 }
 
 export function leggiAcceso(grezzo: string | null): boolean {
-  if (grezzo === null) return true; // acceso di serie
-  try {
-    const d = JSON.parse(grezzo) as { acceso?: unknown };
-    return d.acceso !== false;
-  } catch (errore) {
-    log.avviso(`Parola: impostazione illeggibile (${descriviErrore(errore)}): acceso di serie`);
-    return true;
-  }
+  return leggiPreferenzeParola(grezzo).acceso;
 }
 
 /** Suono breve allo scatto (v0.5.3): acceso di serie, come un Echo. */
 export function leggiSuono(grezzo: string | null): boolean {
-  if (grezzo === null) return true;
-  try {
-    return (JSON.parse(grezzo) as { suono?: unknown }).suono !== false;
-  } catch {
-    // già detto da leggiAcceso, che legge la stessa impostazione
-    return true;
-  }
+  return leggiPreferenzeParola(grezzo).suono;
 }
 
 /** Si può far partire uno scatto adesso? Logica pura, provata a parte. */
@@ -142,8 +136,9 @@ export function puoScattare(
 export class AscoltoParola {
   private statoAttuale: StatoAscolto = "spento";
   private problemaMic: MessaggioMicrofono | null = null;
-  private voluto: boolean;
-  private suonoVoluto: boolean;
+  private pref: PreferenzeParola;
+  /** Conferma su più frame e soglia che si adatta ai falsi scatti (v0.5.4). */
+  private readonly decisione: DecisioneScatto;
   private caricamento: Promise<MotoreParola> | null = null;
   private motoreCaricato: MotoreParola | null = null;
   private readonly memoria = new MemoriaCircolare(SECONDI_MEMORIA);
@@ -181,8 +176,8 @@ export class AscoltoParola {
     } catch (errore) {
       log.avviso(`Parola: impostazione non letta (${descriviErrore(errore)}): acceso di serie`);
     }
-    this.voluto = leggiAcceso(letto);
-    this.suonoVoluto = leggiSuono(letto);
+    this.pref = leggiPreferenzeParola(letto);
+    this.decisione = new DecisioneScatto(opzioniDecisione(this.pref));
     dip.voce.ascolta(() => {
       const attiva = this.voceOccupata();
       if (this.eraAttiva && !attiva) this.fineVoce = this.adesso();
@@ -204,7 +199,15 @@ export class AscoltoParola {
   }
   /** L'utente vuole «Jarvis» acceso su questo dispositivo. */
   get acceso(): boolean {
-    return this.voluto;
+    return this.pref.acceso;
+  }
+  /** Tutte le preferenze di «Jarvis» di questo pannello (Impostazioni → Voce). */
+  get preferenze(): PreferenzeParola {
+    return { ...this.pref };
+  }
+  /** Di quanto è salita la soglia per i falsi scatti (0 = non è salita). */
+  get aumentoSoglia(): number {
+    return this.decisione.aumento;
   }
   /** Perché il microfono non è aperto, in parole semplici (stato "fermo"). */
   get problema(): MessaggioMicrofono | null {
@@ -225,25 +228,48 @@ export class AscoltoParola {
   /** All'avvio del pannello. */
   avvia(): void {
     document.addEventListener("visibilitychange", () => this.suVisibilita());
-    if (this.voluto) void this.accendi("avvio");
+    if (this.pref.acceso) void this.accendi("avvio");
   }
 
   /** Suono breve quando scatta «Jarvis». */
   get suono(): boolean {
-    return this.suonoVoluto;
+    return this.pref.suono;
   }
 
   /** Interruttore del suono, in Impostazioni → Voce (v0.5.3). */
   impostaSuono(suono: boolean): void {
-    this.suonoVoluto = suono;
+    this.cambiaPreferenze({ suono });
+  }
+
+  /**
+   * Cambia una o più preferenze (Impostazioni → Voce) e le salva. `null` come
+   * valore di un campo = torna a quello di serie ("Ripristina valore di serie").
+   */
+  cambiaPreferenze(cambi: { [K in keyof PreferenzeParola]?: PreferenzeParola[K] | null }): void {
+    const prima = this.pref;
+    const unito: Record<string, unknown> = { ...prima };
+    for (const [k, v] of Object.entries(cambi))
+      unito[k] =
+        v === null && k !== "sogliaManuale" ? PREFERENZE_PAROLA_DI_SERIE[k as keyof PreferenzeParola] : v;
+    // passa dalla stessa lettura del localStorage: limiti e tipi controllati in un posto solo
+    this.pref = leggiPreferenzeParola(JSON.stringify(unito));
+    this.decisione.imposta(opzioniDecisione(this.pref));
     this.salva();
-    log.info(`Suono quando scatta «Jarvis»: ${suono ? "acceso" : "spento"}`);
+    const cambiati = Object.keys(cambi).filter(
+      (k) =>
+        JSON.stringify(prima[k as keyof PreferenzeParola]) !==
+        JSON.stringify(this.pref[k as keyof PreferenzeParola]),
+    );
+    if (cambiati.length && !(cambiati.length === 1 && cambiati[0] === "acceso"))
+      log.info(
+        `«Jarvis», impostazioni cambiate: ${cambiati.map((k) => `${k} ${JSON.stringify(this.pref[k as keyof PreferenzeParola])}`).join(", ")}`,
+      );
     this.notifica();
   }
 
   private salva(): void {
     try {
-      localStorage.setItem(CHIAVE, JSON.stringify({ acceso: this.voluto, suono: this.suonoVoluto }));
+      localStorage.setItem(CHIAVE, JSON.stringify(this.pref));
     } catch (errore) {
       log.avviso(`Parola: impostazione non salvata (${descriviErrore(errore)}): vale fino alla ricarica`);
     }
@@ -251,8 +277,7 @@ export class AscoltoParola {
 
   /** Interruttore di Impostazioni → Voce (e della procedura guidata). */
   imposta(acceso: boolean): void {
-    this.voluto = acceso;
-    this.salva();
+    this.cambiaPreferenze({ acceso });
     log.info(`«Jarvis» sempre in ascolto: ${acceso ? "acceso" : "spento"}`);
     if (acceso) void this.accendi("acceso dalle impostazioni");
     else this.spegni("spento dalle impostazioni");
@@ -260,7 +285,7 @@ export class AscoltoParola {
 
   /** Riprova ad aprire il microfono (tocco su "Riprova" dopo un errore). */
   riprova(): void {
-    if (this.voluto) void this.accendi("riprova");
+    if (this.pref.acceso) void this.accendi("riprova");
   }
 
   private async accendi(motivo: string): Promise<void> {
@@ -278,6 +303,7 @@ export class AscoltoParola {
       const motore = await this.carica();
       if (generazione !== this.generazione) return;
       await motore.azzera();
+      this.decisione.azzeraFila();
       if (generazione !== this.generazione) return;
       await this.dip.micro.apriContinuo({
         pezzo: (pcm) => void this.suPezzo(pcm, generazione),
@@ -350,7 +376,7 @@ export class AscoltoParola {
   private suVisibilita(): void {
     if (document.visibilityState !== "visible") return;
     this.wakeLock = null;
-    if (!this.voluto) return;
+    if (!this.pref.acceso) return;
     if (this.statoAttuale === "ascolta") void this.tieniSchermoAcceso();
     else if (this.statoAttuale === "fermo") void this.accendi("pagina di nuovo in primo piano");
   }
@@ -391,10 +417,15 @@ export class AscoltoParola {
     }
     const adesso = this.adesso();
     this.registraDalVivo(e, adesso);
+    this.scriviCambio(this.decisione.controlla(adesso));
+    const soglie = this.soglie(motore);
+    const soglia = this.decisione.soglia(e, soglie);
+    // conferma: `pazienza` frame di fila sopra soglia (v0.5.4)
+    if (!this.decisione.frame(e, soglie)) return;
     if (
       !puoScattare(
         e,
-        motore.soglia,
+        soglia,
         adesso,
         this.ultimoScatto,
         this.voceOccupata(),
@@ -403,7 +434,24 @@ export class AscoltoParola {
       )
     )
       return;
-    this.scatta(e, motore, adesso, arrivo);
+    this.scatta(e, motore, adesso, arrivo, soglia);
+  }
+
+  /** Le soglie di adesso: quella scelta a mano vince su tutto (anche sulla personale). */
+  private soglie(motore: MotoreParola): Soglie {
+    const manuale = this.pref.sogliaManuale;
+    return manuale !== null
+      ? { serie: manuale, personale: null }
+      : { serie: motore.sogliaSerie, personale: motore.sogliaPersonale };
+  }
+
+  private scriviCambio(c: CambioSoglia | null): void {
+    if (!c) return;
+    const f = (n: number): string => n.toFixed(2).replace(".", ",");
+    log.info(
+      `«Jarvis»: soglia ${c.aumento > 0 ? `+${f(c.aumento)} sopra la sua base` : "tornata alla sua base"} (${c.motivo})`,
+    );
+    this.notifica();
   }
 
   /** Punteggio più alto degli ultimi 3 s e livello del microfono: Impostazioni → Voce e Diagnostica. */
@@ -414,7 +462,9 @@ export class AscoltoParola {
       punteggio: finestra.reduce((m, x) => Math.max(m, x.p), 0),
       base: finestra.reduce((m, x) => Math.max(m, x.b), 0),
       livello: this.statoAttuale === "ascolta" ? this.dip.micro.livello : 0,
-      soglia: this.motoreCaricato?.soglia ?? 0.5,
+      soglia: this.motoreCaricato
+        ? this.decisione.soglia({ verificato: false }, this.soglie(this.motoreCaricato))
+        : 0.5,
     };
   }
 
@@ -438,7 +488,7 @@ export class AscoltoParola {
     this.riepilogo = { da: adesso, massimo: 0, base: 0, livello: 0, frame: 0 };
   }
 
-  private scatta(e: EsitoParola, motore: MotoreParola, adesso: number, arrivo: number): void {
+  private scatta(e: EsitoParola, motore: MotoreParola, adesso: number, arrivo: number, soglia: number): void {
     const scatto = performance.now();
     this.ultimoScatto = adesso;
     this.stat.scatti += 1;
@@ -448,14 +498,21 @@ export class AscoltoParola {
     const inizio = inizioRichiesta(memoria);
     const preroll = memoria.slice(inizio);
     // il contesto parte PRIMA della richiesta, e solo se la richiesta può partire
-    const contesto = this.dip.assistente.occupato ? null : contestoPrima(memoria, inizio);
+    // (si può spegnere, o accorciare, in Impostazioni → Voce)
+    const daContesto = Math.max(0, inizio - this.pref.secondiContesto * 16000);
+    const contesto =
+      this.dip.assistente.occupato || !this.pref.contesto
+        ? null
+        : contestoPrima(memoria.subarray(daContesto), inizio - daContesto);
     memoria.fill(0);
     this.memoria.svuota();
     const contestoInviato = contesto ? this.dip.assistente.inviaContesto(contesto) : false;
     const suonava = this.dip.timer.suonano.length > 0;
     const s = (n: number): string => (n / 16000).toFixed(1).replace(".", ",");
+    // per imparare, se poi la trascrizione è vuota (v0.5.4)
+    const istantanea = motore.istantanea();
     log.info(
-      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ""}), ` +
+      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ", modello di base"}, soglia ${soglia.toFixed(2)}), ` +
         `mando ${s(preroll.length)} s di frase` +
         `${contesto ? `${contestoInviato ? "" : " (contesto NON partito)"} e ${s(contesto.length)} s di contesto prima` : ", nessun parlato prima"}` +
         `${suonava ? "; suoneria zittita" : ""}`,
@@ -467,7 +524,22 @@ export class AscoltoParola {
       this.dip.timer.ferma(`«${testo}» a voce`);
       return "fermato";
     };
-    const opzioni = { preroll, parola, suono: this.suonoVoluto, tempi: { finePezzo: arrivo, scatto } };
+    const quando = new Date(adesso).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+    const dopoScatto = (testo: string | null): void => {
+      log.info(
+        `«${parola}» delle ${quando}: punteggio ${e.punteggio.toFixed(2)}${e.verificato ? " (verificatore)" : ""}, ` +
+          (testo === null ? "trascrizione vuota: falso scatto" : `trascrizione «${testo.slice(0, 80)}»`),
+      );
+      this.scriviCambio(this.decisione.esito(testo === null, this.adesso()));
+      if (testo === null && this.pref.impara) void motore.imparaDaFalsoScatto(istantanea);
+    };
+    const opzioni = {
+      preroll,
+      parola,
+      suono: this.pref.suono,
+      tempi: { finePezzo: arrivo, scatto },
+      dopoScatto,
+    };
     void this.dip.voce.parla(
       this.doveParlare(),
       false,

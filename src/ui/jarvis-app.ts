@@ -470,6 +470,12 @@ export class JarvisApp extends LitElement {
         !connessione.assistente.occupato
       );
     });
+    // annunci (v0.5.4): l'Hub in primo piano; di notte solo scritti a riposo
+    connessione.annunci.mostra = () => {
+      vista.vai("hub", "annuncio");
+      return "hub";
+    };
+    connessione.annunci.notte = () => vista.momento() === "notte";
     // «Jarvis» sentito (v0.5.0): dal riposo o dall'Hub si parla nell'Hub, con la chat aperta nella chat
     connessione.parola.doveParlare = () => {
       if (this.chat && this.connessione.info.stato !== "login-richiesto") return "chat";

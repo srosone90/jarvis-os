@@ -15,6 +15,7 @@ import urlClassificatore from "../../modelli/openwakeword/hey_jarvis_v0.1.onnx?u
 import urlMel from "../../modelli/openwakeword/melspectrogram.onnx?url";
 import { descriviErrore, log } from "../diagnostica/log";
 import { ArchivioParola, verificatoreValido, type Esempio } from "./archivio";
+import { FALSI_PER_RIADDESTRARE, FALSO_SCATTO, FRAME_FALSO_SCATTO } from "./decisione";
 import { caricaImpostazioni } from "./impostazioni";
 import {
   CAMPIONI_FRAME,
@@ -75,6 +76,8 @@ export interface StatoRegistrazione {
 export interface RiepilogoEsempi {
   persone: { nome: string; esempi: number; massimoMedio: number }[];
   secondiNormale: number;
+  /** Falsi scatti imparati (v0.5.4). */
+  falsiScatti: number;
 }
 
 interface Registrazione {
@@ -98,6 +101,10 @@ export class MotoreParola {
   /** Scelta da parola.json: allora non la si cambia più da soli. */
   private sogliaBaseScelta = false;
   private registrazione: Registrazione | null = null;
+  /** Gli ultimi frame (caratteristiche), per imparare da un falso scatto. */
+  private recenti: FrameRegistrato[] = [];
+  private falsiNuovi = 0;
+  private riaddestramento: Promise<void> | null = null;
   private readonly ascoltatori = new Set<() => void>();
 
   private constructor(
@@ -171,7 +178,7 @@ export class MotoreParola {
       log.info(
         `Parola: su ${location.host} ${r.persone.reduce((n, p) => n + p.esempi, 0)} esempi della parola` +
           `${r.persone.length ? ` (${r.persone.map((p) => p.nome).join(", ")})` : ""}, ` +
-          `${Math.round(r.secondiNormale)} s di parlato normale`,
+          `${Math.round(r.secondiNormale)} s di parlato normale, ${r.falsiScatti} falsi scatti imparati`,
       );
     log.info(
       `Parola: modello ${modello.id} («${modello.parola}») pronto in ${Math.round(motore.msCaricamento)} ms, ${fonte}, verificatore ${motore.descriviVerificatore()}`,
@@ -188,6 +195,17 @@ export class MotoreParola {
    */
   get soglia(): number {
     return this.sogliaDaFile ?? this.verificatore?.soglia ?? SOGLIA_DI_SERIE;
+  }
+  /** Soglia per i punteggi del modello di base (v0.5.4): parola.json o 0,5. */
+  get sogliaSerie(): number {
+    return this.sogliaDaFile ?? SOGLIA_DI_SERIE;
+  }
+  /**
+   * Soglia personale (v0.5.3): vale SOLO per i punteggi decisi dal
+   * verificatore (v0.5.4). null con parola.json, che sceglie per tutti.
+   */
+  get sogliaPersonale(): number | null {
+    return this.sogliaDaFile !== undefined ? null : (this.verificatore?.soglia ?? null);
   }
   /** Da dove viene la soglia, in parole (Impostazioni → Voce). */
   get origineSoglia(): string {
@@ -252,7 +270,62 @@ export class MotoreParola {
       this.sogliaBase,
     );
     if (this.registrazione) this.suFrameRegistrato(e);
+    this.recenti.push({ punteggio: e.punteggio, caratteristiche: e.caratteristiche });
+    if (this.recenti.length > FRAME_FALSO_SCATTO) this.recenti.shift();
     return { punteggio, base: e.punteggio, verificato, ms: e.msCalcolo };
+  }
+
+  /** Gli ultimi frame, da prendere allo scatto (per `imparaDaFalsoScatto`). */
+  istantanea(): FrameRegistrato[] {
+    return [...this.recenti];
+  }
+
+  /**
+   * Lo scatto era falso (trascrizione vuota): quei frame diventano esempi
+   * "non è «Jarvis»", e dopo `FALSI_PER_RIADDESTRARE` falsi scatti il
+   * verificatore si riaddestra da solo, se ci sono gli esempi della parola.
+   * Misurato (test/unit/parola-falsi-scatti.test.ts): con un verificatore
+   * che la TV convinceva, dopo due falsi scatti e un riaddestramento la TV
+   * non lo fa più scattare, e la parola vera resta riconosciuta.
+   */
+  async imparaDaFalsoScatto(frame: FrameRegistrato[]): Promise<void> {
+    if (!this.archivio || frame.length === 0) return;
+    try {
+      await this.archivio.salva(
+        {
+          tipo: "normale",
+          persona: FALSO_SCATTO,
+          creato: Date.now(),
+          secondi: frame.length / FRAME_AL_SECONDO,
+          massimo: Math.max(...frame.map((f) => f.punteggio)),
+          frame: frame.length,
+          modello: this.modello.id,
+        },
+        null,
+        frame,
+      );
+    } catch (errore) {
+      log.avviso(`Parola: falso scatto non salvato: ${descriviErrore(errore)}`);
+      return;
+    }
+    this.falsiNuovi += 1;
+    if (this.falsiNuovi < FALSI_PER_RIADDESTRARE || this.riaddestramento || this.registrazione) return;
+    const positivi = (await this.archivio.elenco()).some((e) => e.tipo === "parola");
+    if (!positivi) {
+      log.info(
+        "Parola: falsi scatti salvati; il verificatore si riaddestrerà quando ci saranno gli esempi della parola",
+      );
+      return;
+    }
+    this.falsiNuovi = 0;
+    this.riaddestramento = this.addestra()
+      .then((esito) => log.info(`Parola: riaddestrata dopo i falsi scatti. ${esito}`))
+      .catch((errore: unknown) =>
+        log.avviso(`Parola: riaddestramento non riuscito: ${descriviErrore(errore)}`),
+      )
+      .finally(() => {
+        this.riaddestramento = null;
+      });
   }
 
   // --- verificatore -------------------------------------------------------------
@@ -305,7 +378,10 @@ export class MotoreParola {
         esempi: m.length,
         massimoMedio: m.reduce((s, x) => s + x, 0) / m.length,
       })),
-      secondiNormale: elenco.filter((x) => x.tipo === "normale").reduce((s, e) => s + e.secondi, 0),
+      secondiNormale: elenco
+        .filter((x) => x.tipo === "normale" && x.persona !== FALSO_SCATTO)
+        .reduce((s, e) => s + e.secondi, 0),
+      falsiScatti: elenco.filter((x) => x.persona === FALSO_SCATTO).length,
     };
   }
 
@@ -338,6 +414,8 @@ export class MotoreParola {
     const esempi = await this.archivio.elenco();
     const positivi: Float32Array[] = [];
     const negativi: FrameRegistrato[] = [];
+    /** I falsi scatti entrano tutti, senza essere diradati come il parlato normale. */
+    const falsi: FrameRegistrato[] = [];
     /** I frame di ogni esempio della parola, per la soglia personale. */
     const perEsempio: FrameRegistrato[][] = [];
     for (const e of esempi) {
@@ -349,14 +427,15 @@ export class MotoreParola {
       if (e.tipo === "parola") {
         positivi.push(...scegliPositivi(d.frame, this.sogliaBase));
         perEsempio.push(d.frame);
-      } else negativi.push(...d.frame);
+      } else if (e.persona === FALSO_SCATTO) falsi.push(...d.frame);
+      else negativi.push(...d.frame);
     }
     if (!positivi.length) return "Registra prima gli esempi della parola.";
-    if (!negativi.length) return "Registra prima un po' di parlato normale.";
+    if (!negativi.length && !falsi.length) return "Registra prima un po' di parlato normale.";
     const persone = [...new Set(esempi.filter((e) => e.tipo === "parola").map((e) => e.persona))];
     const v = await addestra(
       positivi,
-      scegliNegativi(negativi),
+      [...scegliNegativi(negativi), ...falsi.map((f) => f.caratteristiche)],
       { modello: this.modello.id, persone },
       {
         avanzamento: async (i) => {
@@ -370,7 +449,7 @@ export class MotoreParola {
       punteggioFinale(f.punteggio, f.caratteristiche, v, this.sogliaBase).punteggio;
     const massimiEsempi = perEsempio.map((frame) => Math.max(0, ...frame.map(finale)));
     let negativoMassimo = 0;
-    for (const f of negativi) negativoMassimo = Math.max(negativoMassimo, finale(f));
+    for (const f of [...negativi, ...falsi]) negativoMassimo = Math.max(negativoMassimo, finale(f));
     const soglia = sogliaPersonale(massimiEsempi, negativoMassimo);
     if (soglia !== null) v.soglia = soglia;
     const f2 = (n: number): string => n.toFixed(2).replace(".", ",");

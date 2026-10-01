@@ -35,7 +35,8 @@ test("primo accesso: login OAuth, dati reali di HA, indirizzo ripulito, login ri
   await expect(camera.getByTestId("stanza-percepita")).toHaveText("25,6°");
   await expect(page.getByText("non trovato")).toHaveCount(0);
   await apriDiagnostica(page);
-  await expect(page.getByTestId("entita-ricevute")).toHaveText("17");
+  // 17 della casa + 12 del pacchetto annunci (v0.5.4)
+  await expect(page.getByTestId("entita-ricevute")).toHaveText("29");
   await page.getByTestId("chiudi-impostazioni").click();
 
   // ricaricando non si rifà il login

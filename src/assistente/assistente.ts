@@ -294,6 +294,35 @@ export class Assistente {
     return true;
   }
 
+  /**
+   * Jarvis parla per primo (v0.5.4, evento `jarvis_annuncio`): il testo arriva
+   * già scritto, serve solo la voce. Pipeline da tts a tts (`input.text`,
+   * ammessa da assist_pipeline/run: start_stage tts vuole il testo), con la
+   * stessa voce delle risposte. Il turno nasce con la risposta già scritta e
+   * "fatto", e aspetta solo l'audio (tts-end). Niente conversation_id: la
+   * frase la tiene il server come contesto per 3 minuti (jarvis_voce 0.2.8).
+   * Ritorna l'id del turno, o null se non può partire (offline, occupato).
+   */
+  annuncia(testo: string): number | null {
+    const pulito = testo.trim();
+    if (!pulito || this.occupato) return null;
+    const conn = this.dip.conn();
+    if (!conn || !this.dip.collegato()) return null;
+    this.controllaScadenza();
+    this.contatore += 1;
+    const turno: Turno = {
+      ...nuovoTurno(this.contatore, "", true),
+      fase: "fatto",
+      risposta: pulito,
+      annuncio: true,
+    };
+    this.elenco = [...this.elenco, turno];
+    this.ultimaAttivita = this.adesso();
+    this.avvia(conn, turno, "annuncio");
+    this.notifica();
+    return turno.id;
+  }
+
   /** Toglie un turno a voce finito senza parole (seguito a cui nessuno ha risposto). */
   scarta(turnoId: number): void {
     const t = this.turno(turnoId);
@@ -386,9 +415,9 @@ export class Assistente {
   private avvia(
     conn: ConnessioneAssistente,
     turno: Turno,
-    voce: (OpzioniParla & { sampleRate: number }) | "risposta" | null = null,
+    voce: (OpzioniParla & { sampleRate: number }) | "risposta" | "annuncio" | null = null,
   ): void {
-    const perVoce = voce !== null && voce !== "risposta" ? voce : null;
+    const perVoce = voce !== null && voce !== "risposta" && voce !== "annuncio" ? voce : null;
     const esecuzione: Esecuzione = {
       turnoId: turno.id,
       dopoTrascrizione: perVoce?.dopoTrascrizione,
@@ -397,7 +426,7 @@ export class Assistente {
       audioChiuso: false,
       timerChiusura: undefined,
       // a voce "più lenta del solito" conta da quando hai finito di parlare
-      timerLenta: turno.voce && voce !== "risposta" ? undefined : this.armaLenta(),
+      timerLenta: turno.voce && voce !== "risposta" && voce !== "annuncio" ? undefined : this.armaLenta(),
       timerMassimo: setTimeout(() => {
         log.avviso(`Assistente: nessuna risposta entro ${MASSIMO_MS / 1000} s`);
         this.chiudiConErrore(esecuzione, "tempo", `Nessuna risposta entro ${MASSIMO_MS / 1000} s`);
@@ -405,27 +434,36 @@ export class Assistente {
     };
     this.esecuzione = esecuzione;
     this.lentaDa = null;
-    const messaggio: Record<string, unknown> = perVoce
-      ? {
-          type: "assist_pipeline/run",
-          start_stage: "stt",
-          end_stage: perVoce.dopoTrascrizione ? "stt" : "tts",
-          input: {
-            sample_rate: perVoce.sampleRate,
-            ...(perVoce.parola ? { wake_word_phrase: perVoce.parola } : {}),
-          },
-          conversation_id: this.conversationId,
-          timeout: MASSIMO_MS / 1000,
-        }
-      : {
-          type: "assist_pipeline/run",
-          start_stage: "intent",
-          // il seguito di una domanda a voce trascritta: risposta scritta e audio
-          end_stage: voce === "risposta" ? "tts" : "intent",
-          input: { text: turno.domanda },
-          conversation_id: this.conversationId,
-          timeout: MASSIMO_MS / 1000,
-        };
+    const messaggio: Record<string, unknown> =
+      voce === "annuncio"
+        ? {
+            type: "assist_pipeline/run",
+            start_stage: "tts",
+            end_stage: "tts",
+            input: { text: turno.risposta },
+            timeout: MASSIMO_MS / 1000,
+          }
+        : perVoce
+          ? {
+              type: "assist_pipeline/run",
+              start_stage: "stt",
+              end_stage: perVoce.dopoTrascrizione ? "stt" : "tts",
+              input: {
+                sample_rate: perVoce.sampleRate,
+                ...(perVoce.parola ? { wake_word_phrase: perVoce.parola } : {}),
+              },
+              conversation_id: this.conversationId,
+              timeout: MASSIMO_MS / 1000,
+            }
+          : {
+              type: "assist_pipeline/run",
+              start_stage: "intent",
+              // il seguito di una domanda a voce trascritta: risposta scritta e audio
+              end_stage: voce === "risposta" ? "tts" : "intent",
+              input: { text: turno.domanda },
+              conversation_id: this.conversationId,
+              timeout: MASSIMO_MS / 1000,
+            };
     const dispositivo = this.dip.dispositivo?.() ?? null;
     // accettato da assist_pipeline/run (vol.Optional("device_id"), HA 2026.9.3)
     if (dispositivo) messaggio["device_id"] = dispositivo;

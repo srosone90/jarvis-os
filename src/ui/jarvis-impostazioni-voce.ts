@@ -2,7 +2,10 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione/connessione";
 import { descriviErrore, log } from "../diagnostica/log";
 import type { RiepilogoEsempi } from "../parola/motore";
+import { LIMITI_PAROLA, PREFERENZE_PAROLA_DI_SERIE } from "../parola/preferenze";
+import { LIMITI_VOCE, PREFERENZE_VOCE_DI_SERIE } from "../voce/preferenze-voce";
 import { RiquadroSicuro, stileBase } from "./base";
+import { campoInterruttore, campoNumero, campoNumeroAuto, stileCampi } from "./campi";
 import { OsservaParola } from "./jarvis-indicatore-parola";
 import "./jarvis-parola-dal-vivo";
 import type { Elaborazione } from "../voce/microfono";
@@ -32,6 +35,7 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
 
   static override styles = [
     stileBase,
+    stileCampi,
     css`
       :host {
         display: block;
@@ -51,6 +55,10 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
       b {
         font-weight: 500;
         font-size: 18px;
+      }
+      small b {
+        font-size: inherit;
+        font-weight: 600;
       }
       small,
       p {
@@ -305,6 +313,168 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
       </div>`;
   }
 
+  /** Riascolto dopo la risposta e il minuto prima (v0.5.3), personalizzabili dalla v0.5.4. */
+  private conversazione(): TemplateResult {
+    const p = connessione.parola;
+    const v = p.preferenze;
+    const voce = connessione.voce;
+    return html`${campoNumero({
+      id: "riascolto",
+      titolo: "Ti ascolto ancora",
+      spiegazione: "Dopo la risposta Jarvis ascolta ancora, senza «Jarvis», per questi secondi. 0 = spento.",
+      valore: voce.preferenze.riascoltoSecondi,
+      diSerie: PREFERENZE_VOCE_DI_SERIE.riascoltoSecondi,
+      min: LIMITI_VOCE.riascoltoSecondi[0],
+      max: LIMITI_VOCE.riascoltoSecondi[1],
+      passo: 1,
+      unita: "secondi",
+      cambia: (x) => {
+        voce.cambiaPreferenze({ riascoltoSecondi: x });
+        this.requestUpdate();
+      },
+    })}
+    ${campoInterruttore({
+      id: "contesto",
+      titolo: "Il discorso di prima",
+      spiegazione:
+        "Quando scatta «Jarvis», manda anche quello che si diceva prima, così Jarvis sa di cosa si parla.",
+      valore: v.contesto,
+      diSerie: PREFERENZE_PAROLA_DI_SERIE.contesto,
+      cambia: (x) => p.cambiaPreferenze({ contesto: x }),
+    })}
+    ${campoNumero({
+      id: "secondi-contesto",
+      titolo: "Quanto discorso di prima",
+      valore: v.secondiContesto,
+      diSerie: PREFERENZE_PAROLA_DI_SERIE.secondiContesto,
+      min: LIMITI_PAROLA.secondiContesto[0],
+      max: LIMITI_PAROLA.secondiContesto[1],
+      passo: 5,
+      unita: "secondi",
+      disattivo: !v.contesto,
+      cambia: (x) => p.cambiaPreferenze({ secondiContesto: x }),
+    })}`;
+  }
+
+  /** Falsi scatti (v0.5.4): conferma, soglia, adattamento e apprendimento. Tutto personalizzabile. */
+  private falsiScatti(): TemplateResult {
+    const p = connessione.parola;
+    const v = p.preferenze;
+    const serie = PREFERENZE_PAROLA_DI_SERIE;
+    const L = LIMITI_PAROLA;
+    const cambia = (k: keyof typeof v) => (x: unknown) => p.cambiaPreferenze({ [k]: x });
+    const m = p.motore;
+    const aumento = p.aumentoSoglia;
+    return html`<div class="voce" data-test="falsi-scatti">
+        <div>
+          <b>Falsi scatti</b>
+          <small
+            >Se «Jarvis» parte da solo (TV, discorsi), queste scelte lo rendono più difficile da ingannare.
+            Soglia adesso:
+            <span data-test="soglia-adesso"
+              >${m ? numero(p.dalVivo.soglia, 2) : "si vede quando «Jarvis» è acceso"}${
+                aumento > 0 ? html` (salita di ${numero(aumento, 2)} per i falsi scatti)` : nothing
+              }</span
+            >${m?.sogliaPersonale != null ? html`; personale, col verificatore: ${numero(m.sogliaPersonale, 2)}` : nothing}.</small
+          >
+        </div>
+      </div>
+      ${campoNumeroAuto({
+        id: "soglia-manuale",
+        titolo: "Soglia di scatto",
+        spiegazione:
+          "Vuoto = automatica (0,5, o quella personale imparata dai tuoi esempi). Più alta = meno falsi scatti, ma va detto più chiaro.",
+        valore: v.sogliaManuale,
+        diSerie: serie.sogliaManuale,
+        min: L.sogliaManuale[0],
+        max: L.sogliaManuale[1],
+        passo: 0.05,
+        auto: "automatica",
+        cambia: cambia("sogliaManuale"),
+      })}
+      ${campoNumero({
+        id: "pazienza",
+        titolo: "Conferma",
+        spiegazione: "Quanti momenti di fila (da 80 ms) la parola deve restare sopra la soglia.",
+        valore: v.pazienza,
+        diSerie: serie.pazienza,
+        min: L.pazienza[0],
+        max: L.pazienza[1],
+        passo: 1,
+        unita: "di fila",
+        cambia: cambia("pazienza"),
+      })}
+      ${campoInterruttore({
+        id: "adattiva",
+        titolo: "Soglia che si adatta",
+        spiegazione:
+          "Se scatta più volte senza che nessuno parli, la soglia sale da sola; quando torna la calma, riscende.",
+        valore: v.adattiva,
+        diSerie: serie.adattiva,
+        cambia: cambia("adattiva"),
+      })}
+      ${campoNumero({
+        id: "vuoti",
+        titolo: "Sale dopo",
+        spiegazione: "Scatti senza parole oltre i quali la soglia sale.",
+        valore: v.vuoti,
+        diSerie: serie.vuoti,
+        min: L.vuoti[0],
+        max: L.vuoti[1],
+        passo: 1,
+        unita: "falsi scatti",
+        disattivo: !v.adattiva,
+        cambia: cambia("vuoti"),
+      })}
+      ${campoNumero({
+        id: "finestra",
+        titolo: "In quanto tempo",
+        valore: v.finestraMinuti,
+        diSerie: serie.finestraMinuti,
+        min: L.finestraMinuti[0],
+        max: L.finestraMinuti[1],
+        passo: 1,
+        unita: "minuti",
+        disattivo: !v.adattiva,
+        cambia: cambia("finestraMinuti"),
+      })}
+      ${campoNumero({
+        id: "passo",
+        titolo: "Di quanto sale o scende",
+        valore: v.passo,
+        diSerie: serie.passo,
+        min: L.passo[0],
+        max: L.passo[1],
+        passo: 0.01,
+        cifre: 2,
+        disattivo: !v.adattiva,
+        cambia: cambia("passo"),
+      })}
+      ${campoNumero({
+        id: "quiete",
+        titolo: "Riscende dopo",
+        spiegazione:
+          "Minuti senza falsi scatti prima di riscendere di un passo (mai sotto la soglia di partenza).",
+        valore: v.quieteMinuti,
+        diSerie: serie.quieteMinuti,
+        min: L.quieteMinuti[0],
+        max: L.quieteMinuti[1],
+        passo: 1,
+        unita: "minuti",
+        disattivo: !v.adattiva,
+        cambia: cambia("quieteMinuti"),
+      })}
+      ${campoInterruttore({
+        id: "impara",
+        titolo: "Impara dai falsi scatti",
+        spiegazione:
+          "Quando scatta e nessuno parla, quel suono diventa un esempio di «non è Jarvis» (solo numeri, niente audio) e la pronuncia imparata si aggiorna da sola.",
+        valore: v.impara,
+        diSerie: serie.impara,
+        cambia: cambia("impara"),
+      })}`;
+  }
+
   private pronuncia(): TemplateResult {
     const p = connessione.parola;
     const m = p.motore;
@@ -508,7 +678,8 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
     const m = connessione.parola.motore;
     if (m && !m.inRegistrazione && this.registrava) this.aggiornaRiepilogo();
     this.registrava = !!m?.inRegistrazione;
-    return html`${this.stato()} ${this.misure()} ${this.pronuncia()}`;
+    return html`${this.stato()} ${this.conversazione()} ${this.falsiScatti()} ${this.misure()}
+    ${this.pronuncia()}`;
   }
 }
 customElements.define("jarvis-impostazioni-voce", JarvisImpostazioniVoce);

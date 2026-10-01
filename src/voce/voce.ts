@@ -6,6 +6,12 @@ import { Bip, Riproduttore } from "./audio";
 import { CAMPIONI_PER_PEZZO, Microfono, MicrofonoNonDisponibile } from "./microfono";
 import type { SorgenteMicrofono } from "./microfono-condiviso";
 import { RilevaParlato } from "./parlato";
+import {
+  caricaPreferenzeVoce,
+  PREFERENZE_VOCE_DI_SERIE,
+  salvaPreferenzeVoce,
+  type PreferenzeVoce,
+} from "./preferenze-voce";
 
 /**
  * Voce "tocca per parlare" (F5). Una faccia del motore dell'assistente: la
@@ -33,8 +39,8 @@ export type DoveVoce = "chat" | "riquadro" | "hub";
  * massimo 30 s). Il pannello non deve tagliarla prima: noi chiudiamo a 35.
  */
 export const ASCOLTO_MASSIMO_MS = 35_000;
-/** Dopo la risposta: per quanto si riascolta senza «Jarvis» (v0.5.3). */
-export const SEGUITO_MS = 8_000;
+/** Dopo la risposta: per quanto si riascolta senza «Jarvis» (v0.5.3; si cambia in Impostazioni → Voce). */
+export const SEGUITO_MS = PREFERENZE_VOCE_DI_SERIE.riascoltoSecondi * 1000;
 /** Seguito: audio mandato a HA prima del primo pezzo di parlato, per non tagliare la prima sillaba. */
 const PRIMA_DEL_PARLATO = 8; // pezzi da 64 ms: ~0,5 s
 /**
@@ -77,6 +83,12 @@ export interface OpzioniVoce extends OpzioniParla {
    * nel registro in una riga (v0.5.3, "reattività come Alexa").
    */
   tempi?: { finePezzo: number; scatto: number };
+  /**
+   * Com'è andata la domanda nata da «Jarvis» (v0.5.4): il testo trascritto,
+   * o null se HA non ha sentito parole (falso scatto). Chiamata una volta
+   * sola; non per il doppione (ha risposto un altro pannello).
+   */
+  dopoScatto?: (testo: string | null) => void;
 }
 
 /** Le misure di reattività di una domanda nata da «Jarvis». */
@@ -112,7 +124,13 @@ export class Voce {
   private attesaSeguito: RilevaParlato | null = null;
   private frequenza = 16000;
   private misura: Misura | null = null;
+  private dopoScatto: ((testo: string | null) => void) | null = null;
+  /** Dopo la risposta si riascolta (v0.5.3); un annuncio con ascolta=false no (v0.5.4). */
+  private riascoltaDopo = true;
+  /** Volume della risposta in corso (annunci: il loro volume). */
+  private volume = 1;
   private timerSeguito: ReturnType<typeof setTimeout> | undefined;
+  private pref: PreferenzeVoce = caricaPreferenzeVoce();
   private timerAscolto: ReturnType<typeof setTimeout> | undefined;
   private timerRiquadro: ReturnType<typeof setTimeout> | undefined;
   /** Limite di "apertura" e "pensa": si riarma a ogni cambio di fase. */
@@ -150,6 +168,22 @@ export class Voce {
   get attiva(): boolean {
     return this.statoFase !== "spenta";
   }
+  get preferenze(): PreferenzeVoce {
+    return { ...this.pref };
+  }
+
+  /** Impostazioni → Voce; `null` = valore di serie. */
+  cambiaPreferenze(cambi: { riascoltoSecondi?: number | null }): void {
+    const v = cambi.riascoltoSecondi;
+    if (v === undefined) return;
+    this.pref = { riascoltoSecondi: v === null ? PREFERENZE_VOCE_DI_SERIE.riascoltoSecondi : Math.round(v) };
+    salvaPreferenzeVoce(this.pref);
+    log.info(
+      `Voce: riascolto dopo la risposta ${this.pref.riascoltoSecondi ? `${this.pref.riascoltoSecondi} s` : "spento"}`,
+    );
+    this.notifica();
+  }
+
   /** "Ti ascolto ancora": riascolto dopo la risposta, senza «Jarvis» (v0.5.3). */
   get ascoltoAncora(): boolean {
     return this.statoFase === "ascolto" && this.attesaSeguito !== null;
@@ -178,6 +212,9 @@ export class Voce {
     this.misura = opzioni.tempi
       ? { ...opzioni.tempi, segnale: null, runStart: null, primoAudio: null }
       : null;
+    this.dopoScatto = opzioni.dopoScatto ?? null;
+    this.riascoltaDopo = true;
+    this.volume = 1;
     clearTimeout(this.timerRiquadro);
     this.luogo = dove;
     this.riquadro = dove === "riquadro";
@@ -225,8 +262,9 @@ export class Voce {
       // conversazione continua: si ascolta qui, la domanda a HA parte solo se qualcuno parla
       this.attesaSeguito = new RilevaParlato();
       this.coda = [];
-      this.timerSeguito = setTimeout(() => this.seguitoSenzaParlato(sessione), SEGUITO_MS);
-      log.info(`Voce: ti ascolto ancora per ${SEGUITO_MS / 1000} s, senza «Jarvis»`);
+      const ms = this.pref.riascoltoSecondi * 1000;
+      this.timerSeguito = setTimeout(() => this.seguitoSenzaParlato(sessione), ms);
+      log.info(`Voce: ti ascolto ancora per ${ms / 1000} s, senza «Jarvis»`);
       this.imposta("ascolto");
       return;
     }
@@ -286,6 +324,32 @@ export class Voce {
     this.coda = [];
     log.info(`Voce: ${motivo}`);
     this.finito();
+  }
+
+  /**
+   * Jarvis parla per primo (v0.5.4): il turno dell'annuncio (già scritto,
+   * `Assistente.annuncia`) si dice come una risposta, `dove` si vede; poi, se
+   * `ascolta`, gli 8 s di riascolto come dopo ogni risposta. False se la
+   * voce è occupata (chi chiama lo rimette in coda).
+   */
+  annuncia(id: number, dove: DoveVoce, opzioni: { ascolta: boolean; volume: number }): boolean {
+    if (this.statoFase !== "spenta" && this.statoFase !== "errore") return false;
+    clearTimeout(this.timerRiquadro);
+    this.sessione += 1;
+    this.luogo = dove;
+    this.riquadro = dove === "riquadro";
+    this.problemaMic = null;
+    this.seguito = false;
+    this.daParola = false;
+    this.misura = null;
+    this.dopoScatto = null;
+    this.riascoltaDopo = opzioni.ascolta;
+    this.volume = opzioni.volume;
+    this.idTurno = id;
+    this.riproduzioneAvviata = false;
+    this.imposta("pensa");
+    this.allinea();
+    return true;
   }
 
   /** Tocco su "ferma"/"interrompi"/"chiudi", a seconda del momento. */
@@ -397,6 +461,7 @@ export class Voce {
     const t = this.turno;
     // nel riascolto il turno è ancora quello della risposta appena data
     if (!t || this.statoFase === "spenta" || this.statoFase === "apertura" || this.attesaSeguito) return;
+    if (t.domanda) this.esitoScatto(t.domanda);
     if (this.statoFase === "ascolto" && t.idAudio != null && t.fase === "ascolto") {
       if (this.misura && this.misura.runStart === null) this.misura.runStart = performance.now();
       if (this.coda.length) this.svuotaCoda(t.id);
@@ -408,6 +473,7 @@ export class Voce {
       if (t.errore?.tipo === "doppione") {
         // un altro pannello ha sentito la stessa «Jarvis» e risponde lui: qui niente
         log.info("Voce: «Jarvis» sentito anche da un altro pannello, risponde lui");
+        this.dopoScatto = null;
         this.dip.assistente.scarta(t.id);
         this.idTurno = null;
         this.problemaMic = null;
@@ -419,6 +485,7 @@ export class Voce {
         // seguito senza risposta, o «Jarvis» sentito per sbaglio e nessuno parla:
         // come un Echo, si chiude in silenzio (niente "Non ho capito" a ogni falso scatto)
         if (this.daParola) log.info("Voce: dopo «Jarvis» nessuna domanda, chiudo in silenzio");
+        this.esitoScatto(null);
         this.dip.assistente.scarta(t.id);
         this.idTurno = null;
         this.finito();
@@ -444,13 +511,25 @@ export class Voce {
     if (nuova !== this.statoFase) this.imposta(nuova);
   }
 
+  /** Una volta sola per scatto: com'è andata (testo o niente). */
+  private esitoScatto(testo: string | null): void {
+    const f = this.dopoScatto;
+    this.dopoScatto = null;
+    if (!f) return;
+    try {
+      f(testo);
+    } catch (errore) {
+      log.errore(`Voce: esito dello scatto in errore: ${descriviErrore(errore)}`);
+    }
+  }
+
   private async rispondi(url: string): Promise<void> {
     const sessione = this.sessione;
     this.imposta("risponde");
-    const esito = await this.riproduttore.riproduci(new URL(url, location.href).href);
+    const esito = await this.riproduttore.riproduci(new URL(url, location.href).href, this.volume);
     if (sessione !== this.sessione || this.statoFase !== "risponde") return;
     // conversazione continua (v0.5.3): sempre, se l'audio è finito da solo (non interrotto)
-    if (esito === "finito" && this.dip.collegato()) {
+    if (esito === "finito" && this.riascoltaDopo && this.pref.riascoltoSecondi > 0 && this.dip.collegato()) {
       this.imposta("spenta");
       await this.parla(this.luogo, true);
       return;

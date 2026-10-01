@@ -4,71 +4,124 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.3 (persona sempre presente). Release verificata._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.4 (falsi scatti, annunci). Piano autonomo in corso._
+
+## Piano autonomo del 01/10 — avanzamento
+
+| Punto | Versione | Stato |
+|---|---|---|
+| 2. Falsi scatti con la TV + annunci | v0.5.4 | **fatto** (sotto) |
+| 3. Navigazione N2 + Stanza + Meteo | v0.5.5 | da fare |
+| 4. Musica | v0.5.6 | da fare |
+| 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | da fare |
+| 6. Giro della personalizzazione + esporta/importa | v0.5.8 | da fare |
+| 7. Fotocamera | v0.6.0 | da fare |
+| 8. Modello su misura | — | da fare |
+
+## Scelte fatte da Code, da confermare
+
+Ogni riga: cosa, perché, dove si cambia.
+
+- **Conferma su 2 frame di fila** (160 ms) prima di scattare: con la "TV" di
+  prova da sola porta i falsi da 24 a 6 all'ora, e la parola vera resta
+  sopra soglia per 5-9 frame. Impostazioni → Voce → Falsi scatti → Conferma.
+- **Soglia che si adatta: passo 0,05**, "più di 3 in 10 minuti" e "30 minuti
+  tranquilli" come chiesto; tetto a 0,95 (sopra non passerebbe neanche la
+  parola vera). Impostazioni → Voce → Falsi scatti.
+- **Impara dai falsi scatti, acceso di serie**: ogni falso scatto diventa un
+  esempio "non è Jarvis" (solo numeri) e dopo 2 la pronuncia si riaddestra
+  da sola. È la misura che ha funzionato di più (verificatore 48 → 0/ora).
+  Funziona solo se avete già registrato gli esempi della parola.
+  Impostazioni → Voce → Impara dai falsi scatti.
+- **Annunci quando HA non è collegato**: invece di perderli si scrivono a
+  riposo, come nell'ora del silenzio.
+- **Annunci scritti a riposo: al massimo 5, per 12 ore**, un tocco li toglie
+  (il tocco sull'annuncio non sveglia il pannello). Fisso nel codice:
+  rientra nel giro della v0.5.8.
+- **"Notte" degli annunci = notte dello schermo a riposo** (Impostazioni →
+  Schermo a riposo), oltre all'ora del silenzio di HA.
+- **Riascolto dopo un annuncio con `ascolta=true`**: gli stessi secondi del
+  riascolto dopo le risposte (8 di serie). Impostazioni → Voce → Ti ascolto
+  ancora.
+
+## Punti bloccati e cosa serve
+
+- Nessuno per ora.
+
+## Personalizzabile (elenco che cresce a ogni versione)
+
+- **Voce** (pannello): «Jarvis» acceso; bip allo scatto; secondi di
+  riascolto (0 = spento); discorso di prima sì/no e quanti secondi; soglia
+  di scatto (automatica o a mano); conferma (frame di fila); soglia che si
+  adatta sì/no, quanti falsi scatti, in quanto tempo, passo, dopo quanto
+  riscende; impara dai falsi scatti; elaborazione del microfono.
+- **Annunci** (casa, entità di HA): interruttore generale, caldo in camera,
+  buongiorno, soglia del caldo, stanza, orari del silenzio, del caldo e del
+  buongiorno. (Pannello): volume degli annunci, solo testo.
+- **Schermo a riposo**: attesa, notte dalle/alle. **Audio**: audio sveglio.
+  **Stanza** del pannello.
 
 ## Adesso
 
-- **Finito: v0.5.3, "persona sempre presente"**, punto per punto:
-  1. memoria di **60 s**, solo in RAM: mai inviata se la parola non scatta,
-     svuotata con «Jarvis» spento, a ogni avvio e dopo ogni scatto;
-  2. allo scatto la **richiesta** è come oggi (inizio della frase: ultima
-     pausa ≥ 1 s, cercata negli ultimi 10 s, + audio dal vivo). In più, se
-     prima c'è parlato (energia, almeno 0,5 s), parte PRIMA la pipeline del
-     **contesto**: `assist_pipeline/run`, start/end `stt`, `input
-     {sample_rate:16000, no_vad:true}`, `device_id "<id pannello>__contesto"`
-     (es. `jarvis_cucina__contesto`; senza stanza `jarvis_pannello__contesto`),
-     niente conversation_id. Audio a raffica appena arriva run-start (il
-     silenzio iniziale e la pausa prima della frase tolti), poi subito il
-     frame vuoto. Niente UI, niente errori a schermo: se fallisce, una riga nel
-     registro ("Contesto non trascritto: …"); del testo trascritto il
-     registro scrive solo quanti caratteri. Nessun parlato prima → non si
-     manda;
-  3. il pannello non taglia la richiesta prima di te: chiude da solo solo
-     dopo **35 s**;
-  4. **conversazione continua**: finito il TTS (non interrotto), il pannello
-     riascolta **8 s senza parola**, stesso conversation_id, senza contesto
-     né wake_word_phrase; «Ti ascolto ancora…» con l'anello che respira.
-     **Scelta di progetto da sapere**: la pipeline verso di te parte solo
-     quando il pannello sente parlare (energia, ~130 ms), con ~0,5 s di audio
-     prima. Se nessuno parla in 8 s si chiude in silenzio e da noi non arriva
-     niente (nessuna pipeline vuota, nessun "non ho capito"). Vale anche dopo
-     una domanda fatta col tocco, e anche quando Gemini chiede
-     `continue_conversation` (prima riapriva subito una pipeline);
-  5. **reattività**: segnale a schermo nello stesso istante dello scatto e
-     bip breve (Impostazioni → Voce → "Suono quando sente «Jarvis»", acceso
-     di serie). Nel registro, a ogni «Jarvis»: `Reattività «Jarvis»: scatto
-     N ms, segnale N ms, run-start N ms, primo audio N ms (dalla fine della
-     parola)`. L'audio tenuto da parte parte appena arriva run-start;
-  6. **strada veloce**: con «Impara la pronuncia» il pannello calcola una
-     **soglia personale** dai 20 esempi + verificatore (10° percentile × 0,8,
-     tra 0,2 e 0,5, almeno 0,1 sopra il parlato normale; se non c'è spazio
-     resta 0,5). Si vede in Voce → "Come sta andando". Il **modello su
-     misura** aspetta la conferma di Salvatore.
-- Privacy, nella sezione Voce: "Il minuto prima resta solo nella memoria del
-  pannello e parte SOLO quando scatta «Jarvis», e solo verso il nostro Home
-  Assistant (che lo manda a Gemini per trascriverlo e capire il discorso)".
-- Prove: clip Piper di 47 s (40 s di discussione, 1,4 s di pausa, frase con
-  «hey jarvis») col modello vero e come microfono del pannello: nel finto HA
-  due pipeline, contesto (~40 s, no_vad, `…__contesto`, tutto in meno di 3 s)
-  e richiesta (solo la frase). Conversazione continua: risposta → riascolto →
-  seconda domanda senza parola → stesso conversation_id; col silenzio si
-  chiude in 8 s senza mandare niente. Controprove: con la memoria a 10 s,
-  senza il minimo di parlato, col contesto dopo la richiesta, col seguito
-  che apre subito la pipeline, senza invio del contesto, le prove cadono.
-- **Ricevuto**: `jarvis_voce` 0.2.7 (contesto a Gemini, attesa trascrizione
-  6 s, 3 s dopo «Jarvis» da solo, frase massima 30 s).
-- **Prossimo, come deciso**: colonna laterale + Stanza + Meteo, poi Musica.
+- **Finito: v0.5.4, falsi scatti + annunci**:
+  1. **Falsi scatti** — misura con 20 minuti di "TV" sintetica (frasi Piper
+     con parole simili a «Jarvis», volumi diversi, musica a tratti) e il
+     modello vero:
+     - modello di base: **24 → 0 falsi all'ora**;
+     - «hey jarvis» dentro la TV: **23/24 (96%)** a due volumi, 0 falsi;
+     - verificatore "debole" (pochi negativi, la TV lo convince): 48/ora
+       prima; dopo, 2 falsi scatti all'inizio, poi **0/ora**, e le varianti
+       di prova non usate per addestrare riconosciute 12/12.
+     Come: conferma su 2 frame; soglia personale solo col verificatore;
+     soglia che si adatta (+0,05 dopo più di 3 vuoti in 10 min, −0,05 dopo
+     30 min tranquilli); i falsi scatti insegnano al verificatore. Registro:
+     a ogni scatto punteggio, soglia, verificatore, trascrizione.
+     Controprove: senza conferma (24/ora), soglia che non sale, personale
+     senza verificatore, senza apprendimento: le prove cadono.
+  2. **Annunci**: `jarvis_annuncio` solo per il proprio device_id, in coda,
+     mai sopra una domanda; voce con la pipeline **tts→tts** (`input.text`,
+     stessa voce delle risposte), Hub in primo piano, poi riascolto se
+     `ascolta`. Notte, `binary_sensor.jarvis_annunci_in_silenzio` on o "solo
+     testo": scritto a riposo. Sezione **Impostazioni → Jarvis parla per
+     primo** con tutte le entità del pacchetto + volume e solo testo.
+- **Domanda per la sessione server**: la pipeline tts→tts degli annunci non
+  manda `conversation_id`: va bene così, visto che la frase la tenete voi
+  come contesto per 3 minuti?
 
 ## Ultima release del pannello
 
 | | |
 |---|---|
-| Versione | **v0.5.3**: persona sempre presente |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.3 |
-| sha256 dello zip | `a3151043dd44c0a39d88aafab9e06b0b652baf5f77aa645a56d030e60663d149` (6,8 MB, service worker 0.5.3, `parola/` con 5 file, nessun file delle prove; verificati) |
-| Precedente | v0.5.2, sha256 `faa4b89b9d5919fdc557e4bfd634dbe9457d447602a3b88034b6a1784da138ff` |
+| Versione | **v0.5.4**: falsi scatti con la TV, annunci |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.4 |
+| sha256 dello zip | _in arrivo dopo la release_ |
+| Precedente | v0.5.3, sha256 `a3151043dd44c0a39d88aafab9e06b0b652baf5f77aa645a56d030e60663d149` |
 
-## Da installare lato server: v0.5.3
+## Da installare lato server: v0.5.4
+
+Solo lo zip sopra `/config/www/jarvis/`. Lato HA: `jarvis_voce` 0.2.8 e il
+pacchetto annunci (già fatti).
+
+**Come provarla, dentro il pannello** (tablet della cucina):
+
+1. Accendi la TV del salotto e lascia il pannello in pace per mezz'ora.
+   Diagnostica → registro: le righe "«Jarvis» delle HH:MM: … trascrizione
+   vuota: falso scatto" dovrebbero essere rare; se ce ne sono più di 3 in 10
+   minuti deve comparire "«Jarvis»: soglia +0,05 sopra la sua base".
+2. Di' «Jarvis, che ore sono?» con la TV accesa: deve rispondere.
+3. Impostazioni → Voce → **Falsi scatti**: cambia "Conferma" a 3, compare
+   «Ripristina»; toccalo e torna a 2.
+4. Impostazioni → **Jarvis parla per primo**: devono comparire le entità del
+   pacchetto coi valori di adesso (annunci acceso, soglia 27, cucina, orari).
+   Cambia la soglia a 26: in HA `input_number.jarvis_annuncio_caldo_soglia`
+   deve diventare 26; poi «Ripristina».
+5. Da HA, Strumenti per sviluppatori → Azioni: `jarvis_voce.annuncia` con
+   `stanza: cucina`, `testo: Prova di annuncio`, `ascolta: true`. Sul
+   pannello: si apre l'Hub, Jarvis lo dice, poi «Ti ascolto ancora…».
+6. Rifai il punto 5 con il pannello a riposo dopo le 23 (o con "solo testo"
+   acceso): niente voce, l'annuncio resta scritto sotto l'orologio.
+
+## v0.5.3 (compresa nella v0.5.4)
 
 Solo lo zip sopra `/config/www/jarvis/`. Lato HA serve `jarvis_voce` 0.2.7
 (già fatto).

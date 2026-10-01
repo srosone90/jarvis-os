@@ -22,6 +22,7 @@ orizzontale acceso 24/7.
 | «Jarvis»: prova dal vivo, microfono meno elaborato, prove con audio vero | **v0.5.1** |
 | «Jarvis»: la frase intera, anche con la parola alla fine | **v0.5.2** |
 | «Jarvis»: il minuto prima come contesto, conversazione continua, bip e soglia personale | **v0.5.3** |
+| Meno falsi scatti con la TV, annunci («Jarvis parla per primo»), tutto personalizzabile | **v0.5.4** |
 | Navigazione laterale e schermate Stanza, Meteo, poi Musica | Prossima |
 | G — gestione dispositivi (stanze, card universali, preferenze in HA) | Da fare |
 | F3, F6 — scene, modalità notte e rifiniture | Da fare |
@@ -71,6 +72,11 @@ per trascriverlo), con una pipeline a parte (`device_id` `<pannello>__contesto`,
 `no_vad`). Dopo ogni risposta il pannello ascolta ancora 8 secondi senza
 «Jarvis»: se nessuno parla si chiude, e verso Home Assistant non è partito
 niente. Serve `jarvis_voce` 0.2.7 lato server.
+
+**Annunci** (v0.5.4): con `jarvis_voce` 0.2.8 e il pacchetto annunci in Home
+Assistant, Jarvis parla per primo sul pannello della stanza scelta. Le scelte
+della casa (interruttori, orari, soglia) stanno in entità di HA e si cambiano
+anche dal pannello, in Impostazioni → Jarvis parla per primo.
 
 **La vostra pronuncia (verificatore, v0.4.3)**. Il modello di base riconosce
 «Giarvìs» all'inglese, non «Giàrvis». Nella sezione "La tua pronuncia" della

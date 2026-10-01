@@ -431,10 +431,16 @@ for (const v of MISURE) {
     ])
       await comando(request, "timer", { tipo: "started", ...t });
 
-    // 1. riposo di giorno, con timer e musica
+    // 1. riposo di giorno, con timer, musica e un annuncio non detto (ora del silenzio, v0.5.4)
+    await comando(request, "stato", { entity_id: "binary_sensor.jarvis_annunci_in_silenzio", state: "on" });
     await page.getByTestId("ora").click({ delay: 3300 });
     await page.getByTestId("sezione-riposo").click();
     await page.getByTestId("prova-riposo").click();
+    await comando(request, "annuncio", {
+      pannello: "jarvis_pannello",
+      testo: "In camera da letto ci sono 28 gradi: se vuoi accendo il condizionatore prima di dormire.",
+    });
+    await expect(page.getByTestId("riposo-annuncio")).toBeVisible();
     await expect(page.getByTestId("riposo-musica")).toContainText("Bohemian Rhapsody");
     await expect(page.getByTestId("riposo-timer")).toHaveCount(3);
     await page.screenshot({ path: `schermate/layout/riposo-${v.nome}.png` });
@@ -484,7 +490,7 @@ for (const v of MISURE) {
     await page.getByTestId("hub-completo").click();
 
     // 4. impostazioni, sezione per sezione
-    for (const s of ["stanza", "voce", "riposo", "audio", "diagnostica"]) {
+    for (const s of ["stanza", "voce", "annunci", "riposo", "audio", "diagnostica"]) {
       if (s === "stanza") await page.getByTestId("ora").click({ delay: 3300 });
       await page.getByTestId(`sezione-${s}`).click();
       await page.screenshot({ path: `schermate/layout/impostazioni-${s}-${v.nome}.png` });

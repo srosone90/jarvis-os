@@ -155,6 +155,36 @@ export class JarvisRiposo extends RiquadroSicuro {
       .chip.pausa b {
         color: var(--attenuato);
       }
+      /* annunci non detti a voce (v0.5.4): restano qui finché non li tocchi */
+      .annunci {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 16px;
+        max-width: 640px;
+      }
+      .annuncio {
+        all: unset;
+        box-sizing: border-box;
+        display: block;
+        padding: 10px 16px;
+        border-radius: 14px;
+        background: rgb(255 255 255 / 6%);
+        border-left: 3px solid var(--tinta);
+        font-size: 20px;
+        line-height: 1.3;
+        overflow-wrap: break-word;
+        cursor: pointer;
+      }
+      .annuncio small {
+        display: block;
+        font-size: 14px;
+        opacity: 0.7;
+      }
+      :host([momento="notte"]) .annuncio {
+        background: none;
+        font-size: 18px;
+      }
       .avviso {
         color: var(--avviso);
         font-size: 17px;
@@ -198,6 +228,17 @@ export class JarvisRiposo extends RiquadroSicuro {
         }
         .ora {
           font-size: min(88px, 22vw);
+        }
+        /* con un annuncio scritto la sfera si stringe: ci deve stare tutto */
+        :host([annunci]) jarvis-sfera {
+          --lato: min(40vw, 18vh);
+        }
+        :host([annunci]) .contenuto {
+          gap: 10px;
+        }
+        .annuncio {
+          font-size: 16px;
+          padding: 8px 12px;
         }
       }
       /* orizzontale basso (telefono): tutto più piccolo */
@@ -363,6 +404,33 @@ export class JarvisRiposo extends RiquadroSicuro {
     </div>`;
   }
 
+  /** Annunci non detti a voce (notte, ora del silenzio, solo testo): un tocco li toglie. */
+  private annunci(): TemplateResult | typeof nothing {
+    const elenco = connessione.annunci.promemoria;
+    this.toggleAttribute("annunci", elenco.length > 0);
+    if (!elenco.length) return nothing;
+    return html`<div class="annunci" data-test="riposo-annunci">
+      ${elenco.map(
+        (p) =>
+          html`<button
+            class="annuncio"
+            data-test="riposo-annuncio"
+            aria-label="Annuncio: ${p.testo}. Tocca per toglierlo"
+            @click=${(e: Event) => {
+              e.stopPropagation();
+              connessione.annunci.togli(p.id);
+            }}
+          >
+            ${p.testo}
+            <small
+              >${new Date(p.ora).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })} · tocca
+              per toglierlo</small
+            >
+          </button>`,
+      )}
+    </div>`;
+  }
+
   protected disegna(): TemplateResult {
     const adesso = new Date();
     const ora = adesso.getTime();
@@ -396,6 +464,7 @@ export class JarvisRiposo extends RiquadroSicuro {
               </div>`
         }
         ${notte ? nothing : this.righe()} ${timer.length ? this.chips(timer, ora, notte) : nothing}
+        ${this.annunci()}
         ${
           offline
             ? html`<div class="avviso" role="status">

@@ -42,6 +42,8 @@
  *                                evento jarvis_timer, e l'elenco di jarvis_voce.timer_attivi si
  *                                aggiorna (come jarvis_voce 0.1.8 lato server)
  *   /__prova/jarvis-voce?installato=0  servizi jarvis_voce assenti (server vecchio)
+ *   /__prova/annuncio            {pannello, testo, ascolta}: evento jarvis_annuncio (v0.5.4, come
+ *                                jarvis_voce.annuncia del server 0.2.8)
  *   /__prova/reset               tutto come all'avvio
  *   GET /__prova/info            contatori (connessioni, login, richieste per file)
  */
@@ -105,6 +107,19 @@ function entitaIniziali() {
     "binary_sensor.jarvis_scaldabagno_modalita_inverno": e("on"),
     "counter.jarvis_giorni_nuvolosi": e(2),
     "sensor.jarvis_scaldabagno_prossimo_cambio": e("Si spegne alle 00:00"),
+    // pacchetto annunci (v0.5.4, come sul server del 01/10)
+    "input_boolean.jarvis_annunci": e("on", { friendly_name: "Annunci" }),
+    "input_boolean.jarvis_annuncio_caldo_camera": e("on"),
+    "input_boolean.jarvis_annuncio_buongiorno": e("on"),
+    "input_number.jarvis_annuncio_caldo_soglia": e(27, { min: 18, max: 35, step: 0.5 }),
+    "input_text.jarvis_annunci_stanza": e("cucina"),
+    "input_datetime.jarvis_annunci_silenzio_da": e("23:00:00", { has_date: false, has_time: true }),
+    "input_datetime.jarvis_annunci_silenzio_a": e("07:30:00", { has_date: false, has_time: true }),
+    "input_datetime.jarvis_annuncio_caldo_da": e("19:00:00", { has_date: false, has_time: true }),
+    "input_datetime.jarvis_annuncio_caldo_a": e("23:00:00", { has_date: false, has_time: true }),
+    "input_datetime.jarvis_annuncio_buongiorno_da": e("06:00:00", { has_date: false, has_time: true }),
+    "input_datetime.jarvis_annuncio_buongiorno_a": e("11:00:00", { has_date: false, has_time: true }),
+    "binary_sensor.jarvis_annunci_in_silenzio": e("off"),
   };
 }
 
@@ -360,6 +375,13 @@ function eseguiServizio(dominio, servizio, dati) {
       if (servizio === "volume_mute")
         impostaEntita(id, e.s, { ...a, is_volume_muted: dati.is_volume_muted }, ctx);
     }
+    // pacchetto annunci (v0.5.4): input_* come in HA
+    if (dominio === "input_boolean" && (servizio === "turn_on" || servizio === "turn_off"))
+      impostaEntita(id, servizio === "turn_on" ? "on" : "off", a, ctx);
+    if ((dominio === "input_number" || dominio === "input_text") && servizio === "set_value")
+      impostaEntita(id, String(dati.value), a, ctx);
+    if (dominio === "input_datetime" && servizio === "set_datetime" && typeof dati.time === "string")
+      impostaEntita(id, dati.time.length === 5 ? `${dati.time}:00` : dati.time, a, ctx);
     if (dominio === "climate") {
       if (servizio === "set_hvac_mode") impostaEntita(id, dati.hvac_mode, a, ctx);
       if (servizio === "set_temperature")
@@ -701,6 +723,36 @@ async function voceAssistente(
   return rispondiAssistente(cliente, id, conversationId, a.trascrizione, { token, url });
 }
 
+/** Pipeline da tts a tts (v0.5.4): la voce di un annuncio, testo già scritto. */
+async function soloVoceAssistente(cliente, id, testo) {
+  const vivo = () => cliente.pipeline.has(id) && cliente.ws.readyState === 1;
+  const evento = (type, data) =>
+    vivo()
+      ? invia(cliente, { id, type: "event", event: { type, data, timestamp: new Date().toISOString() } })
+      : null;
+  const token = `tts-${id}-${Date.now()}`;
+  const url = `/api/tts_proxy/${token}.wav`;
+  await evento("run-start", {
+    pipeline: "pipeline-italiano",
+    language: "it",
+    conversation_id: null,
+    runner_data: { stt_binary_handler_id: null, timeout: 60 },
+    tts_output: { token, url, mime_type: "audio/wav", stream_response: false },
+  });
+  await evento("tts-start", {
+    engine: "tts.google_translate_en_com",
+    language: "it",
+    voice: null,
+    tts_input: testo,
+    acknowledge_override: false,
+  });
+  await pausa(150);
+  await evento("tts-end", {
+    tts_output: { media_id: `media-source://tts/${token}`, token, url, mime_type: "audio/wav" },
+  });
+  await evento("run-end", null);
+}
+
 /** Pipeline da intent a tts (v0.5.0): la domanda fatta mentre suonava un timer, già trascritta. */
 async function testoAVoceAssistente(cliente, id, conversationId, testo) {
   const a = stato.assistente;
@@ -784,6 +836,10 @@ const server = createServer(async (req, res) => {
     else if (comando === "file") {
       const { nome, contenuto, tipo, ritardo } = JSON.parse(await leggiCorpo(req));
       stato.fileVirtuali.set(nome, { contenuto, tipo: tipo ?? "application/json", ritardo: ritardo ?? 0 });
+    } else if (comando === "annuncio") {
+      // jarvis_voce.annuncia → evento jarvis_annuncio {pannello, testo, ascolta} (v0.5.4)
+      const { pannello, testo, ascolta } = JSON.parse(await leggiCorpo(req));
+      trasmettiEvento("jarvis_annuncio", { pannello, testo, ascolta: ascolta === true });
     } else if (comando === "veloce") {
       stato.veloce = url.searchParams.get("stato") ?? "su";
       if (stato.veloce === "giu") for (const c of clienti) if (c.veloce) c.ws.terminate();
@@ -1133,7 +1189,10 @@ function gestisci(ws, veloce) {
           (msg.end_stage === "tts" || msg.end_stage === "stt") &&
           typeof msg.input?.sample_rate === "number";
         const testoAVoce = msg.start_stage === "intent" && msg.end_stage === "tts";
-        if (!aVoce && (msg.start_stage !== "intent" || typeof testoDomanda !== "string"))
+        // v0.5.4: annuncio, solo la voce (come pipeline.py: start_stage tts vuole input.text)
+        const soloVoce =
+          msg.start_stage === "tts" && msg.end_stage === "tts" && typeof testoDomanda === "string";
+        if (!aVoce && !soloVoce && (msg.start_stage !== "intent" || typeof testoDomanda !== "string"))
           return invia(cliente, {
             id,
             type: "result",
@@ -1157,6 +1216,7 @@ function gestisci(ws, veloce) {
             dispositivo: msg.device_id ?? null,
           });
         else if (testoAVoce) void testoAVoceAssistente(cliente, id, conversationId, testoDomanda);
+        else if (soloVoce) void soloVoceAssistente(cliente, id, testoDomanda);
         else void rispondiAssistente(cliente, id, conversationId, testoDomanda);
         return;
       }

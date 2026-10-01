@@ -62,6 +62,8 @@ export interface Turno {
   audioPronto: boolean;
   /** Voce: HA vuole un seguito (continue_conversation): il microfono si riapre da solo. */
   continua: boolean;
+  /** Jarvis parla per primo (v0.5.4, evento jarvis_annuncio): niente domanda, solo la frase. */
+  annuncio: boolean;
 }
 
 export function nuovoTurno(id: number, domanda: string, voce = false): Turno {
@@ -75,6 +77,7 @@ export function nuovoTurno(id: number, domanda: string, voce = false): Turno {
     audioInStreaming: false,
     audioPronto: false,
     continua: false,
+    annuncio: false,
     fase: voce ? "ascolto" : "invio",
     risposta: "",
     azioni: [],

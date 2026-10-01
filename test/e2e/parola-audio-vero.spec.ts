@@ -36,7 +36,9 @@ test("il modello di serie lo sente: parte la domanda con wake_word_phrase, e la 
   const registro = page.getByTestId("log");
   await expect(registro).toContainText(/Microfono aperto \(elaborazione: solo-eco\): AudioContext a \d+ Hz/);
   await expect(registro).toContainText("rumore no, guadagno automatico no");
-  await expect(registro).toContainText(/«Jarvis» sentito \(punteggio 0\.9\d\)/);
+  await expect(registro).toContainText(
+    /«Jarvis» sentito \(punteggio 0\.9\d, modello di base, soglia 0\.50\)/,
+  );
   // e la barra dal vivo, nelle impostazioni: sopra la soglia mentre la clip dice «hey jarvis»
   await page.getByTestId("sezione-voce").click();
   await expect

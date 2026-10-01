@@ -234,9 +234,9 @@ test.describe("procedura guidata del primo avvio", () => {
     await page.getByTestId("guida-fine").click();
     await expect(guida).toHaveCount(0);
     expect(await page.evaluate(() => localStorage.getItem("jarvis-stanza-pannello"))).toBe("Cucina");
-    expect(await page.evaluate(() => localStorage.getItem("jarvis-parola"))).toBe(
-      '{"acceso":false,"suono":true}',
-    );
+    expect(
+      JSON.parse((await page.evaluate(() => localStorage.getItem("jarvis-parola"))) ?? "{}"),
+    ).toMatchObject({ acceso: false, suono: true });
     await page.reload();
     await expect(completo(page)).toBeVisible();
     await expect(guida).toHaveCount(0);

@@ -23,11 +23,13 @@ export class Riproduttore {
     return this.attuale !== null;
   }
 
-  riproduci(url: string): Promise<EsitoRiproduzione> {
+  /** `volume` 0..1 (v0.5.4: volume degli annunci); di serie quello del sistema. */
+  riproduci(url: string, volume = 1): Promise<EsitoRiproduzione> {
     this.ferma();
     return new Promise((risolvi) => {
       const audio = new Audio();
       audio.preload = "auto";
+      audio.volume = Math.min(1, Math.max(0, volume));
       let fermatoDaNoi = false;
       let timer: ReturnType<typeof setTimeout> = setTimeout(() => chiudi("errore"), MASSIMO_MS);
       const chiudi = (esito: EsitoRiproduzione): void => {

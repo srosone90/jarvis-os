@@ -8,6 +8,7 @@ import {
   type ConnectionOptions,
   type HaWebSocket,
 } from "home-assistant-js-websocket";
+import { Annunci } from "../annunci/annunci";
 import { Assistente } from "../assistente/assistente";
 import { PausaMusica } from "../voce/pausa-musica";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
@@ -99,6 +100,13 @@ export class Connessione {
     assistente: this.assistente,
     collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
     microfono: this.microfono.perVoce(),
+  });
+  /** Jarvis parla per primo (v0.5.4): evento jarvis_annuncio per questo pannello. */
+  readonly annunci = new Annunci({
+    mio: proprietarioTimer,
+    voce: this.voce,
+    assistente: this.assistente,
+    statoDi: (entita) => this.negozio.entitaDi(entita)?.state,
   });
   /** La musica della stanza si ferma mentre Jarvis ascolta e parla (v0.4.4). */
   readonly pausaMusica = new PausaMusica(
@@ -194,6 +202,7 @@ export class Connessione {
         this.segnaConnesso();
         void this.registri.collega(conn);
         void this.timer.collega(conn);
+        void this.annunci.collega(conn);
         this.avviaPing();
         return;
       } catch (errore) {

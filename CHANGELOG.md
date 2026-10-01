@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.5.4
+
+Meno falsi scatti con la TV accesa, e Jarvis che parla per primo.
+
+- **Falsi scatti**: in cucina, con la TV del salotto accesa, «Jarvis» era
+  partito 10 volte in 13 minuti senza che nessuno parlasse. Ora:
+  - la parola deve restare sopra la soglia per **due momenti di fila**
+    (160 ms), non uno solo;
+  - la **soglia si adatta**: più di 3 scatti senza parole in 10 minuti e
+    sale di un passo (lo scrive nel registro); dopo 30 minuti tranquilli
+    riscende, mai sotto quella di partenza;
+  - la **soglia personale** vale solo quando decide il verificatore della
+    pronuncia;
+  - **impara dai falsi scatti**: quando scatta e nessuno parla, quel suono
+    diventa un esempio di "non è Jarvis" (solo numeri, niente audio) e la
+    pronuncia imparata si aggiorna da sola;
+  - nel registro, per ogni scatto: punteggio, verificatore e trascrizione.
+  Misurato con 20 minuti di "TV" e il modello vero: da 24 a **0 falsi
+  scatti all'ora**, «hey jarvis» in mezzo alla TV riconosciuto 23 volte su
+  24 (96%).
+- **Jarvis parla per primo** (annunci di `jarvis_voce` 0.2.8): l'Hub si apre
+  e Jarvis dice l'annuncio con la sua voce; se l'annuncio lo chiede, poi ti
+  ascolta 8 secondi senza «Jarvis». Più annunci insieme vanno in coda. Di
+  notte e nell'ora del silenzio niente voce: l'annuncio resta scritto sullo
+  schermo a riposo finché non lo tocchi.
+- **Impostazioni → Jarvis parla per primo**: tutte le scelte del pacchetto
+  annunci di Home Assistant (interruttori, soglia del caldo, stanza, orari)
+  si vedono e si cambiano dal pannello; in più volume degli annunci e "solo
+  testo" per questo pannello.
+- **Tutto personalizzabile**, con il valore di serie scritto accanto e il
+  tasto «Ripristina»: soglia di scatto, conferma, soglia che si adatta
+  (quanti falsi scatti, in quanto tempo, di quanto, dopo quanto riscende),
+  impara dai falsi scatti, quanti secondi di riascolto dopo la risposta
+  (0 = spento), il discorso di prima (sì/no e quanti secondi).
+
 ## v0.5.3
 
 Una persona sempre presente: Jarvis sa di cosa si stava parlando, e dopo la

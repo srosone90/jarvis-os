@@ -357,12 +357,20 @@ describe("ascolto: la voce che mostra un errore non rende «Jarvis» sordo", () 
       timer: timer as unknown as ConstructorParameters<typeof AscoltoParola>[0]["timer"],
       adesso: () => 100_000,
     });
-    const motore = { soglia: 0.5, inRegistrazione: null, parola: "Jarvis" };
-    (a as unknown as { suEsito(e: unknown, m: unknown, t: number): void }).suEsito(
-      { punteggio: 0.9, base: 0.9, verificato: false, ms: 5 },
-      motore,
-      0,
-    );
+    const motore = {
+      sogliaSerie: 0.5,
+      sogliaPersonale: null,
+      inRegistrazione: null,
+      parola: "Jarvis",
+      istantanea: () => [],
+    };
+    // due frame di fila: la conferma della v0.5.4
+    for (let k = 0; k < 2; k++)
+      (a as unknown as { suEsito(e: unknown, m: unknown, t: number): void }).suEsito(
+        { punteggio: 0.9, base: 0.9, verificato: false, ms: 5 },
+        motore,
+        0,
+      );
     return chiamate.length;
   }
   it("con «Non ho capito» a schermo «Jarvis» scatta lo stesso", () => {

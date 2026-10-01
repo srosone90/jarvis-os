@@ -1,4 +1,5 @@
 import {
+  mdiBullhorn,
   mdiClose,
   mdiHome,
   mdiInformationOutline,
@@ -18,12 +19,14 @@ import { icona, RiquadroSicuro, stileBase } from "./base";
 import { rifaiGuida } from "./jarvis-guida";
 import "./jarvis-diagnostica";
 import "./jarvis-impostazioni-voce";
+import "./jarvis-impostazioni-annunci";
 
-export type Sezione = "stanza" | "voce" | "riposo" | "audio" | "diagnostica";
+export type Sezione = "stanza" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica";
 
 const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   { id: "stanza", titolo: "Stanza e nome", icona: mdiHome },
   { id: "voce", titolo: "Voce", icona: mdiMicrophone },
+  { id: "annunci", titolo: "Jarvis parla per primo", icona: mdiBullhorn },
   { id: "riposo", titolo: "Schermo a riposo", icona: mdiWeatherNight },
   { id: "audio", titolo: "Audio", icona: mdiVolumeHigh },
   { id: "diagnostica", titolo: "Diagnostica", icona: mdiInformationOutline },
@@ -413,11 +416,13 @@ export class JarvisImpostazioni extends RiquadroSicuro {
         ? this.stanza()
         : s === "voce"
           ? html`<jarvis-impostazioni-voce></jarvis-impostazioni-voce>`
-          : s === "riposo"
-            ? this.riposo()
-            : s === "audio"
-              ? this.audio()
-              : html`<jarvis-diagnostica></jarvis-diagnostica>`;
+          : s === "annunci"
+            ? html`<jarvis-impostazioni-annunci></jarvis-impostazioni-annunci>`
+            : s === "riposo"
+              ? this.riposo()
+              : s === "audio"
+                ? this.audio()
+                : html`<jarvis-diagnostica></jarvis-diagnostica>`;
     return html`<header>
         <h1>Impostazioni</h1>
         <button

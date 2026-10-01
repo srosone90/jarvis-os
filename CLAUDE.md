@@ -1241,6 +1241,59 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `msFine`. Conversazione continua col fruscio (si chiude) e con una frase in
   loop (seconda domanda, stesso conversation_id).
 
+### Falsi scatti e annunci (v0.5.4, 01/10)
+
+- **Fatto**: cucina, 12:27-12:40, 10 scatti con la TV del salotto accesa,
+  trascrizione sempre vuota. **Misura** (`test/unit/parola-falsi-scatti.test.ts`,
+  20 minuti di "TV" sintetica da `sottofondo-parlato.wav` + discussione + musica
+  generata, e il modello vero): un frame sopra 0,5 bastava → 24 falsi
+  all'ora; un verificatore con pochi negativi e soglia base bassa → 48.
+- **`DecisioneScatto`** (`src/parola/decisione.ts`, logica pura usata dal
+  pannello e dalla prova): `pazienza` frame di fila sopra soglia (di serie
+  2); la soglia personale solo se `verificato`; soglia che si adatta (più di
+  `vuoti` scatti a vuoto in `finestra` → +`passo`; dopo `quiete` senza
+  scatti a vuoto −`passo`, mai sotto la base; massimo 0,95). Risultato:
+  base 24 → 0/ora, «hey jarvis» nella TV 23/24.
+- **Impara dai falsi scatti** (`MotoreParola.imparaDaFalsoScatto`): allo
+  scatto si fotografano gli ultimi 16 frame (`istantanea`); se la
+  trascrizione torna vuota (`OpzioniVoce.dopoScatto(null)`) diventano un
+  esempio "normale" con persona `(falso scatto)` (solo caratteristiche) e
+  dopo 2 il verificatore si riaddestra da solo (se ci sono esempi della
+  parola). Nell'addestramento i falsi entrano tutti, non diradati. Nella
+  prova: verificatore "convinto dalla TV" 48 → 0/ora dopo 2 falsi, parola
+  vera 12/12.
+- **Registro**: a ogni scatto la soglia usata; all'esito "«Jarvis» delle
+  HH:MM: punteggio, (verificatore), trascrizione «…»" o "vuota: falso
+  scatto"; a ogni cambio di soglia il motivo.
+- **Preferenze** (`src/parola/preferenze.ts`, localStorage `jarvis-parola`):
+  acceso, suono, sogliaManuale (null = automatica), pazienza, adattiva,
+  passo, finestraMinuti, vuoti, quieteMinuti, impara, contesto,
+  secondiContesto. Ogni campo letto per sé, con limiti; un campo rotto torna
+  di serie da solo. `jarvis-voce`: riascoltoSecondi (0 = spento).
+- **Campi delle impostazioni** (`src/ui/campi.ts`): numero, numero con
+  "automatico", interruttore, orario, testo, scelta; ognuno scrive "Di
+  serie: …" e mostra «Ripristina» solo quando il valore è diverso
+  (`data-test` `campo-<id>`, `serie-<id>`, `ripristina-<id>`). Da usare per
+  OGNI impostazione nuova (requisito del 01/10).
+- **Annunci** (`src/annunci/annunci.ts`): evento `jarvis_annuncio
+  {pannello, testo, ascolta}` (jarvis_voce 0.2.8), solo con `pannello` =
+  `proprietarioTimer()`. Coda, mai sopra una domanda. Voce: pipeline
+  **tts→tts** con `input.text` (`Assistente.annuncia`, turno con
+  `annuncio: true`, già "fatto", aspetta tts-end), poi `Voce.annuncia` nel
+  luogo che decide l'app (porta l'Hub in primo piano), con il volume degli
+  annunci; `ascolta` = gli 8 s di riascolto. Silenzio (preferenza "solo
+  testo", notte dello schermo a riposo, `binary_sensor.jarvis_annunci_in_silenzio`
+  on) o HA scollegato → scritto sullo schermo a riposo (max 5, 12 ore, un
+  tocco lo toglie).
+- **Impostazioni → Jarvis parla per primo**: le entità del pacchetto
+  (`input_boolean.jarvis_annunci`, `_annuncio_caldo_camera`,
+  `_annuncio_buongiorno`, `input_number.jarvis_annuncio_caldo_soglia`,
+  `input_text.jarvis_annunci_stanza`, sei `input_datetime`) si cambiano coi
+  servizi di HA; valore di serie = quello del pacchetto. Un'entità mancante
+  si dice. Volume e "solo testo" in localStorage `jarvis-annunci`.
+- **Finto HA**: entità del pacchetto, servizi `input_*`, pipeline tts→tts,
+  `/__prova/annuncio`.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -1464,6 +1517,14 @@ se ne scrive una nuova che annulla la precedente.
   parte solo se il pannello sente parlare, così se nessuno parla non esce
   niente (né audio né costi di trascrizione). Bip allo scatto acceso di serie,
   si spegne in Impostazioni → Voce. Frase sulla privacy nella sezione Voce.
+
+- **2026-10-01** — **Piano autonomo di Salvatore** (v0.5.4 → v0.6.0): niente
+  domande, si decide e si rende tutto personalizzabile (valore di serie +
+  «Ripristina»); le scelte da confermare vanno in STATO.md. Le preferenze
+  del pannello stanno sul pannello, quelle della casa in entità di HA.
+- **2026-10-01** — **v0.5.4**: conferma su 2 frame, soglia che si adatta e
+  apprendimento dai falsi scatti, tutti accesi di serie (misurati). Annunci:
+  di notte e nell'ora del silenzio niente voce, scritti a riposo.
 
 ## 7. Convenzioni
 
@@ -1742,3 +1803,12 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
   prova della voce sarebbe diventata una conversazione infinita. Il microfono
   di serie delle prove è ora un fruscio: chi vuole voce la mette con
   `microfonoDaFile`.
+- **Un verificatore può peggiorare le cose.** Addestrato su pochi negativi e
+  consultato già da punteggi base minimi, nella prova con la TV faceva
+  scattare il doppio del modello di base, e nel rumore riconosceva meno la
+  parola vera. Più regole non bastavano: è servito dargli i suoi errori come
+  esempi. Prima di aggiungere soglie, misurare chi sta sbagliando.
+- **La finestra di misura fa parte della prova.** Una variante "persa" lo
+  era solo perché la frase finiva dopo la parola ("hey jarvis, what time is
+  it"): la finestra partiva dalla fine della frase. Riconoscimento contato
+  sull'intervallo della frase intera.
