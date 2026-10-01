@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.5.6
+
+Musica.
+
+- **Schermata Musica** (mockup M1), nella colonna tra Casa e Meteo:
+  copertina grande, titolo, artisti, dove suona, barra del tempo che scorre,
+  precedente / pausa / successivo, volume. Sotto, le **stanze** per spostare
+  la musica (quella dove suona è segnata) e le **playlist** di Spotify: un
+  tocco la fa partire dove suona già. La stella mette una playlist tra le
+  **preferite**, in cima. Tutto dallo stato vero di Spotify
+  (`jarvis_musica` 0.4.0); dopo ogni comando lo stato si rilegge.
+- **Mini-lettore** nella Casa, sotto l'orologio, **solo mentre suona
+  qualcosa**: copertina, titolo, primo artista e stanza, pausa; un tocco
+  apre la Musica. Sul tablet fa posto togliendo i giorni del meteo, come i
+  timer.
+- **Impostazioni → Schermate → Musica**: mini-lettore sì/no, dove (sotto
+  l'orologio o nella barra in basso), ogni quanti secondi rileggere (20 di
+  serie), stanze per spostare la musica (vuoto = le stanze di HA), togli le
+  preferite. Tutto col valore di serie e «Ripristina».
+- Lo stato della musica si legge in un solo posto per tutto il pannello
+  (schermata, mini-lettore, riposo), solo finché qualcuno la guarda, e
+  subito quando Home Assistant si ricollega.
+
 ## v0.5.5
 
 Navigazione, schermate Meteo e Stanza.

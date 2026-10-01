@@ -10,6 +10,7 @@ import {
 } from "home-assistant-js-websocket";
 import { Annunci } from "../annunci/annunci";
 import { Assistente } from "../assistente/assistente";
+import { Musica } from "../musica/musica";
 import { PausaMusica } from "../voce/pausa-musica";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { dispositivoPannello, proprietarioTimer } from "../timer/pannello";
@@ -137,10 +138,11 @@ export class Connessione {
     });
   }
 
-  /** Cosa suona adesso, letto da Spotify (jarvis_musica.stato): per lo schermo a riposo. */
-  statoMusica(): Promise<Record<string, unknown>> {
-    return this.chiamaServizio("jarvis_musica", "stato", {});
-  }
+  /** Musica (v0.5.6): stato vero di Spotify, comandi e playlist, condivisi da tutto il pannello. */
+  readonly musica = new Musica({
+    chiama: (servizio, dati) => this.chiamaServizio("jarvis_musica", servizio, dati),
+    collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
+  });
 
   /** <dominio>.<servizio> con la risposta: jarvis_musica (stato vero di Spotify) e jarvis_voce (timer). */
   private async chiamaServizio(
@@ -279,6 +281,8 @@ export class Connessione {
     });
     if (this.info.riconnessioni > 0) log.info("Riconnesso a Home Assistant");
     void this.misuraLatenza();
+    // chi guardava la musica mentre HA non c'era la ritrova subito, non al giro dopo
+    this.musica.alCollegamento();
   }
 
   private readonly suDisconnessa = (): void => {

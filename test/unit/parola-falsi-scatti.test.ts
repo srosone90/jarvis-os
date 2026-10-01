@@ -182,5 +182,7 @@ describe(`falsi scatti con ${MINUTI_TV} minuti di TV (modello vero)`, () => {
     expect(scatti.length).toBeLessThan(prima);
     expect(ultimi10).toBeLessThanOrEqual(1);
     expect(prese / prova.length).toBeGreaterThanOrEqual(0.95);
-  });
+    // modello vero su 41 s di audio e due addestramenti: ~5 s qui, il limite di serie di
+    // vitest (5 s) la faceva cadere per pochi decimi senza che nessuna verifica fallisse
+  }, 120_000);
 });

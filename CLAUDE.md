@@ -1330,6 +1330,43 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   a 30 minuti con un buco, `sun.sun` con orari di Roma, meteo con
   pressione e vento.
 
+### Musica (v0.5.6, 01/10)
+
+- **`Musica`** (`src/musica/musica.ts`, istanza `connessione.musica`): un
+  solo stato per schermata, mini-lettore e riposo. `osserva()` conta chi
+  guarda: si rilegge `jarvis_musica.stato` ogni `intervalloSecondi` (20)
+  solo con almeno un osservatore. `comanda`/`riproduci`: un comando alla
+  volta (`occupata` spegne i pulsanti), poi si **aspetta la lettura già in
+  corso e se ne fa una nuova** (quella partita prima del comando portava lo
+  stato di prima). `alCollegamento()` da `segnaConnesso`: chi guardava da
+  scollegato rilegge subito (prima il mini restava vuoto 20 s). Funzioni
+  pure: `branoDa`, `posizioneAdesso` (scorre solo in riproduzione, mai
+  oltre la durata), `playlistDa`, `ordinaPlaylist`. Preferenze
+  `jarvis-musica`.
+- **Schermata** `jarvis-pagina-musica`: playlist con `riproduci` (`cosa` =
+  uri, `dove` = stanza dove suona, solo se suona o è in pausa: con
+  "niente" decide `jarvis_musica`). Stanze: `preferenze.stanze` o le aree
+  di HA (`stanzeMusica`).
+- **Mini-lettore** `jarvis-mini-lettore`: attributo `nascosto` quando non
+  suona (niente spazio vuoto). Testi **a capo, mai coi puntini** (il
+  controllo di layout li segna come tagliati); sotto solo il primo artista.
+  Sul tablet `senzaGiorni` sul meteo anche col mini sotto l'orologio; nella
+  barra `flex: 0 1 480px` (a 380 un titolo lungo andava su 3 righe e
+  alzava la barra), sul telefono riga intera.
+- **Prove: comandi, non letture.** Il finto HA mette in `chiamate` anche
+  le letture periodiche (`jarvis_voce.timer_attivi`, e dalla v0.5.6
+  `jarvis_musica.stato` del mini-lettore, anche quando la musica non c'è).
+  Una prova che guarda "l'ultima chiamata", conta le chiamate o vuole
+  l'elenco vuoto passa da `soloComandi` (`test/e2e/aiuti.ts`), altrimenti
+  fallisce sempre o a caso (una lettura ogni 20 s capita nel mezzo).
+  Trovato in v0.5.6 su `navigazione.spec` e `dispositivi.spec`, che nelle
+  prove mirate non erano state rilanciate: **quando cambia qualcosa che
+  vale per tutto il pannello (colonna, letture periodiche) si rilanciano
+  tutte le prove nel browser, non solo quelle nuove.**
+- **Finto HA**: `stato` con artisti, dispositivo, copertina, posizione e
+  durata; `controllo` con successivo/precedente (3 brani), alza/abbassa
+  (±10), sposta; `playlist`; `riproduci` ("Primo brano di <playlist>").
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,
@@ -1565,6 +1602,8 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-10-01** — **v0.5.5**: nella colonna solo le schermate che esistono
   (Casa, Meteo + Hub); Musica, Timer e Altro con le loro versioni. «Jarvis,
   apri…» rimandato (STATO.md, punti bloccati).
+- **2026-10-01** — **v0.5.6**: Musica nella colonna al secondo posto (come
+  nel mockup N2); mini-lettore sotto l'orologio di serie, solo mentre suona.
 - **2026-10-01** — **Workflow con 45 minuti di limite**: la release della
   v0.5.4 è stata annullata dai 20 minuti (verifica ~25 + Chromium 5).
 

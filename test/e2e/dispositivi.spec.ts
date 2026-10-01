@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, comando, info, stanza } from "./aiuti";
+import { accedi, comando, info, soloComandi, stanza } from "./aiuti";
 
 /**
  * F2: stanze e dispositivi dai registri di HA, comandi con feedback ottimistico
@@ -13,7 +13,11 @@ test.beforeEach(async ({ request }) => {
 const card = (page: Page, tipo: string) => page.getByTestId(`card-${tipo}`);
 
 async function ultimaChiamata(request: Parameters<typeof info>[0]) {
-  return (await info(request)).chiamate.at(-1);
+  return soloComandi((await info(request)).chiamate).at(-1);
+}
+
+async function quantiComandi(request: Parameters<typeof info>[0]) {
+  return soloComandi((await info(request)).chiamate).length;
 }
 
 test("stanze e card dai registri: una card per dispositivo, Cucina vuota nascosta", async ({ page }) => {
@@ -121,11 +125,11 @@ test("condizionatore a infrarossi: 4 modalità + Altro, ultimo comando, temperat
   await expect(modi).toHaveText(["Auto", "Deumidifica", "Indietro"]);
   await clima.getByRole("button", { name: "Indietro" }).click();
 
-  const prima = (await info(request)).chiamate.length;
+  const prima = await quantiComandi(request);
   await clima.getByRole("button", { name: "Alza temperatura" }).click();
   await clima.getByRole("button", { name: "Alza temperatura" }).click();
   await expect(clima.getByTestId("clima-temperatura")).toHaveText("26°");
-  await expect.poll(async () => (await info(request)).chiamate.length, { timeout: 5000 }).toBe(prima + 1);
+  await expect.poll(() => quantiComandi(request), { timeout: 5000 }).toBe(prima + 1);
   expect(await ultimaChiamata(request)).toMatchObject({
     servizio: "climate.set_temperature",
     dati: { temperature: 26 },
@@ -180,9 +184,9 @@ test("offline: comandi disattivati subito, nessun comando parte", async ({ page,
   await expect(card(page, "media").locator("button.principale")).toBeDisabled({ timeout: 5000 });
   await expect(card(page, "tasto").getByRole("button", { name: "Tasto accensione" })).toBeDisabled();
   await expect(card(page, "clima").getByRole("button", { name: "Freddo" })).toBeDisabled();
-  const prima = (await info(request)).chiamate.length;
+  const prima = await quantiComandi(request);
   await card(page, "clima").getByRole("button", { name: "Freddo" }).click({ force: true });
-  expect((await info(request)).chiamate.length).toBe(prima);
+  expect(await quantiComandi(request)).toBe(prima);
 });
 
 test("dispositivo nuovo in HA: compare da solo nella sua stanza, senza ricaricare", async ({

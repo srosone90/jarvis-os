@@ -8,6 +8,8 @@ import {
   type PreferenzeMeteo,
   type UnitaVento,
 } from "../meteo/dettagli";
+import { connessione } from "../connessione/connessione";
+import { LIMITI_MUSICA, PREFERENZE_MUSICA_DI_SERIE, type PosizioneMini } from "../musica/musica";
 import { navigatore } from "../navigazione/istanza";
 import {
   LIMITI_NAVIGAZIONE,
@@ -25,12 +27,13 @@ import {
 } from "../storico/storico";
 import { log } from "../diagnostica/log";
 import { icona, RiquadroSicuro, stileBase } from "./base";
-import { campoInterruttore, campoNumero, campoScelta, stileCampi } from "./campi";
+import { campoInterruttore, campoNumero, campoScelta, campoTesto, stileCampi } from "./campi";
 
 /**
  * Impostazioni → Schermate (v0.5.5): la colonna di navigazione (ordine,
- * visibilità, schermata iniziale, ritorno), cosa mostra il Meteo e il
- * grafico della Stanza. Tutto di questo pannello, col valore di serie.
+ * visibilità, schermata iniziale, ritorno), la Musica (v0.5.6: mini-lettore,
+ * rilettura, stanze), cosa mostra il Meteo e il grafico della Stanza. Tutto
+ * di questo pannello, col valore di serie.
  */
 export class JarvisImpostazioniSchermate extends RiquadroSicuro {
   static override styles = [
@@ -104,14 +107,17 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
 
   override connectedCallback(): void {
     super.connectedCallback();
-    this.smetti = navigatore.ascolta(() => this.requestUpdate());
+    this.smetti = [
+      navigatore.ascolta(() => this.requestUpdate()),
+      connessione.musica.ascolta(() => this.requestUpdate()),
+    ];
   }
   override disconnectedCallback(): void {
     super.disconnectedCallback();
-    this.smetti?.();
-    this.smetti = null;
+    for (const f of this.smetti) f();
+    this.smetti = [];
   }
-  private smetti: (() => void) | null = null;
+  private smetti: (() => void)[] = [];
 
   private cambiaMeteo(cambi: Partial<{ [K in keyof PreferenzeMeteo]: PreferenzeMeteo[K] | null }>): void {
     const nuovo: Record<string, unknown> = { ...this.meteo };
@@ -207,6 +213,75 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
         unita: "secondi",
         cambia: (v) => navigatore.cambiaPreferenze({ ritornoSecondi: v }),
       })}`;
+  }
+
+  private schermataMusica(): TemplateResult {
+    const m = connessione.musica;
+    const p = m.preferenze;
+    const d = PREFERENZE_MUSICA_DI_SERIE;
+    return html`<h2>Musica</h2>
+      ${campoInterruttore({
+        id: "musica-mini",
+        titolo: "Mini-lettore nella Casa",
+        spiegazione: "Copertina, titolo e pausa, solo mentre suona qualcosa.",
+        valore: p.mini,
+        diSerie: d.mini,
+        cambia: (v) => m.cambiaPreferenze({ mini: v }),
+      })}
+      ${campoScelta<PosizioneMini>({
+        id: "musica-posizione",
+        titolo: "Dove sta il mini-lettore",
+        valore: p.posizioneMini,
+        diSerie: d.posizioneMini,
+        opzioni: [
+          ["orologio", "Sotto l'orologio"],
+          ["barra", "Nella barra in basso"],
+        ],
+        disattivo: !p.mini,
+        cambia: (v) => m.cambiaPreferenze({ posizioneMini: v }),
+      })}
+      ${campoNumero({
+        id: "musica-intervallo",
+        titolo: "Rileggi cosa suona ogni",
+        spiegazione: "Da Spotify, finché la musica è sullo schermo. Dopo ogni comando si rilegge subito.",
+        valore: p.intervalloSecondi,
+        diSerie: d.intervalloSecondi,
+        min: LIMITI_MUSICA.intervalloSecondi[0],
+        max: LIMITI_MUSICA.intervalloSecondi[1],
+        passo: 5,
+        unita: "secondi",
+        cambia: (v) => m.cambiaPreferenze({ intervalloSecondi: v }),
+      })}
+      ${campoTesto({
+        id: "musica-stanze",
+        titolo: "Stanze per spostare la musica",
+        spiegazione:
+          "Separate da virgole, come le chiama jarvis_musica. Vuoto = le stanze di Home Assistant.",
+        segnaposto: "Cucina, Camera da letto",
+        valore: p.stanze.join(", "),
+        diSerie: d.stanze.join(", "),
+        cambia: (v) =>
+          m.cambiaPreferenze({
+            stanze:
+              v === null
+                ? null
+                : v
+                    .split(",")
+                    .map((x) => x.trim())
+                    .filter(Boolean),
+          }),
+      })}
+      ${
+        p.preferite.length
+          ? html`<button
+              class="ripristina"
+              data-test="ripristina-preferite"
+              @click=${() => m.cambiaPreferenze({ preferite: null })}
+            >
+              Togli le ${p.preferite.length} playlist preferite
+            </button>`
+          : html``
+      }`;
   }
 
   private schermataMeteo(): TemplateResult {
@@ -313,7 +388,7 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
   }
 
   protected disegna(): TemplateResult {
-    return html`${this.colonna()} ${this.schermataMeteo()} ${this.schermataStanza()}`;
+    return html`${this.colonna()} ${this.schermataMusica()} ${this.schermataMeteo()} ${this.schermataStanza()}`;
   }
 }
 customElements.define("jarvis-impostazioni-schermate", JarvisImpostazioniSchermate);

@@ -36,8 +36,10 @@
  *   /__prova/file                {nome, contenuto, tipo?, ritardo?}: un file in /local/jarvis/ che
  *                                nello zip non c'è (es. parola.json di una casa); ritardo in ms
  *                                prima di servirlo (per decidere QUANDO parte «Jarvis» nelle prove)
- *   /__prova/musica              {stato, stanza, volume, titolo} | null: jarvis_musica (lo stato
- *                                vero di Spotify); null = componente non installato
+ *   /__prova/musica              {stato, stanza, volume, titolo, artisti?, dispositivo?, copertina?,
+ *                                posizione_ms?, durata_ms?, playlist?: [{nome, uri, copertina,
+ *                                proprietario}]} | null: jarvis_musica (lo stato vero di Spotify);
+ *                                null = componente non installato
  *   /__prova/timer               {tipo, id, nome, secondi_totali, secondi_rimasti, pannello}:
  *                                evento jarvis_timer, e l'elenco di jarvis_voce.timer_attivi si
  *                                aggiorna (come jarvis_voce 0.1.8 lato server)
@@ -1200,13 +1202,52 @@ function gestisci(ws, veloce) {
               if (m.volumeDopoRipresa !== undefined) m.volume = m.volumeDopoRipresa;
             }
             if (dati.azione === "volume") m.volume = dati.livello;
+            if (dati.azione === "alza") m.volume = Math.min(100, (m.volume ?? 0) + 10);
+            if (dati.azione === "abbassa") m.volume = Math.max(0, (m.volume ?? 0) - 10);
+            if (dati.azione === "successivo" || dati.azione === "precedente") {
+              const brani = ["Bohemian Rhapsody", "Don't Stop Me Now", "Somebody to Love"];
+              const i = Math.max(0, brani.indexOf(m.titolo));
+              m.titolo = brani[(i + (dati.azione === "successivo" ? 1 : brani.length - 1)) % brani.length];
+              m.posizione_ms = 0;
+              m.stato = "in_riproduzione";
+            }
+            if (dati.azione === "sposta") {
+              if (!dati.dove)
+                return invia(cliente, {
+                  id,
+                  type: "result",
+                  success: false,
+                  error: { code: "home_assistant_error", message: "Dove la sposto?" },
+                });
+              m.stanza = dati.dove;
+              m.dispositivo = `Echo ${dati.dove}`;
+            }
           }
+          if (msg.service === "riproduci") {
+            const p = (m.playlist ?? []).find((x) => x.uri === dati.cosa);
+            m.titolo = p ? `Primo brano di ${p.nome}` : String(dati.cosa ?? "");
+            m.stato = "in_riproduzione";
+            m.posizione_ms = 0;
+            if (dati.dove) m.stanza = dati.dove;
+          }
+          if (msg.service === "playlist")
+            return invia(cliente, {
+              id,
+              type: "result",
+              success: true,
+              result: { context: { id: "ctx" }, response: { playlist: m.playlist ?? [] } },
+            });
           const response = {
             esito: "ok",
             stato: m.stato,
             stanza: m.stanza,
             volume: m.volume,
             titolo: m.titolo,
+            artisti: m.artisti ?? "",
+            dispositivo: m.dispositivo ?? "",
+            copertina: m.copertina ?? null,
+            posizione_ms: m.posizione_ms ?? 0,
+            durata_ms: m.durata_ms ?? 0,
           };
           return invia(cliente, {
             id,

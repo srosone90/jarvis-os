@@ -52,6 +52,18 @@ export async function info(request: APIRequestContext): Promise<{
   return (await request.get(`${HA}/__prova/info`)).json();
 }
 
+/**
+ * Le letture che il pannello fa da solo, a intervalli: l'elenco dei timer e,
+ * dalla v0.5.6, cosa suona (il mini-lettore rilegge ogni 20 s). Non sono
+ * comandi dati da qualcuno, e il loro numero dipende dal tempo.
+ */
+const LETTURE = new Set(["jarvis_voce.timer_attivi", "jarvis_musica.stato", "jarvis_musica.playlist"]);
+
+/** Solo i comandi (le chiamate che cambiano qualcosa), nell'ordine in cui sono arrivati. */
+export function soloComandi<T extends { servizio: string }>(chiamate: readonly T[]): T[] {
+  return chiamate.filter((c) => !LETTURE.has(c.servizio));
+}
+
 export const pallino = (page: Page) => page.getByTestId("pallino");
 export const stanza = (page: Page, nome: string) => page.getByTestId("stanza").filter({ hasText: nome });
 

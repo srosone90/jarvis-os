@@ -22,6 +22,7 @@ import { leggiPreferenzeStorico, linea, puntiDa } from "../../src/storico/storic
 describe("indirizzo delle schermate", () => {
   it("#meteo, #stanza/<area>, casa senza niente; il resto non cambia schermata", () => {
     expect(paginaDaHash("#meteo")).toEqual({ tipo: "meteo" });
+    expect(paginaDaHash("#musica")).toEqual({ tipo: "musica" });
     expect(paginaDaHash("")).toEqual({ tipo: "casa" });
     expect(paginaDaHash("#stanza/camera_da_letto")).toEqual({ tipo: "stanza", area: "camera_da_letto" });
     expect(paginaDaHash("#qualcosa")).toBeNull();
@@ -47,14 +48,27 @@ describe("preferenze della colonna", () => {
     expect(p.voci).toEqual([
       { id: "meteo", visibile: false },
       { id: "casa", visibile: true },
+      { id: "musica", visibile: true },
     ]);
     const nuove = leggiPreferenzeNavigazione(JSON.stringify({ voci: [{ id: "meteo", visibile: true }] }));
-    expect(nuove.voci.map((v) => v.id)).toEqual(["meteo", "casa"]);
+    expect(nuove.voci.map((v) => v.id)).toEqual(["meteo", "casa", "musica"]);
+    // chi ha salvato l'ordine con la v0.5.5 (senza Musica) la ritrova in fondo, visibile
+    const vecchie = leggiPreferenzeNavigazione(
+      JSON.stringify({
+        voci: [
+          { id: "casa", visibile: true },
+          { id: "meteo", visibile: true },
+        ],
+      }),
+    );
+    expect(vecchie.voci.map((v) => v.id)).toEqual(["casa", "meteo", "musica"]);
   });
   it("sposta su e giù senza uscire dall'elenco", () => {
     const v = PREFERENZE_NAVIGAZIONE_DI_SERIE.voci;
-    expect(spostaVoce(v, "meteo", -1).map((x) => x.id)).toEqual(["meteo", "casa"]);
-    expect(spostaVoce(v, "casa", -1).map((x) => x.id)).toEqual(["casa", "meteo"]);
+    expect(v.map((x) => x.id)).toEqual(["casa", "musica", "meteo"]);
+    expect(spostaVoce(v, "meteo", -1).map((x) => x.id)).toEqual(["casa", "meteo", "musica"]);
+    expect(spostaVoce(v, "meteo", 1).map((x) => x.id)).toEqual(["casa", "musica", "meteo"]);
+    expect(spostaVoce(v, "casa", -1).map((x) => x.id)).toEqual(["casa", "musica", "meteo"]);
   });
 });
 
@@ -125,6 +139,7 @@ describe("navigatore", () => {
     n.cambiaPreferenze({
       voci: [
         { id: "casa", visibile: true },
+        { id: "musica", visibile: false },
         { id: "meteo", visibile: false },
       ],
     });

@@ -15,14 +15,17 @@ async function musica(request: APIRequestContext, m: Record<string, unknown> | n
   expect(r.ok()).toBeTruthy();
 }
 
-/** Le chiamate a jarvis_musica fatte dal pannello (non da Gemini), in ordine. */
+/**
+ * I comandi a jarvis_musica dati dal pannello (non da Gemini), in ordine. Le
+ * letture di `stato` non contano: dalla v0.5.6 il mini-lettore rilegge lo
+ * stato ogni 20 s, quindi il loro numero dipende dal tempo e non dalla voce.
+ */
 async function chiamateMusica(request: APIRequestContext): Promise<string[]> {
   return (await info(request)).chiamate
-    .filter((c) => c.servizio.startsWith("jarvis_musica.") && !("da" in c))
-    .map((c) =>
-      c.servizio === "jarvis_musica.stato"
-        ? "stato"
-        : `${String(c.dati["azione"])}${c.dati["livello"] !== undefined ? ` ${String(c.dati["livello"])}` : ""}`,
+    .filter((c) => c.servizio === "jarvis_musica.controllo" && !("da" in c))
+    .map(
+      (c) =>
+        `${String(c.dati["azione"])}${c.dati["livello"] !== undefined ? ` ${String(c.dati["livello"])}` : ""}`,
     );
 }
 
@@ -68,7 +71,7 @@ test("musica nella stanza del pannello: pausa subito, risposta chiara, poi ripre
   // dopo la risposta riparte, e il volume torna a 30 (l'Echo lo aveva messo a 40)
   await expect
     .poll(() => chiamateMusica(request), { timeout: 5000 })
-    .toEqual(["stato", "pausa", "riprendi", "volume 30"]);
+    .toEqual(["pausa", "riprendi", "volume 30"]);
   expect(await statoMusica(request)).toBe("in_riproduzione");
 });
 
@@ -86,7 +89,7 @@ test("musica già in pausa: resta in pausa, niente ripresa", async ({ page, requ
   await impostaStanza(page, "Camera da letto");
   await domandaAVoce(page);
   await page.waitForTimeout(2500);
-  expect(await chiamateMusica(request)).toEqual(["stato"]);
+  expect(await chiamateMusica(request)).toEqual([]);
   expect(await statoMusica(request)).toBe("in_pausa");
 });
 
@@ -96,7 +99,7 @@ test("musica in un'altra stanza: non si tocca", async ({ page, request }) => {
   await impostaStanza(page, "Camera da letto");
   await domandaAVoce(page);
   await page.waitForTimeout(2500);
-  expect(await chiamateMusica(request)).toEqual(["stato"]);
+  expect(await chiamateMusica(request)).toEqual([]);
   expect(await statoMusica(request)).toBe("in_riproduzione");
 });
 
@@ -107,7 +110,7 @@ test("«metti in pausa la musica»: resta in pausa, niente ripresa automatica", 
   await impostaStanza(page, "Camera da letto");
   await domandaAVoce(page);
   await page.waitForTimeout(2500);
-  expect(await chiamateMusica(request)).toEqual(["stato", "pausa"]);
+  expect(await chiamateMusica(request)).toEqual(["pausa"]);
   expect(await statoMusica(request)).toBe("in_pausa");
 });
 
@@ -121,7 +124,7 @@ test("errore di Gemini: la musica riparte comunque", async ({ page, request }) =
   await expect.poll(() => statoMusica(request), { timeout: 5000 }).toBe("in_pausa");
   await expect
     .poll(() => chiamateMusica(request), { timeout: 15_000 })
-    .toEqual(["stato", "pausa", "riprendi", "volume 30"]);
+    .toEqual(["pausa", "riprendi", "volume 30"]);
   expect(await statoMusica(request)).toBe("in_riproduzione");
 });
 

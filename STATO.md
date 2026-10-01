@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.5 (navigazione, Meteo, Stanza). Piano autonomo in corso._
+_Ultimo aggiornamento: 01/10/2026 — v0.5.6 (Musica). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -12,7 +12,7 @@ _Ultimo aggiornamento: 01/10/2026 — v0.5.5 (navigazione, Meteo, Stanza). Piano
 |---|---|---|
 | 2. Falsi scatti con la TV + annunci | v0.5.4 | **fatto** (sotto) |
 | 3. Navigazione N2 + Stanza + Meteo | v0.5.5 | **fatto** |
-| 4. Musica | v0.5.6 | da fare |
+| 4. Musica | v0.5.6 | **fatto** |
 | 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | da fare |
 | 6. Giro della personalizzazione + esporta/importa | v0.5.8 | da fare |
 | 7. Fotocamera | v0.6.0 | da fare |
@@ -59,6 +59,21 @@ Ogni riga: cosa, perché, dove si cambia.
 - **Sul tablet la colonna informazioni è a 290 px** (prima 330) e
   l'orologio un po' più piccolo, per far stare la colonna senza che le card
   della camera escano. Fisso nel layout.
+- **Musica al secondo posto nella colonna** (Casa, Musica, Meteo), come nel
+  mockup N2. Chi aveva già salvato un ordine la trova in fondo. Impostazioni
+  → Schermate.
+- **Mini-lettore acceso di serie, sotto l'orologio**, solo mentre suona
+  (in pausa sparisce). Nel mini solo il **primo artista**: l'elenco intero
+  è nella schermata Musica. Sul tablet, mentre c'è, i giorni del meteo
+  della Casa si nascondono (come con i timer). Impostazioni → Schermate →
+  Musica.
+- **Una playlist parte dove suona già** (anche in pausa); se non suona
+  niente non si passa la stanza e decide `jarvis_musica` (la sua stanza
+  predefinita).
+- **Stanze per spostare la musica = le aree di HA**, se non ne scegliete
+  altre (Impostazioni → Schermate → Musica). Vedi la proposta sotto.
+- **Volume ±10** coi pulsanti: è `alza`/`abbassa` di `jarvis_musica`, il
+  passo lo decide lui.
 - **Le impostazioni si aprono ancora tenendo premuto l'orologio**, che sta
   in Casa: dalle altre schermate si torna prima su Casa. Con "Altro"
   (v0.5.7) ci sarà anche lì.
@@ -88,10 +103,31 @@ Ogni riga: cosa, perché, dove si cambia.
   ritorno dopo N secondi (0 = mai); Meteo: ore, giorni, umidità, vento,
   unità del vento, pressione, pioggia, alba e tramonto; Stanza: ore del
   grafico, umidità nel grafico.
+- **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
+  rilettura ogni N secondi, stanze per spostarla, playlist preferite (la
+  stella; «Togli le preferite»).
 - **Schermo a riposo**: attesa, notte dalle/alle. **Audio**: audio sveglio.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.5.6, Musica** (mockup M1):
+  1. **schermata Musica** nella colonna: copertina, titolo, artisti, dove
+     suona, barra del tempo che scorre in locale, precedente / pausa /
+     successivo, volume ±; le stanze per spostarla; le playlist (tocco →
+     `riproduci` con l'uri), stella per le preferite in cima;
+  2. **mini-lettore** nella Casa sotto l'orologio solo mentre suona
+     (copertina, titolo, pausa; tocco → Musica), oppure nella barra;
+  3. stato riletto ogni 20 s finché qualcuno guarda, subito dopo ogni
+     comando e quando HA si ricollega;
+  4. **Impostazioni → Schermate → Musica**.
+  Controprove: rilettura dopo il comando senza aspettare quella in corso
+  (stato vecchio), mini senza rilettura al collegamento (vuoto per 20 s),
+  testi coi puntini, mini sul tablet senza fare posto: le prove cadono.
+- **Proposta per la sessione server**: `jarvis_musica.stato` potrebbe
+  mandare anche l'elenco delle stanze dove può suonare (i dispositivi
+  Spotify/Alexa che conosce). Oggi il pannello usa le aree di HA, ma non è
+  detto che in ogni area ci sia un Echo.
 
 - **Finito: v0.5.5, navigazione + Meteo + Stanza** (mockup N2):
   1. colonna a sinistra con Casa, Meteo e l'Hub in fondo; sul telefono in
@@ -141,15 +177,31 @@ Ogni riga: cosa, perché, dove si cambia.
 
 | | |
 |---|---|
-| Versione | **v0.5.5**: navigazione, Meteo, Stanza |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.5 |
+| Versione | **v0.5.6**: Musica |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.6 |
 | sha256 dello zip | _in arrivo dopo la release_ |
-| Precedente | v0.5.4, sha256 `1801d56881394b01905160adbaf82535bbb4b7ce58cf65e4460eeca1c32cc85a` (6,8 MB, service worker 0.5.4, `parola/` con 5 file, nessun file delle prove; verificati) |
+| Precedente | v0.5.5, sha256 `a7f9985a76aefd1feb19f4d4af523ef76252c4ec46d74bd745ef2a31a75ed4a6` (6,9 MB, service worker 0.5.5, `parola/` con 5 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.5.5
+## Da installare lato server: v0.5.6
 
-Solo lo zip sopra `/config/www/jarvis/` (contiene anche la v0.5.4). Lato HA
-niente di nuovo.
+Solo lo zip sopra `/config/www/jarvis/` (contiene anche la v0.5.5 e la
+v0.5.4). Lato HA serve `jarvis_musica` **0.4.0** (copertina, posizione,
+`playlist`), che c'è già.
+
+**Come provare la v0.5.6, dentro il pannello** (tablet della cucina):
+
+1. Fai partire una canzone (anche a voce: «Jarvis, metti i Queen in
+   cucina»). Sotto l'orologio compare il **mini-lettore** con copertina e
+   titolo; premi la pausa: sparisce. Premi play dalla Musica e ricompare.
+2. Tocca **Musica** nella colonna: la barra del tempo scorre; prova
+   successivo, volume +, e una **stanza** sotto per spostare la musica.
+   Dimmi se le stanze elencate sono quelle giuste per voi.
+3. Tocca una **playlist**: deve partire dove stava suonando. Tocca la
+   **stella** di un'altra: va in cima e ci resta anche dopo aver ricaricato.
+4. Tieni premuto l'orologio → **Schermate → Musica**: metti il mini-lettore
+   «Nella barra in basso», poi spegnilo; poi «Ripristina».
+
+## Prima: v0.5.5
 
 **Come provarla, dentro il pannello** (tablet della cucina):
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriChat, chiedi, comando } from "./aiuti";
+import { accedi, apriChat, apriImpostazioni, chiedi, comando } from "./aiuti";
 
 /**
  * Regola: MAI sovrapposizioni, a nessuna misura da 320 px di larghezza in su.
@@ -55,7 +55,7 @@ function misura(page: Page): Promise<Misura> {
     const nomeStanza = (s: Element) => s.shadowRoot?.querySelector("h2")?.textContent ?? "?";
     const principali = [
       ...app.querySelectorAll(
-        ".stato jarvis-connessione, .info > *, [data-test=zona-scene], .barra .chiedi, .barra .mic, .barra .posto-banner, jarvis-stanza",
+        ".stato jarvis-connessione, .info > *, [data-test=zona-scene], .barra .chiedi, .barra .mic, .barra .posto-banner, .barra jarvis-mini-lettore, jarvis-stanza",
       ),
     ]
       .filter(visibile)
@@ -666,5 +666,75 @@ for (const v of MISURE) {
       ],
       "stanza",
     ).toEqual([]);
+  });
+}
+
+// --- v0.5.6: Musica e mini-lettore a tutte le misure ---
+const copertinaProva =
+  "data:image/svg+xml," +
+  encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#7a3"/></svg>',
+  );
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.6: Musica, mini-lettore sotto l'orologio e nella barra`, async ({
+    page,
+    request,
+  }) => {
+    await comando(request, "musica", {
+      stato: "in_riproduzione",
+      // titolo lungo vero di Spotify, più artisti: nel mini va a capo, mai tagliato
+      titolo: "Under Pressure - Remastered 2011, from the album Hot Space",
+      artisti: "Queen, David Bowie",
+      dispositivo: "Echo Dot della camera da letto",
+      stanza: "Camera da letto",
+      volume: 35,
+      copertina: copertinaProva,
+      posizione_ms: 61_000,
+      durata_ms: 354_000,
+      playlist: [
+        {
+          nome: "Rock classico",
+          uri: "spotify:playlist:1",
+          copertina: copertinaProva,
+          proprietario: "Salvatore",
+        },
+        {
+          nome: "Una playlist dal nome molto lungo per vedere se va a capo",
+          uri: "spotify:playlist:2",
+          copertina: null,
+          proprietario: "Spotify",
+        },
+        { nome: "Lo-fi", uri: "spotify:playlist:3", copertina: null, proprietario: null },
+        { nome: "Jazz della sera", uri: "spotify:playlist:4", copertina: null, proprietario: "Salvatore" },
+      ],
+    });
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await accedi(page);
+    const colonna = ["jarvis-app", "jarvis-colonna"];
+    // Casa con il mini-lettore sotto l'orologio: sul tablet tutto resta nello schermo
+    await expect(page.getByTestId("mini-lettore")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/musica-mini-orologio-${v.nome}.png`, fullPage: true });
+    expect(controlla(await misura(page), v.width, v.height, v.unica), "mini sotto l'orologio").toEqual([]);
+    // Schermata Musica
+    await page.getByTestId("colonna-musica").click();
+    await expect(page.getByTestId("playlist-nome").first()).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/musica-${v.nome}.png`, fullPage: true });
+    expect(
+      [
+        ...(await controllaParti(page, v, v.unica ? [colonna, ["jarvis-app", ".pagina"]] : [colonna])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "musica",
+    ).toEqual([]);
+    // mini-lettore nella barra
+    await page.getByTestId("colonna-casa").click();
+    await apriImpostazioni(page, "schermate");
+    await page.getByTestId("campo-musica-posizione").selectOption("barra");
+    await page.screenshot({ path: `schermate/layout/impostazioni-musica-${v.nome}.png`, fullPage: true });
+    await page.getByTestId("chiudi-impostazioni").click();
+    await expect(page.getByTestId("zona-assistente").getByTestId("mini-lettore")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/musica-mini-barra-${v.nome}.png`, fullPage: true });
+    // il mini nella barra è tra le parti principali di `misura`: non si sovrappone a "Chiedi" né al microfono
+    expect(controlla(await misura(page), v.width, v.height, v.unica), "mini nella barra").toEqual([]);
   });
 }

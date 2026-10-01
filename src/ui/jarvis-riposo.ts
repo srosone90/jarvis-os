@@ -2,7 +2,6 @@ import { mdiMusic, mdiPause, mdiThermometer, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE } from "../configurazione";
 import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
 import { condizione, gradiInteri, numero } from "../meteo/testi";
 import { formattaRimasto, rimastoMs, type TimerAttivo } from "../timer/timer";
 import { vista } from "../vista/istanza";
@@ -13,15 +12,8 @@ import "./jarvis-sfera";
 import "./jarvis-indicatore-parola";
 
 /** Cosa suona si rilegge ogni tanto (ogni lettura è una richiesta a Spotify). */
-const MUSICA_OGNI_MS = 60_000;
 /** Anti burn-in: il contenuto si sposta di pochi pixel ogni minuto. */
 const SPOSTAMENTO_PX = 6;
-
-interface Musica {
-  titolo: string;
-  artisti: string;
-  stanza: string;
-}
 
 /**
  * Schermo a riposo, variante C (scelta di Salvatore, 30/09): la sfera fioca che
@@ -278,9 +270,8 @@ export class JarvisRiposo extends RiquadroSicuro {
   private smettiTimer: (() => void) | null = null;
   private smettiVista: (() => void) | null = null;
   private battito: ReturnType<typeof setInterval> | undefined;
-  private timerMusica: ReturnType<typeof setInterval> | undefined;
-  private musica: Musica | null = null;
-  private avvisatoMusica = false;
+  /** Musica (v0.5.6): lo stato condiviso, riletto mentre il riposo è a schermo. */
+  private smettiMusica: (() => void)[] = [];
   private spostamento = { x: 0, y: 0 };
   private minuto = -1;
 
@@ -300,8 +291,10 @@ export class JarvisRiposo extends RiquadroSicuro {
     // un secondo alla volta: orologio e conto alla rovescia (la pagina è leggera, a riposo non c'è altro)
     this.battito = setInterval(() => this.requestUpdate(), 1000);
     this.addEventListener("click", this.suTocco);
-    void this.leggiMusica();
-    this.timerMusica = setInterval(() => void this.leggiMusica(), MUSICA_OGNI_MS);
+    this.smettiMusica = [
+      connessione.musica.osserva(),
+      connessione.musica.ascolta(() => this.requestUpdate()),
+    ];
   }
 
   override disconnectedCallback(): void {
@@ -310,7 +303,8 @@ export class JarvisRiposo extends RiquadroSicuro {
     this.smettiVista?.();
     this.smettiTimer = this.smettiVista = null;
     clearInterval(this.battito);
-    clearInterval(this.timerMusica);
+    for (const f of this.smettiMusica) f();
+    this.smettiMusica = [];
     this.removeEventListener("click", this.suTocco);
   }
 
@@ -326,27 +320,6 @@ export class JarvisRiposo extends RiquadroSicuro {
     vista.vai("completo", "tocco sul riposo");
   };
 
-  private async leggiMusica(): Promise<void> {
-    if (this.stato.info.stato !== "connesso") return;
-    try {
-      const r = await connessione.statoMusica();
-      this.musica =
-        r["stato"] === "in_riproduzione" && typeof r["titolo"] === "string"
-          ? {
-              titolo: r["titolo"],
-              artisti: typeof r["artisti"] === "string" ? r["artisti"] : "",
-              stanza: typeof r["stanza"] === "string" ? r["stanza"] : "",
-            }
-          : null;
-    } catch (errore) {
-      // componente non installato o Spotify giù: sul riposo semplicemente non c'è la riga
-      this.musica = null;
-      if (!this.avvisatoMusica) log.avviso(`Riposo: cosa suona non leggibile: ${descriviErrore(errore)}`);
-      this.avvisatoMusica = true;
-    }
-    this.requestUpdate();
-  }
-
   protected override updated(): void {
     // anti burn-in: ogni minuto qualche pixel più in là
     const m = new Date().getMinutes();
@@ -360,6 +333,7 @@ export class JarvisRiposo extends RiquadroSicuro {
 
   private righe(): TemplateResult {
     const n = connessione.negozio;
+    const m = connessione.musica.brano;
     const meteo = n.entitaDi(PREFERENZE.meteo);
     const c = meteo ? condizione(meteo.state) : null;
     const t = meteo ? gradiInteri(meteo.attributes["temperature"]) : null;
@@ -377,11 +351,11 @@ export class JarvisRiposo extends RiquadroSicuro {
       }
       ${stanze.length ? html`<div class="riga">${icona(mdiThermometer)}<span>${stanze.join(" · ")}</span></div>` : nothing}
       ${
-        this.musica
+        m?.stato === "in_riproduzione" && m.titolo
           ? html`<div class="riga" data-test="riposo-musica">
               ${icona(mdiMusic)}<span
-                >${this.musica.titolo}${this.musica.artisti ? ` · ${this.musica.artisti}` : ""}${
-                  this.musica.stanza ? html` <span class="attenuato">· ${this.musica.stanza}</span>` : ""
+                >${m.titolo}${m.artisti ? ` · ${m.artisti}` : ""}${
+                  m.stanza ? html` <span class="attenuato">· ${m.stanza}</span>` : ""
                 }</span
               >
             </div>`

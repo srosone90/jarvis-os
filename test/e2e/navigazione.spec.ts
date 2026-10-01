@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info } from "./aiuti";
+import { accedi, apriImpostazioni, comando, info, soloComandi } from "./aiuti";
 
 /**
  * Navigazione N2 (v0.5.5): colonna a sinistra (Casa, Meteo, in fondo l'Hub),
@@ -58,7 +58,7 @@ test("Stanza: dal nome della stanza, grafico dallo storico di HA e i dispositivi
   // i dispositivi della stanza, comandabili come in casa
   await expect(page.getByTestId("pagina-stanza").getByText("Condizionatore")).toBeVisible();
   // aprire la stanza non comanda niente
-  expect((await info(request)).chiamate.filter((c) => !c.servizio.startsWith("jarvis_voce."))).toEqual([]);
+  expect(soloComandi((await info(request)).chiamate)).toEqual([]);
   // Indietro (Android): si torna a Casa
   await page.goBack();
   await expect(page.getByTestId("pagina-stanza")).toHaveCount(0);
@@ -76,7 +76,8 @@ test("Impostazioni → Schermate: ordine, voci nascoste, schermata iniziale, met
 }) => {
   await accedi(page);
   await apriImpostazioni(page, "schermate");
-  // Meteo prima di Casa
+  // Meteo prima di Casa (dalla v0.5.6 in mezzo c'è Musica: due passi su)
+  await page.getByTestId("su-meteo").click();
   await page.getByTestId("su-meteo").click();
   await expect(page.getByTestId("ripristina-colonna")).toBeVisible();
   // schermata iniziale: Meteo

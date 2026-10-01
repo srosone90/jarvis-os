@@ -14,11 +14,12 @@ import { descriviErrore, log } from "../diagnostica/log";
  *
  * Logica pura + preferenze; la cronologia del browser la tiene `Navigatore`.
  */
-export type Principale = "casa" | "meteo";
+export type Principale = "casa" | "musica" | "meteo";
 export type Pagina = { tipo: Principale } | { tipo: "stanza"; area: string };
 
 export const PRINCIPALI: readonly { id: Principale; titolo: string }[] = [
   { id: "casa", titolo: "Casa" },
+  { id: "musica", titolo: "Musica" },
   { id: "meteo", titolo: "Meteo" },
 ];
 

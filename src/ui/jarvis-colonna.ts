@@ -1,4 +1,4 @@
-import { mdiCircleSlice8, mdiHome, mdiWeatherPartlyCloudy } from "@mdi/js";
+import { mdiCircleSlice8, mdiHome, mdiMusic, mdiWeatherPartlyCloudy } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
 import { navigatore } from "../navigazione/istanza";
 import type { Principale } from "../navigazione/navigazione";
@@ -7,6 +7,7 @@ import { icona, RiquadroSicuro, stileBase } from "./base";
 
 const ICONE: Record<Principale, string> = {
   casa: mdiHome,
+  musica: mdiMusic,
   meteo: mdiWeatherPartlyCloudy,
 };
 

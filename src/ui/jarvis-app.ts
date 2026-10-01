@@ -19,7 +19,9 @@ import { quandoPuoRiposare, vista } from "../vista/istanza";
 import { navigatore } from "../navigazione/istanza";
 import "./jarvis-chat";
 import "./jarvis-colonna";
+import "./jarvis-mini-lettore";
 import "./jarvis-pagina-meteo";
+import "./jarvis-pagina-musica";
 import "./jarvis-pagina-stanza";
 import "./jarvis-voce-riquadro";
 import "./jarvis-timer";
@@ -159,6 +161,12 @@ const SCENE = [
  * vista; altrove è a tutto schermo e il resto non si disegna (niente da far
  * scorrere sotto, niente sovrapposizioni).
  */
+/** Il mini-lettore è visibile sotto l'orologio (acceso, lì, e qualcosa suona). */
+function miniSottoOrologio(): boolean {
+  const p = connessione.musica.preferenze;
+  return p.mini && p.posizioneMini === "orologio" && connessione.musica.suona;
+}
+
 export class JarvisApp extends LitElement {
   static override styles = css`
     /* riposo e Hub (fase G): a tutto schermo, niente griglia del pannello */
@@ -284,6 +292,18 @@ export class JarvisApp extends LitElement {
       gap: 12px;
       align-items: center;
       min-width: 0;
+    }
+    .barra jarvis-mini-lettore {
+      flex: 0 1 480px;
+    }
+    /* telefono: il mini-lettore nella barra prende una riga sua sopra "Chiedi a Jarvis" */
+    @media (max-width: 599px) {
+      .barra {
+        flex-wrap: wrap;
+      }
+      .barra jarvis-mini-lettore {
+        flex-basis: 100%;
+      }
     }
     .chiedi {
       flex: 1;
@@ -550,6 +570,15 @@ export class JarvisApp extends LitElement {
       const area = (e as CustomEvent<string>).detail;
       navigatore.vai({ tipo: "stanza", area }, "tocco sulla stanza");
     });
+    // il mini-lettore si sposta (orologio ↔ barra) appena lo si sceglie in Impostazioni, e
+    // sul tablet fa posto (giorni del meteo) solo mentre c'è davvero
+    let mini = `${connessione.musica.preferenze.posizioneMini} ${miniSottoOrologio()}`;
+    connessione.musica.ascolta(() => {
+      const adesso = `${connessione.musica.preferenze.posizioneMini} ${miniSottoOrologio()}`;
+      if (adesso === mini) return;
+      mini = adesso;
+      this.requestUpdate();
+    });
     // la voce decide se mostrare il riquadro piccolo
     new OsservaVoce(this);
     new OsservaTimer(this);
@@ -657,7 +686,9 @@ export class JarvisApp extends LitElement {
               ${
                 pagina.tipo === "stanza"
                   ? html`<jarvis-pagina-stanza .areaId=${pagina.area}></jarvis-pagina-stanza>`
-                  : html`<jarvis-pagina-meteo></jarvis-pagina-meteo>`
+                  : pagina.tipo === "musica"
+                    ? html`<jarvis-pagina-musica></jarvis-pagina-musica>`
+                    : html`<jarvis-pagina-meteo></jarvis-pagina-meteo>`
               }
             </main>`
           : this.casa(offline, chatAperta, stanze, scollegato, bannerNellaBarra)
@@ -678,6 +709,11 @@ export class JarvisApp extends LitElement {
     return html`
       <section class="info">
         <jarvis-orologio></jarvis-orologio>
+        ${
+          connessione.musica.preferenze.posizioneMini === "orologio"
+            ? html`<jarvis-mini-lettore></jarvis-mini-lettore>`
+            : nothing
+        }
         <jarvis-timer .massimo=${this.schermata.unica ? TIMER_SUL_TABLET : Infinity}></jarvis-timer>
         <jarvis-meteo
           role="button"
@@ -687,7 +723,7 @@ export class JarvisApp extends LitElement {
           style="cursor: pointer"
           @click=${() => navigatore.vai({ tipo: "meteo" }, "tocco sul meteo")}
           .nonAggiornato=${offline}
-          .senzaGiorni=${this.schermata.unica && connessione.timer.attivi.length > 0}
+          .senzaGiorni=${this.schermata.unica && (connessione.timer.attivi.length > 0 || miniSottoOrologio())}
         ></jarvis-meteo>
       </section>
       <div class="scene" role="group" aria-label="Scene, in arrivo" data-test="zona-scene">
@@ -726,15 +762,21 @@ export class JarvisApp extends LitElement {
             ></jarvis-stanza>`,
         )}
       </section>
-      ${this.barra(bannerNellaBarra, scollegato)}
+      ${this.barra(bannerNellaBarra, scollegato, true)}
     `;
   }
 
-  private barra(bannerNellaBarra: boolean, scollegato: boolean): TemplateResult {
+  /** `conMini`: solo nella Casa il mini-lettore può stare nella barra (se è lì che l'ha messo l'utente). */
+  private barra(bannerNellaBarra: boolean, scollegato: boolean, conMini = false): TemplateResult {
     return html`<div class="barra ${bannerNellaBarra ? "offline" : ""}" data-test="zona-assistente">
       ${
         bannerNellaBarra
           ? html`<div class="posto-banner"><jarvis-connessione parte="banner"></jarvis-connessione></div>`
+          : nothing
+      }
+      ${
+        conMini && !bannerNellaBarra && connessione.musica.preferenze.posizioneMini === "barra"
+          ? html`<jarvis-mini-lettore></jarvis-mini-lettore>`
           : nothing
       }
       <button
