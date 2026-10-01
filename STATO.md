@@ -228,7 +228,7 @@ Ogni riga: cosa, perché, dove si cambia.
 |---|---|
 | Versione | **v0.5.7**: Timer, Clima, Scene, Spesa, Avvisi, Altro |
 | Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.7 |
-| sha256 dello zip | _in arrivo dopo la release_ |
+| sha256 dello zip | `a11b13a3deb66f5e3362d92dbc2142e04a79c6aec1e11eafbea8591f5c36f046` (6,9 MB, service worker 0.5.7, `parola/` con 5 file, nessun file delle prove; verificati) |
 | Precedente | v0.5.6, sha256 `00c61e2ba43304f21e8b4af1d4d236f8afe536530de556ab93a3c2eee93fcda6` (6,9 MB, service worker 0.5.6, `parola/` con 5 file, nessun file delle prove; verificati). La prima release della v0.5.6 era caduta in CI su 3 prove degli annunci che dipendevano dall'ora (vedi CLAUDE.md); ripubblicata dopo la correzione (commit `d39777b`) |
 
 ## Da installare lato server: v0.5.7
