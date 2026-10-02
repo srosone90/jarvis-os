@@ -18,7 +18,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 | M. Musica dal dispositivo del pannello + «Collega questo dispositivo» (priorità alta, 02/10) | v0.5.9 | **fatto** |
 | 6. Giro della personalizzazione + esporta/importa | v0.5.10 | **fatto** |
 | 7. Fotocamera | v0.6.0 | **fatto** |
-| 8. Modello su misura | — | da fare |
+| 8. Modello su misura | — | piano scritto (non fattibile qui, vedi sotto) |
 
 **Piano finale del 02/10** (un solo task, in ordine):
 
@@ -27,7 +27,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 | 1. Instradamento musica | **già fatta con la v0.5.9** (jarvis_musica 0.5.0 + pannello): ricontrollata punto per punto, 1a-f e pannello ci sono tutti, comprese le prove (87/87 sul finto Spotify). Il server ha ancora jarvis_musica 0.4.0: va installata la 0.5.0 (sezione «Prima: v0.5.9» sotto) |
 | 2. Ascolto dopo la risposta + errori di Google | **già fatta con la v0.5.8**: 8 s dopo una domanda, 2 s dopo un'azione (0 = chiude subito), sensibilità del parlato, suono breve e «Google non risponde» distinto dal silenzio di stt-no-text-recognized |
 | Carattere di Jarvis «in stile Tony Stark» | **fatto**: `docs/ISTRUZIONI-JARVIS.md`, da applicare lato server |
-| 3. Modello su misura per «Jarvis» | in corso |
+| 3. Modello su misura per «Jarvis» | **non fattibile in questo ambiente**: piano dettagliato in «Modello su misura per «Jarvis»: piano» qui sotto. Resta `hey_jarvis` col verificatore della pronuncia |
 | 4. Riordino in moduli | da fare |
 
 ## Valutazione della fotocamera (v0.6.0, punto 7.1, scritta prima del codice)
@@ -226,6 +226,65 @@ Ogni riga: cosa, perché, dove si cambia.
 - **Nelle prove automatiche la fotocamera è spenta** salvo le prove della
   fotocamera: quella finta di Chromium si muove sempre e sveglierebbe il
   pannello in tutte le altre prove.
+
+## Modello su misura per «Jarvis»: piano (Parte 3, 02/10)
+
+**Perché non qui.** Verificato il 02/10, non a memoria:
+
+- **I dati non arrivano**: Hugging Face non risponde dalla rete di questo
+  ambiente (connessione rifiutata), e lì stanno le voci italiane di Piper, la
+  voce inglese multi-parlante, i negativi pronti di openWakeWord e i corpora
+  di parlato italiano. Nelle release GitHub di Piper (v0.0.2) non c'è nessuna
+  voce italiana (5 nomi provati, tutti 404).
+- **Con quello che c'è** (una sola voce inglese, `lessac`) il modello
+  imparerebbe quella voce, non la parola; e la prova dei falsi scatti usa la
+  stessa voce: il confronto con `hey_jarvis` risulterebbe migliore per
+  finta. Il piano chiede «di serie solo se migliore su entrambi»: con una
+  misura falsata non si può decidere.
+- Niente GPU (4 CPU, 15 GB): l'addestramento in sé starebbe nei tempi, la
+  generazione e l'aumento dei dati sarebbero lenti ma possibili. Il blocco
+  vero sono i dati.
+
+**Dove farlo**: Google Colab (GPU T4 gratuita) o un PC con GPU, col notebook
+`automatic_model_training` di openWakeWord (codice Apache 2.0). Lì Hugging
+Face si scarica normalmente. Tempo: ~1 h di generazione clip, ~30 min di
+caratteristiche, ~30-60 min di addestramento; mezza giornata in tutto con le
+prove.
+
+**Dati** (licenze lette sulle schede di Hugging Face il 02/10, via connettore):
+
+| Cosa | Da dove | Licenza |
+|---|---|---|
+| Voce `it_IT-serena` (medium e high) | `rhasspy/piper-voices` | CC BY 4.0 (dataset `committa/serena-synthetic-it-27h`) |
+| Voce `it_IT-paola-medium` | idem | «vedi dataset» `paolapersico1/Voice-Dataset-Italian`: da leggere prima |
+| Voce `it_IT-riccardo-x_low` | idem | «vedi dataset» M-AILABS: da leggere prima |
+| Voce inglese multi-parlante `en_US-libritts_r-medium` (900+ voci, con i fonemi italiani scritti a mano) | idem | dataset LibriTTS-R, CC BY 4.0 |
+| Negativi pronti (caratteristiche di ~2000 h di audio vario) | `davidscripka/openwakeword_features` | da leggere prima; i modelli di base di openWakeWord sono già CC BY-NC-SA (solo uso personale) |
+| Parlato italiano vero (negativi «TV») | Common Voice italiano / Multilingual LibriSpeech italiano | CC0 / CC BY 4.0 |
+| Riverbero delle stanze | MIT IR Survey | CC BY 4.0 |
+| **Le pronunce di casa** | gli esempi già registrati nel pannello (Impostazioni → Voce → «Insegna a Jarvis la tua pronuncia») e i falsi scatti imparati: sono già le caratteristiche (16 × 96) che il classificatore usa | nostre |
+
+**Parole**: «Jarvis», «Giàrvis», «Giarvìs» scritte in fonemi (`ˈdʒarvis`,
+`dʒarˈvis`) per pilotare l'accento, 3-5 mila clip per variante con velocità
+0,8-1,3, rumore e riverbero.
+
+**Misura, uguale per i due modelli** (decisa prima dei numeri):
+riconoscimento sulle clip italiane tenute fuori dall'addestramento e sulle
+clip delle prove (`test/dati/audio`), più la prova dal vivo sul tablet a 1 e
+3 m; falsi scatti all'ora con la prova esistente
+(`test/unit/parola-falsi-scatti.test.ts`) e con 1 h di parlato italiano.
+**Di serie solo se migliore di `hey_jarvis` su entrambi**; altrimenti
+un'opzione «Modello della parola» in Impostazioni → Voce.
+
+**Nel pannello** serve poco: il rilevatore è già un'interfaccia
+(`RilevatoreParola`), parola e licenza arrivano dalla descrizione del
+modello. Si aggiunge il file in `modelli/openwakeword/` con la sua riga in
+`LICENZA.md`, la scelta in Impostazioni → Voce, e le prove.
+
+**Cosa serve per sbloccarlo**: o una sessione con Hugging Face raggiungibile
+(cambiando la rete dell'ambiente), o qualcuno che lanci il notebook su Colab
+e metta nel repo il file `.onnx` risultante; da lì, misura e integrazione le
+faccio io.
 
 ## Punti bloccati e cosa serve
 
