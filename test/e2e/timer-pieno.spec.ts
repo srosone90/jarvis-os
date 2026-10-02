@@ -5,10 +5,12 @@ import { accedi, apriImpostazioni, comando, info } from "./aiuti";
  * Timer a tutto schermo (v0.6.2, richiesta di Salvatore del 02/10): con un
  * timer attivo, quando nessuno tocca il pannello per `timerPienoSecondi` il
  * timer copre tutto; un tocco riporta al pannello e poi il timer torna. Qui i
- * secondi sono 3, per non aspettare i 15 di serie.
+ * secondi sono 5, il minimo delle impostazioni (con meno il pannello li porta
+ * comunque a 5: la release della v0.6.2 è caduta proprio per una prova che ne
+ * chiedeva 3 e aspettava al massimo 6 s), per non aspettare i 15 di serie.
  */
 
-const SECONDI = 3;
+const SECONDI = 5;
 const PASTA = { id: "t-pasta", nome: "pasta", secondi_totali: 600 };
 
 test.beforeEach(async ({ page, request }) => {
