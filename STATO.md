@@ -295,10 +295,10 @@ Ogni riga: cosa, perché, dove si cambia.
 
 | | |
 |---|---|
-| Versione | **v0.5.8**: riascolto breve, errori di Google, timer coi servizi, conferma scene |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.8 |
-| sha256 dello zip | `e2ade89e0716d42466c477be7e5c8c7059071d9233e8d2452ab82102cbdc6917` (6,9 MB, service worker 0.5.8, `parola/` con 5 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
-| Precedente | v0.5.7, sha256 `a11b13a3deb66f5e3362d92dbc2142e04a79c6aec1e11eafbea8591f5c36f046` (6,9 MB, service worker 0.5.7, `parola/` con 5 file, nessun file delle prove; verificati) |
+| Versione | **v0.5.9**: la musica parte dal dispositivo da cui la chiedi (+ jarvis_musica 0.5.0 nel repo) |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.5.9 |
+| sha256 dello zip | `f0bb25fded5492d10aac620de54fd00d68f052accc092348368e141f235eb217` (6,9 MB, service worker 0.5.9, `parola/` con 5 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
+| Precedente | v0.5.8, sha256 `e2ade89e0716d42466c477be7e5c8c7059071d9233e8d2452ab82102cbdc6917` (6,9 MB, service worker 0.5.8, `parola/` con 5 file, nessun file delle prove; verificati) |
 
 ## Da installare lato server: v0.5.9
 
