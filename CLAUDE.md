@@ -3,6 +3,47 @@
 Memoria di lungo periodo del progetto. Va letto a ogni sessione e aggiornato a
 ogni fase, insieme alle modifiche che lo riguardano.
 
+## Mappa dei moduli
+
+Indice per navigare: una riga per modulo. Per una modifica si legge la riga,
+poi il contratto del modulo, poi i suoi file. Formato: modulo — a cosa serve —
+indice — dipende da — test.
+
+**Regole dei confini** (riordino del 02/10):
+
+- ogni modulo è una cartella di `src/`; **fuori dal modulo si importa solo il
+  suo contratto**: `index.ts` (la logica) e, se il modulo ha anche
+  interfaccia, `componenti.ts` (i suoi elementi Lit). Un modulo di sola
+  interfaccia espone tutto da `index.ts`;
+- **la logica non importa mai `componenti.ts`**: è quello che tiene il grafo
+  senza giri chiusi (`connessione` crea i servizi di quasi tutti i moduli, e
+  l'interfaccia usa `connessione`; con un indice unico, logica e interfaccia
+  si importerebbero a vicenda e l'avvio potrebbe fermarsi su un valore non
+  ancora pronto). Le prove di un modulo possono leggere i suoi file interni;
+- un file caricato dopo (`import()`) non si riesporta mai come valore dal
+  contratto: finirebbe nel pacchetto iniziale (solo `export type`);
+- confini esterni, fuori dal pannello e da non toccare da qui: **Home
+  Assistant** (WebSocket), **jarvis_voce** (pipeline `assist_pipeline/run`,
+  eventi `jarvis_timer`/`jarvis_annuncio`, servizi), **jarvis_musica**
+  (servizi in `home-assistant/custom_components/jarvis_musica`, contratto
+  esterno), il **pacchetto** `home-assistant/packages/`;
+- prove: `test/unit/<modulo>/` e `test/e2e/<modulo>/`, lanciate da
+  `npm run test:<modulo>` (`scripts/test-modulo.mjs`: unitarie, poi build e
+  browser); quelle trasversali (layout alle 6 misure) in
+  `test/e2e/trasversali/`, con `npm run verifica`.
+
+| Modulo | A cosa serve | Indice | Dipende da | Test |
+|---|---|---|---|---|
+| diagnostica | registro (`log`), schermata Diagnostica | `src/diagnostica/index.ts`, `componenti.ts` | — (la schermata: connessione, interfaccia, pwa, parola) | `npm run test:diagnostica` |
+| comune | configurazione della casa (`PREFERENZE`, `ORIGINI`), avvisi a schermo, numeri con la virgola | `src/comune/index.ts` | diagnostica | `npm run test:comune` |
+| interfaccia | base dei componenti (`RiquadroSicuro`, osservatori), campi delle impostazioni, stili, sfera, avvisi a schermo | `src/interfaccia/index.ts` | comune, connessione, diagnostica | `npm run test:interfaccia` |
+| connessione | il cuore: WebSocket con HA, login, negozio degli stati, interruzioni; crea i servizi di tutti i moduli | `src/connessione/index.ts`, `componenti.ts` | quasi tutti (è chi li crea) | `npm run test:connessione` |
+| pwa | service worker e aggiornamenti, origine veloce/di riserva, ricarica notturna | `src/pwa/index.ts` | comune, diagnostica | `npm run test:pwa` |
+| casa | stanze e dispositivi dai registri, comandi, storico, card e schermata Stanza | `src/casa/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, meteo | `npm run test:casa` |
+
+_Riordino in corso: i moduli non ancora in tabella stanno ancora nelle
+cartelle vecchie (`src/ui/` e simili)._
+
 ## 1. Cos'è
 
 **Jarvis OS** è una PWA a schermo intero per un **tablet Android 8" fissato a muro in

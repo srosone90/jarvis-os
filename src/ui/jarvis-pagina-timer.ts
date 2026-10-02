@@ -1,14 +1,13 @@
 import { mdiPauseCircleOutline, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { avvisi } from "../comandi/avvisi";
-import { connessione } from "../connessione/connessione";
+import { avvisi } from "../comune";
+import { connessione } from "../connessione";
 import { schermate } from "../pagine/preferenze";
 import { durataParlata, etichettaDurata } from "../timer/frasi";
 import { slugStanza } from "../timer/pannello";
 import { formattaRimasto, rimastoMs, type AzioneTimer, type TimerAttivo } from "../timer/timer";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
-import { icona, RiquadroSicuro, stileBase } from "./base";
-import { stilePagina } from "./stile-pagina";
+import { RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 /**
  * Schermata Timer (v0.5.7, mockup N2 "6 · Timer e sveglie"): i timer di

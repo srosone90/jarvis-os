@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import type { Suona } from "./timer";
 
 /** Ogni quanto si ripete il motivo (tre note). */

@@ -1,10 +1,9 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
+import { connessione } from "../connessione";
 import { attivaScena, ConfermaScena } from "../scene/attiva";
 import { sceneDa, type Scena } from "../scene/scene";
 import { schermate } from "../pagine/preferenze";
-import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
-import { stilePagina } from "./stile-pagina";
+import { OsservaEntita, RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 /**
  * Schermata Scene (v0.5.7, mockup N2 "5 · Scene"): un tocco avvia la scena

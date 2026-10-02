@@ -1,10 +1,10 @@
 import { mdiHome, mdiMicrophone, mdiMicrophoneOff, mdiWeatherNight } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
+import { connessione } from "../connessione";
+import { descriviErrore, log } from "../diagnostica";
 import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { vista } from "../vista/istanza";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
  * Procedura guidata del primo avvio, variante S3 (scelta di Salvatore, 30/09),

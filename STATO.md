@@ -28,7 +28,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 | 2. Ascolto dopo la risposta + errori di Google | **già fatta con la v0.5.8**: 8 s dopo una domanda, 2 s dopo un'azione (0 = chiude subito), sensibilità del parlato, suono breve e «Google non risponde» distinto dal silenzio di stt-no-text-recognized |
 | Carattere di Jarvis «in stile Tony Stark» | **fatto**: `docs/ISTRUZIONI-JARVIS.md`, da applicare lato server |
 | 3. Modello su misura per «Jarvis» | **non fattibile in questo ambiente**: piano dettagliato in «Modello su misura per «Jarvis»: piano» qui sotto. Resta `hey_jarvis` col verificatore della pronuncia |
-| 4. Riordino in moduli | da fare |
+| 4. Riordino in moduli | in corso: blocco 1 (diagnostica, comune, interfaccia, connessione, pwa, casa) → v0.6.1; blocchi 2 e 3 dopo |
 
 ## Valutazione della fotocamera (v0.6.0, punto 7.1, scritta prima del codice)
 
@@ -80,6 +80,17 @@ Ogni riga: cosa, perché, dove si cambia.
   senza appellativi. Si cambia nella sezione 1 dello stesso file.
 - **Mai ironia su errori, salute, sicurezza, soldi, persone in difficoltà e
   bambini.** Sezione 1.
+- **Riordino: due porte per modulo, `index.ts` e `componenti.ts`**, invece
+  di un solo file indice: con uno solo, la logica (che `connessione` crea)
+  e l'interfaccia (che usa `connessione`) si importerebbero a vicenda, e un
+  giro chiuso può fermare l'avvio dell'app. Moduli di sola interfaccia: solo
+  `index.ts`. Regola scritta in cima al CLAUDE.md.
+- **Riordino: i tre file di prove misti divisi per modulo** (`logica.test`,
+  `pannello.spec` e, nei blocchi dopo, `schermate`): ogni prova è rimasta
+  identica, ha solo cambiato file. Il confronto prima/dopo è per titolo.
+- **Riordino: `scripts/test-modulo.mjs`** dietro tutti i `test:<modulo>`,
+  invece di 20 righe quasi uguali nel `package.json`. Lancia il build prima
+  delle prove nel browser.
 - **I testi del pannello non cambiano tono** («Ti ascolto ancora…», messaggi
   d'errore): restano neutri e chiari. Il carattere vale per ciò che Jarvis
   dice. Se li vuoi anche loro «alla Stark», è un ritocco a parte.
@@ -227,6 +238,13 @@ Ogni riga: cosa, perché, dove si cambia.
   fotocamera: quella finta di Chromium si muove sempre e sveglierebbe il
   pannello in tutte le altre prove.
 
+## Bug trovati durante il riordino
+
+Per regola del piano qui si annotano e **non** si correggono, così il
+riordino resta verificabile a parità di comportamento.
+
+- (nessuno finora)
+
 ## Modello su misura per «Jarvis»: piano (Parte 3, 02/10)
 
 **Perché non qui.** Verificato il 02/10, non a memoria:
@@ -336,6 +354,21 @@ faccio io.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **In corso: riordino (Parte 4), blocco 1 → v0.6.1.** Nessun cambiamento
+  per chi usa il pannello: stesse schermate, stesse funzioni. Cosa è
+  cambiato dentro:
+  1. sei moduli con cartella e contratto: diagnostica, comune, interfaccia,
+     connessione, pwa, casa;
+  2. prove per modulo (`npm run test:<modulo>`); le prove che c'erano sono le
+     stesse, con lo stesso titolo e lo stesso esito (confrontati gli elenchi
+     prima e dopo: 247 nel browser, nessuna persa), più 8 nuove per comune e
+     interfaccia, con le controprove (5 rotture apposta, tutte prese);
+  3. controllo del codice: tolti 11 `export` di costanti e tipi usati solo
+     nel loro file; unita in `comune` la formattazione dei decimali con la
+     virgola; nessun `catch` vuoto (i 4 senza variabile gestiscono il caso);
+     l'elenco di esporta/importa copre tutte le chiavi salvate;
+  4. istruzioni di Jarvis: la percepita non è esposta ad Assist.
 
 - **Finito: v0.6.0, la fotocamera** (punto 7 del piano; valutazione sopra):
   1. **presenza**: chi si avvicina (entro 1,5 m di serie) sveglia il

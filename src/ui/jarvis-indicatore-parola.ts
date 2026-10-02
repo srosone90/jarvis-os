@@ -7,8 +7,8 @@ import {
   type ReactiveControllerHost,
   type TemplateResult,
 } from "lit";
-import { connessione } from "../connessione/connessione";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { connessione } from "../connessione";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /** Ridisegna l'host quando cambia lo stato di «Jarvis» sempre in ascolto. */
 export class OsservaParola implements ReactiveController {

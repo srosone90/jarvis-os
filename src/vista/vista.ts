@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Quale vista mostra il pannello (fase G, v0.4.8; scelte di Salvatore del 30/09

@@ -7,7 +7,7 @@
  */
 import * as ort from "onnxruntime-web/wasm";
 import urlVolto from "../../modelli/volto/version-RFB-320.onnx?url";
-import { log } from "../diagnostica/log";
+import { log } from "../diagnostica";
 import type { MotoreVolto } from "./presenza";
 import { ALTEZZA_MODELLO, ingresso, LARGHEZZA_MODELLO } from "./volto";
 

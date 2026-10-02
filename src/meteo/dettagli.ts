@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import { condizione, gradiInteri, numero, type PrevisioneGiorno } from "./testi";
 
 /**

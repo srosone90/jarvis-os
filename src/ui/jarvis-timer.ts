@@ -1,8 +1,8 @@
 import { mdiAlarm, mdiPause, mdiTimerOutline } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
+import { connessione } from "../connessione";
 import { formattaRimasto, rimastoMs, titoloFinito } from "../timer/timer";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
  * Timer attivi sotto l'orologio (v0.4.5): nome e conto alla rovescia, un

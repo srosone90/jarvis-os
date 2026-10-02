@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Stanza di questo pannello, salvata sul dispositivo (ogni tablet o telefono la

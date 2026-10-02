@@ -1,7 +1,7 @@
 import { mdiWeatherSunset, mdiWeatherSunsetUp } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { PREFERENZE } from "../configurazione";
-import { connessione } from "../connessione/connessione";
+import { PREFERENZE } from "../comune";
+import { connessione } from "../connessione";
 import {
   caricaPreferenzeMeteo,
   direzione,
@@ -13,7 +13,7 @@ import {
 } from "../meteo/dettagli";
 import { osservaPrevisione } from "../meteo/previsione";
 import { condizione, gradiInteri, numero, type PrevisioneGiorno } from "../meteo/testi";
-import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
+import { OsservaEntita, RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /** Alba e tramonto: l'entità di serie di Home Assistant (integrazione Sole). */
 export const SOLE = "sun.sun";

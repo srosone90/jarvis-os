@@ -1,5 +1,5 @@
 import type { Connection } from "home-assistant-js-websocket";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Timer di Jarvis (v0.4.5, per pannello dalla v0.4.6). Li gestisce il server

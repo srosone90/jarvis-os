@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Preferenze della voce di QUESTO pannello (localStorage `jarvis-voce`,

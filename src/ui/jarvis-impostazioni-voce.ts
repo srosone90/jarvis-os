@@ -1,11 +1,18 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
+import { connessione } from "../connessione";
+import { descriviErrore, log } from "../diagnostica";
 import type { RiepilogoEsempi } from "../parola/motore";
 import { LIMITI_PAROLA, PREFERENZE_PAROLA_DI_SERIE } from "../parola/preferenze";
 import { LIMITI_VOCE, PREFERENZE_VOCE_DI_SERIE } from "../voce/preferenze-voce";
-import { RiquadroSicuro, stileBase } from "./base";
-import { campoInterruttore, campoNumero, campoNumeroAuto, campoScelta, stileCampi } from "./campi";
+import {
+  RiquadroSicuro,
+  campoInterruttore,
+  campoNumero,
+  campoNumeroAuto,
+  campoScelta,
+  stileBase,
+  stileCampi,
+} from "../interfaccia";
 import { OsservaParola } from "./jarvis-indicatore-parola";
 import "./jarvis-parola-dal-vivo";
 import type { Elaborazione } from "../voce/microfono";

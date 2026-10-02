@@ -1,8 +1,7 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { avvisi } from "../comandi/avvisi";
-import { RiquadroSicuro, stileBase } from "./base";
-import { campoScelta, stileCampi } from "./campi";
+import { connessione } from "../connessione";
+import { avvisi } from "../comune";
+import { RiquadroSicuro, campoScelta, stileBase, stileCampi } from "../interfaccia";
 import "./jarvis-collega-spotify";
 
 /** "" nel campo = chiede ogni volta (nessun dispositivo salvato). */

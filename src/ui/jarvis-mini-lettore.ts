@@ -1,10 +1,10 @@
 import { mdiMusic, mdiPause, mdiPlay } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { avvisi } from "../comandi/avvisi";
-import { connessione } from "../connessione/connessione";
+import { avvisi } from "../comune";
+import { connessione } from "../connessione";
 import { posizioneAdesso } from "../musica/musica";
 import { navigatore } from "../navigazione/istanza";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /** "Queen, David Bowie" → "Queen": nel mini c'è posto per uno, l'elenco intero è nella schermata Musica. */
 export function primoArtista(artisti: string): string {

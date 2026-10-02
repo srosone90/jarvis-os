@@ -16,7 +16,7 @@ import {
   PREFERENZE_NAVIGAZIONE_DI_SERIE,
   spostaVoce,
 } from "../../src/navigazione/navigazione";
-import { leggiPreferenzeStorico, linea, puntiDa } from "../../src/storico/storico";
+import { leggiPreferenzeStorico, linea, puntiDa } from "../../src/casa/storico";
 
 /** v0.5.5: navigazione N2, schermate Meteo e Stanza. */
 

@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Su quale dispositivo Spotify suona questo pannello (v0.5.9, jarvis_musica

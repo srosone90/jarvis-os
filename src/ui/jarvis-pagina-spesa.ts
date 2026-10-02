@@ -1,12 +1,11 @@
 import { mdiCheckboxBlankOutline, mdiCheckboxMarked, mdiClose, mdiPlus } from "@mdi/js";
 import { callService } from "home-assistant-js-websocket";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { avvisi } from "../comandi/avvisi";
-import { connessione } from "../connessione/connessione";
+import { avvisi } from "../comune";
+import { connessione } from "../connessione";
 import { schermate } from "../pagine/preferenze";
 import { ListaSpesa, ordinaSpesa, type VoceSpesa } from "../spesa/spesa";
-import { icona, RiquadroSicuro, stileBase } from "./base";
-import { stilePagina } from "./stile-pagina";
+import { RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 /**
  * Schermata Lista della spesa (v0.5.7, mockup N2 "7"): l'entità todo di Home

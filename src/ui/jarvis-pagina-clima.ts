@@ -1,17 +1,15 @@
 import { mdiChevronRight, mdiFlash, mdiThermometer } from "@mdi/js";
 import { css, html, nothing, svg, type TemplateResult } from "lit";
 import { sensoriConsumo } from "../clima/consumi";
-import { PREFERENZE } from "../configurazione";
-import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
+import { PREFERENZE } from "../comune";
+import { connessione } from "../connessione";
+import { descriviErrore, log } from "../diagnostica";
 import { numero } from "../meteo/testi";
 import { navigatore } from "../navigazione/istanza";
-import { costruisciStanze, type StanzaVista } from "../registri/modello";
+import { costruisciStanze, leggiStorico, linea, scalaComune, type Punto, type StanzaVista } from "../casa";
 import { schermate } from "../pagine/preferenze";
-import { leggiStorico, linea, scalaComune, type Punto } from "../storico/storico";
-import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
-import "./jarvis-card-interruttore";
-import { stilePagina } from "./stile-pagina";
+import { OsservaEntita, RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
+import "../casa/componenti";
 
 const W = 600;
 const H = 140;

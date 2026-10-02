@@ -14,10 +14,10 @@ import {
   mdiVolumePlus,
 } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { avvisi } from "../comandi/avvisi";
-import { connessione } from "../connessione/connessione";
+import { avvisi } from "../comune";
+import { connessione } from "../connessione";
 import { minuti, posizioneAdesso, type AzioneMusica } from "../musica/musica";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import "./jarvis-collega-spotify";
 
 /** L'icona di un dispositivo Spotify: telefono, tablet, computer o altoparlante. */

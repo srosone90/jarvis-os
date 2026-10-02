@@ -6,7 +6,7 @@ import {
   problemaDaErrore,
   type MessaggioMicrofono,
 } from "../assistente/messaggi";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import { Bip, Riproduttore } from "./audio";
 import { CAMPIONI_PER_PEZZO, Microfono, MicrofonoNonDisponibile } from "./microfono";
 import type { SorgenteMicrofono } from "./microfono-condiviso";

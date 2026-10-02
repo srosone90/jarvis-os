@@ -1,14 +1,19 @@
 import { mdiMusic, mdiPause, mdiThermometer, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { PREFERENZE } from "../configurazione";
-import { connessione } from "../connessione/connessione";
+import { PREFERENZE } from "../comune";
+import { connessione } from "../connessione";
 import { condizione, gradiInteri, numero } from "../meteo/testi";
 import { formattaRimasto, rimastoMs, type TimerAttivo } from "../timer/timer";
 import { vista } from "../vista/istanza";
 import type { Momento } from "../vista/vista";
-import { icona, OsservaConnessione, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
-import type { Anello } from "./jarvis-sfera";
-import "./jarvis-sfera";
+import {
+  OsservaConnessione,
+  OsservaEntita,
+  RiquadroSicuro,
+  icona,
+  stileBase,
+  type Anello,
+} from "../interfaccia";
 import "./jarvis-indicatore-parola";
 
 /** Cosa suona si rilegge ogni tanto (ogni lettura è una richiesta a Spotify). */

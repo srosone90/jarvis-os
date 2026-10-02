@@ -1,5 +1,5 @@
-import { ORIGINI, type Origini } from "../configurazione";
-import { descriviErrore, log } from "../diagnostica/log";
+import { ORIGINI, type Origini } from "../comune";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Origine veloce e origine di riserva (CLAUDE.md, "Due origini").
@@ -14,8 +14,8 @@ import { descriviErrore, log } from "../diagnostica/log";
  * banner, quando HA manca da 30 s e la riserva risponde. Ogni origine ha il suo
  * service worker, la sua cache e il suo login.
  */
-export const ATTESA_VELOCE_MS = 1500;
-export const RITORNO_DOPO_MS = 30_000;
+const ATTESA_VELOCE_MS = 1500;
+const RITORNO_DOPO_MS = 30_000;
 const ATTESA_RISERVA_MS = 5000;
 const RICONTROLLO_RISERVA_MS = 15_000;
 const CONTROLLO_OGNI_MS = 5000;
@@ -28,7 +28,7 @@ const PARAMETRO = "origine";
 /** File che c'è sempre nello zip, accanto alla pagina. */
 const FILE_DI_PROVA = "sw.js";
 
-export type UsoOrigine = "veloce" | "riserva" | "altra";
+type UsoOrigine = "veloce" | "riserva" | "altra";
 
 export type Decisione = { prova: true } | { prova: false; motivo: string };
 

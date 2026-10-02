@@ -1,7 +1,7 @@
 import { mdiCellphoneLink, mdiCheck } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { connessione } from "../connessione";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
  * Il tasto «Collega questo dispositivo» (v0.5.9), in Impostazioni → Musica e

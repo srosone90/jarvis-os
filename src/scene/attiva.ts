@@ -1,7 +1,7 @@
 import { callService } from "home-assistant-js-websocket";
-import { avvisi } from "../comandi/avvisi";
-import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
+import { avvisi } from "../comune";
+import { connessione } from "../connessione";
+import { descriviErrore, log } from "../diagnostica";
 import { servizioScena, type Scena } from "./scene";
 
 /**

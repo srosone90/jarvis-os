@@ -6,8 +6,8 @@
  * Regola: tra le 04:00 e le 04:59, se nessuno tocca lo schermo da almeno
  * 10 minuti e oggi non si è già ricaricato.
  */
-export const ORA_RICARICA = 4;
-export const INATTIVITA_MINIMA_MS = 10 * 60_000;
+const ORA_RICARICA = 4;
+const INATTIVITA_MINIMA_MS = 10 * 60_000;
 
 export function deveRicaricare(
   adesso: Date,

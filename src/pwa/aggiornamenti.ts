@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import { deveRicaricare, giornoDi } from "./ricarica-notturna";
 
 /**
@@ -19,7 +19,7 @@ import { deveRicaricare, giornoDi } from "./ricarica-notturna";
 let registrazione: ServiceWorkerRegistration | null = null;
 const INTERVALLO_CONTROLLO_MS = 6 * 60 * 60_000;
 /** Finestra dell'avvio in cui una versione in attesa si applica da sola (se nessuno tocca). */
-export const FINESTRA_AVVIO_MS = 2 * 60_000;
+const FINESTRA_AVVIO_MS = 2 * 60_000;
 const CHIAVE_APPLICATA_ALL_AVVIO = "jarvis-aggiornata-all-avvio";
 const avviatoAlle = Date.now();
 let toccato = false;
@@ -65,7 +65,7 @@ function applicaSeAllAvvio(motivo: string): void {
   applicaAggiornamento();
 }
 
-export type StatoAggiornamento = "nessuno" | "in-download" | "pronto" | "non-supportato";
+type StatoAggiornamento = "nessuno" | "in-download" | "pronto" | "non-supportato";
 
 /** Letto a ogni ridisegno della diagnostica (ogni secondo mentre è aperta). */
 export function statoAggiornamento(): StatoAggiornamento {

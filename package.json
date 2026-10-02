@@ -1,6 +1,6 @@
 {
   "name": "jarvis-os",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "private": true,
   "description": "Jarvis OS — pannello domotico a muro (PWA) per Home Assistant",
   "type": "module",
@@ -13,7 +13,13 @@
     "formatta": "prettier --write .",
     "test": "vitest run",
     "e2e": "playwright test",
-    "verifica": "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e"
+    "verifica": "npm run lint && npm run typecheck && npm run test && npm run build && npm run e2e",
+    "test:diagnostica": "node scripts/test-modulo.mjs diagnostica",
+    "test:comune": "node scripts/test-modulo.mjs comune",
+    "test:interfaccia": "node scripts/test-modulo.mjs interfaccia",
+    "test:connessione": "node scripts/test-modulo.mjs connessione",
+    "test:pwa": "node scripts/test-modulo.mjs pwa",
+    "test:casa": "node scripts/test-modulo.mjs casa"
   },
   "dependencies": {
     "@mdi/js": "^7.4.47",

@@ -1,7 +1,6 @@
-import { connessione } from "./connessione/connessione";
-import { descriviErrore, log } from "./diagnostica/log";
-import { avviaRicaricaNotturna, registraServiceWorker } from "./pwa/aggiornamenti";
-import { passaAllOrigineVeloce, sorvegliaRitorno } from "./pwa/origine";
+import { connessione } from "./connessione";
+import { descriviErrore, log } from "./diagnostica";
+import { avviaRicaricaNotturna, passaAllOrigineVeloce, registraServiceWorker, sorvegliaRitorno } from "./pwa";
 import "./ui/jarvis-app";
 import "./ui/jarvis-spia-fotocamera";
 import { audioSveglio } from "./voce/audio-sveglio";

@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Lista della spesa (v0.5.7, mockup N2 "7 · Lista della spesa"): l'entità

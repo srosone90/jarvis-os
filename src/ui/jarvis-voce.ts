@@ -1,7 +1,7 @@
 import { mdiClose, mdiStop } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { connessione } from "../connessione";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
  * Barra della voce (F5, mockup docs/mockup-f5.html): stato in parole + un solo

@@ -1,6 +1,6 @@
 import type { Assistente } from "../assistente/assistente";
 import { messaggioMicrofono, problemaDaErrore, type MessaggioMicrofono } from "../assistente/messaggi";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import type { Timer } from "../timer/timer";
 import { Microfono, MicrofonoNonDisponibile } from "../voce/microfono";
 import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";

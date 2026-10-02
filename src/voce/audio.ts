@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 export type EsitoRiproduzione = "finito" | "interrotto" | "errore";
 

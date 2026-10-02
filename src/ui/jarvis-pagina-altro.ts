@@ -2,9 +2,8 @@ import { mdiCircleSlice8, mdiCogOutline } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
 import { navigatore } from "../navigazione/istanza";
 import { vista } from "../vista/istanza";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 import { ICONE_SCHERMATE } from "./icone-schermate";
-import { stilePagina } from "./stile-pagina";
 
 /**
  * Schermata Altro (v0.5.7, mockup N2: il riquadro "Altro" della colonna):

@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Navigazione N2 (mockup approvato il 30/09, docs/mockup-navigazione.html):

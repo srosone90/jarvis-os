@@ -29,7 +29,7 @@ import {
   sceneDa as elencoSceneDa,
 } from "../../src/pagine/preferenze";
 import { ListaSpesa, ordinaSpesa, vociDa } from "../../src/spesa/spesa";
-import { linea, scalaComune } from "../../src/storico/storico";
+import { linea, scalaComune } from "../../src/casa/storico";
 import { durataParlata, etichettaDurata } from "../../src/timer/frasi";
 import { esitoServizioTimer, Timer } from "../../src/timer/timer";
 

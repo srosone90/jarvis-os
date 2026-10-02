@@ -1,6 +1,6 @@
 import { mdiExitRun, mdiHomeImportOutline, mdiPaletteOutline, mdiWeatherNight } from "@mdi/js";
 import type { HassEntities } from "home-assistant-js-websocket";
-import { dominio } from "../registri/modello";
+import { dominio } from "../casa";
 
 /**
  * Scene (v0.5.7, mockup N2 "5 · Scene"; F3 del 26/09): si attivano con un

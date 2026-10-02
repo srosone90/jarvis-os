@@ -12,16 +12,16 @@ import {
   mdiWeatherNight,
 } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { log } from "../diagnostica/log";
+import { connessione } from "../connessione";
+import { log } from "../diagnostica";
 import { dispositivoDi } from "../timer/pannello";
 import { audioSveglio, type StatoAudioSveglio } from "../voce/audio-sveglio";
 import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { vista } from "../vista/istanza";
 import { ATTESE_POSSIBILI } from "../vista/vista";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import { rifaiGuida } from "./jarvis-guida";
-import "./jarvis-diagnostica";
+import "../diagnostica/componenti";
 import "./jarvis-impostazioni-voce";
 import "./jarvis-impostazioni-annunci";
 import "./jarvis-impostazioni-schermate";

@@ -8,14 +8,13 @@ import {
   mdiToggleSwitchOutline,
 } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { PREFERENZE } from "../configurazione";
-import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
+import { PREFERENZE } from "../comune";
+import { connessione } from "../connessione";
+import { descriviErrore, log } from "../diagnostica";
 import { batterieBasse, durataTesto, eventiDaRegistro, quandoTesto, type EventoCasa } from "../eventi/eventi";
-import { costruisciStanze } from "../registri/modello";
+import { costruisciStanze } from "../casa";
 import { schermate } from "../pagine/preferenze";
-import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
-import { stilePagina } from "./stile-pagina";
+import { OsservaEntita, RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 type Filtro = "tutti" | "dispositivi" | "batterie" | "connessione";
 const FILTRI: readonly [Filtro, string][] = [

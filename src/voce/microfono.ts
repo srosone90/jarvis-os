@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Microfono: PCM 16 bit mono, 16 kHz se il browser lo concede, a pezzi da

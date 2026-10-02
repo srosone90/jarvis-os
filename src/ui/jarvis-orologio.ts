@@ -1,5 +1,5 @@
 import { css, html, type TemplateResult } from "lit";
-import { RiquadroSicuro, stileBase } from "./base";
+import { RiquadroSicuro, stileBase } from "../interfaccia";
 
 const DURATA_PRESSIONE_MS = 3000;
 const TOLLERANZA_MOVIMENTO_PX = 12;

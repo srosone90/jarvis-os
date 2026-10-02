@@ -6,7 +6,7 @@
  *
  * tentativo 0 → subito; poi ~1 s, 2 s, 4 s, 8 s, 16 s, fino a un massimo di 30 s.
  */
-export const ATTESA_BASE_MS = 1000;
+const ATTESA_BASE_MS = 1000;
 export const ATTESA_MASSIMA_MS = 30_000;
 
 export function calcolaAttesa(tentativo: number, casuale: () => number = Math.random): number {

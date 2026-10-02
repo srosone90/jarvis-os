@@ -1,8 +1,8 @@
 import { mdiClose } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { messaggioErrore } from "../assistente/messaggi";
-import { connessione } from "../connessione/connessione";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { connessione } from "../connessione";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import "./jarvis-voce";
 
 /**

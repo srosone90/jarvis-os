@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Cosa mostrano le schermate della v0.5.7 (Timer, Clima, Scene, Spesa,

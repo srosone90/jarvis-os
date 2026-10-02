@@ -1,13 +1,18 @@
 import { mdiViewGrid } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { messaggioErrore } from "../assistente/messaggi";
-import { connessione } from "../connessione/connessione";
+import { connessione } from "../connessione";
 import { stanzaPannello } from "../voce/stanza-pannello";
 import { vista } from "../vista/istanza";
-import { icona, OsservaConnessione, RiquadroSicuro, stileBase } from "./base";
-import type { JarvisSfera, StatoSfera } from "./jarvis-sfera";
-import "./jarvis-sfera";
-import "./jarvis-connessione";
+import {
+  OsservaConnessione,
+  RiquadroSicuro,
+  icona,
+  stileBase,
+  type JarvisSfera,
+  type StatoSfera,
+} from "../interfaccia";
+import "../connessione/componenti";
 import "./jarvis-timer";
 
 /**

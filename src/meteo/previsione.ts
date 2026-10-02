@@ -1,5 +1,5 @@
 import type { Connection } from "home-assistant-js-websocket";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import type { PrevisioneGiorno } from "./testi";
 
 interface EventoPrevisione {

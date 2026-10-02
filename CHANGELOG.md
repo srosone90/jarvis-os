@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.6.1
+
+Riordino del codice, blocco 1 di 3 (Parte 4 del piano finale). **Il pannello
+si comporta esattamente come prima**: nessuna funzione nuova, niente di
+diverso da provare.
+
+- Moduli `diagnostica`, `comune`, `interfaccia`, `connessione`, `pwa`, `casa`:
+  ognuno nella sua cartella, con il suo contratto (`index.ts`, e
+  `componenti.ts` per l'interfaccia); fuori dal modulo si importa solo quello.
+- Prove per modulo (`npm run test:casa` e così via), prove nuove per
+  `comune` e `interfaccia`.
+- Mappa dei moduli in cima al CLAUDE.md; istruzioni di Jarvis riviste.
+
 ## v0.6.0
 
 La fotocamera (punto 7 del piano): presenza, «Jarvis» più facile da vicino,

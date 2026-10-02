@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import { Ricampionatore } from "../parola/ricampiona";
 import { Microfono, type Ascoltatori, type Elaborazione } from "./microfono";
 

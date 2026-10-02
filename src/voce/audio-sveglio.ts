@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Audio "sveglio" per l'altoparlante Bluetooth (v0.4.5). Il tablet della

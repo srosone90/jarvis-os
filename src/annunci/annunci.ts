@@ -1,6 +1,6 @@
 import type { Connection } from "home-assistant-js-websocket";
 import type { Assistente } from "../assistente/assistente";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import type { DoveVoce, Voce } from "../voce/voce";
 
 /**

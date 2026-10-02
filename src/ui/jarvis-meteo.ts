@@ -1,10 +1,10 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import { PREFERENZE } from "../configurazione";
-import { connessione } from "../connessione/connessione";
-import { log } from "../diagnostica/log";
+import { PREFERENZE } from "../comune";
+import { connessione } from "../connessione";
+import { log } from "../diagnostica";
 import { osservaPrevisione } from "../meteo/previsione";
 import { condizione, gradiInteri, numero, prossimiGiorni, type PrevisioneGiorno } from "../meteo/testi";
-import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
+import { OsservaEntita, RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
  * Meteo attuale + previsione dei prossimi 4 giorni, da weather.forecast_casa.

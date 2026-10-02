@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Le volte che Home Assistant non era raggiungibile da questo pannello
@@ -7,7 +7,7 @@ import { descriviErrore, log } from "../diagnostica/log";
  * 04:00). Un'interruzione ancora aperta alla ricarica si chiude al primo
  * collegamento riuscito.
  */
-export interface Interruzione {
+interface Interruzione {
   da: number;
   /** null = ancora in corso. */
   a: number | null;

@@ -23,11 +23,10 @@ import { MicrofonoCondiviso } from "../voce/microfono-condiviso";
 import { AscoltoParola } from "../parola/ascolto";
 import { Suoneria } from "../timer/suoneria";
 import { Timer } from "../timer/timer";
-import { Comandi } from "../comandi/comandi";
-import { descriviErrore, log } from "../diagnostica/log";
-import { Registri } from "../registri/registri";
-import { applicaAggiornamento, type AggiornamentoEntita } from "../stato/entita";
-import { Negozio } from "../stato/negozio";
+import { Comandi, Registri } from "../casa";
+import { descriviErrore, log } from "../diagnostica";
+import { applicaAggiornamento, type AggiornamentoEntita } from "./entita";
+import { Negozio } from "./negozio";
 import { caricaAuth, dimenticaLogin } from "./autenticazione";
 import { calcolaAttesa } from "./backoff";
 

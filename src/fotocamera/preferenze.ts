@@ -1,4 +1,4 @@
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Preferenze della fotocamera di QUESTO pannello (v0.6.0, punto 7.7 del

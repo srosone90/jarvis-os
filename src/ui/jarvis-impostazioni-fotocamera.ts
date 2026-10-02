@@ -1,9 +1,16 @@
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
+import { connessione } from "../connessione";
 import { LIMITI_FOTOCAMERA, PREFERENZE_FOTOCAMERA_DI_SERIE } from "../fotocamera/preferenze";
 import type { StatoFotocamera } from "../fotocamera/presenza";
-import { RiquadroSicuro, stileBase } from "./base";
-import { campoInterruttore, campoNumero, campoOrario, campoScelta, stileCampi } from "./campi";
+import {
+  RiquadroSicuro,
+  campoInterruttore,
+  campoNumero,
+  campoOrario,
+  campoScelta,
+  stileBase,
+  stileCampi,
+} from "../interfaccia";
 
 const STATI: Record<StatoFotocamera, string> = {
   spenta: "Spenta",

@@ -1,5 +1,5 @@
 import type { Turno } from "../assistente/eventi";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import type { FaseVoce } from "./voce";
 
 /**

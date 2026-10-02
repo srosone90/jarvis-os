@@ -1,5 +1,5 @@
 import { getAuth, type Auth, type AuthData } from "home-assistant-js-websocket";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Login con il flusso OAuth di Home Assistant. Nessun token nel codice: il

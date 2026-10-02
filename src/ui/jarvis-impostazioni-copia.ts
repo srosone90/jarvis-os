@@ -1,7 +1,7 @@
 import { mdiDownload, mdiUpload } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { avvisi } from "../comandi/avvisi";
-import { log } from "../diagnostica/log";
+import { avvisi } from "../comune";
+import { log } from "../diagnostica";
 import {
   CHIAVI_COPIABILI,
   cosaCambia,
@@ -13,8 +13,7 @@ import {
   type FileImpostazioni,
 } from "../impostazioni/copia";
 import { stanzaPannello } from "../voce/stanza-pannello";
-import { icona, RiquadroSicuro, stileBase } from "./base";
-import { stileCampi } from "./campi";
+import { RiquadroSicuro, icona, stileBase, stileCampi } from "../interfaccia";
 
 /**
  * Impostazioni → Copia (v0.5.10): esporta le impostazioni di questo pannello

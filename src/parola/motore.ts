@@ -13,7 +13,7 @@ import * as ort from "onnxruntime-web/wasm";
 import urlEmbedding from "../../modelli/openwakeword/embedding_model.onnx?url";
 import urlClassificatore from "../../modelli/openwakeword/hey_jarvis_v0.1.onnx?url";
 import urlMel from "../../modelli/openwakeword/melspectrogram.onnx?url";
-import { descriviErrore, log } from "../diagnostica/log";
+import { descriviErrore, log } from "../diagnostica";
 import { ArchivioParola, verificatoreValido, type Esempio } from "./archivio";
 import { FALSI_PER_RIADDESTRARE, FALSO_SCATTO, FRAME_FALSO_SCATTO } from "./decisione";
 import { caricaImpostazioni } from "./impostazioni";

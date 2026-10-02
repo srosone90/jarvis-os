@@ -1,5 +1,5 @@
 import type { HassEntities } from "home-assistant-js-websocket";
-import { dominio } from "../registri/modello";
+import { dominio } from "../casa";
 
 /**
  * Consumi (v0.5.7, schermata Clima): SOLO se in Home Assistant c'è un sensore

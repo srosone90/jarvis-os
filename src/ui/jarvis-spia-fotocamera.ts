@@ -1,7 +1,7 @@
 import { mdiCamera } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+import { connessione } from "../connessione";
+import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
  * Spia della fotocamera (v0.6.0, punto 7.5): sempre visibile, in ogni

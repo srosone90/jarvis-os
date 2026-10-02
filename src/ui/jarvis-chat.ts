@@ -2,9 +2,9 @@ import { mdiClose, mdiMicrophone, mdiPlus, mdiSend } from "@mdi/js";
 import { css, html, nothing, type PropertyValues, type TemplateResult } from "lit";
 import type { Azione, Turno } from "../assistente/eventi";
 import { messaggioErrore } from "../assistente/messaggi";
-import { connessione } from "../connessione/connessione";
-import { icona, OsservaConnessione, RiquadroSicuro, SCHERMATA_UNICA, stileBase } from "./base";
-import { statoInItaliano } from "./card-base";
+import { connessione } from "../connessione";
+import { OsservaConnessione, RiquadroSicuro, SCHERMATA_UNICA, icona, stileBase } from "../interfaccia";
+import { statoInItaliano } from "../casa/componenti";
 import "./jarvis-voce";
 
 /** Senza tocchi per tanto, la chat si chiude da sola (mai mentre Jarvis risponde). */

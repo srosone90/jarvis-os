@@ -8,7 +8,7 @@ import {
   type PreferenzeMeteo,
   type UnitaVento,
 } from "../meteo/dettagli";
-import { connessione } from "../connessione/connessione";
+import { connessione } from "../connessione";
 import { LIMITI_MUSICA, PREFERENZE_MUSICA_DI_SERIE, type PosizioneMini } from "../musica/musica";
 import { navigatore } from "../navigazione/istanza";
 import {
@@ -29,22 +29,24 @@ import {
   schermate,
 } from "../pagine/preferenze";
 import {
-  caricaPreferenzeStorico,
   LIMITI_STORICO,
   PREFERENZE_STORICO_DI_SERIE,
+  caricaPreferenzeStorico,
   salvaPreferenzeStorico,
   type PreferenzeStorico,
-} from "../storico/storico";
-import { log } from "../diagnostica/log";
-import { icona, RiquadroSicuro, stileBase } from "./base";
+} from "../casa";
+import { log } from "../diagnostica";
 import {
+  RiquadroSicuro,
   campoInterruttore,
   campoNumero,
   campoScelta,
   campoTesto,
   campoTestoLungo,
+  icona,
+  stileBase,
   stileCampi,
-} from "./campi";
+} from "../interfaccia";
 
 /**
  * Impostazioni → Schermate (v0.5.5): la colonna di navigazione (ordine, dove

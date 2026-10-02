@@ -1,5 +1,5 @@
 import type { HassEntities } from "home-assistant-js-websocket";
-import { dominio } from "../registri/modello";
+import { dominio } from "../casa";
 
 /**
  * Avvisi ed eventi (v0.5.7, mockup N2 "8 · Avvisi ed eventi"): cosa è

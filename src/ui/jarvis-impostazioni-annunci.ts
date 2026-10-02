@@ -1,11 +1,19 @@
 import { callService } from "home-assistant-js-websocket";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE_ANNUNCI_DI_SERIE, SENSORE_SILENZIO } from "../annunci/annunci";
-import { avvisi } from "../comandi/avvisi";
-import { connessione } from "../connessione/connessione";
-import { descriviErrore, log } from "../diagnostica/log";
-import { OsservaEntita, RiquadroSicuro, stileBase } from "./base";
-import { campoInterruttore, campoNumero, campoOrario, campoTesto, stileCampi } from "./campi";
+import { avvisi } from "../comune";
+import { connessione } from "../connessione";
+import { descriviErrore, log } from "../diagnostica";
+import {
+  OsservaEntita,
+  RiquadroSicuro,
+  campoInterruttore,
+  campoNumero,
+  campoOrario,
+  campoTesto,
+  stileBase,
+  stileCampi,
+} from "../interfaccia";
 import { LIMITI_ANNUNCI } from "../annunci/annunci";
 
 /**

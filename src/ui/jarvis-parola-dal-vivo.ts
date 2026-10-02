@@ -1,6 +1,6 @@
 import { css, html, type TemplateResult } from "lit";
-import { connessione } from "../connessione/connessione";
-import { RiquadroSicuro, stileBase } from "./base";
+import { connessione } from "../connessione";
+import { RiquadroSicuro, stileBase } from "../interfaccia";
 
 const numero = (n: number): string => n.toFixed(2).replace(".", ",");
 
