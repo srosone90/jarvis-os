@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 02/10/2026 — v0.5.10 (esporta e importa le impostazioni, giro della personalizzazione). Piano autonomo in corso._
+_Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» più facile da vicino, guarda e parla). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -17,8 +17,44 @@ _Ultimo aggiornamento: 02/10/2026 — v0.5.10 (esporta e importa le impostazioni
 | B. Riascolto breve, errori di Google, timer coi servizi, conferma scene (messaggio del 02/10) | v0.5.8 | **fatto** |
 | M. Musica dal dispositivo del pannello + «Collega questo dispositivo» (priorità alta, 02/10) | v0.5.9 | **fatto** |
 | 6. Giro della personalizzazione + esporta/importa | v0.5.10 | **fatto** |
-| 7. Fotocamera | v0.6.0 | da fare |
+| 7. Fotocamera | v0.6.0 | **fatto** |
 | 8. Modello su misura | — | da fare |
+
+## Valutazione della fotocamera (v0.6.0, punto 7.1, scritta prima del codice)
+
+- **Modello**: UltraFace RFB-320 (Linzaer, «Ultra-Light-Fast-Generic-Face-
+  Detector-1MB»), **licenza MIT** (anche commerciale), **1,27 MB** (file
+  `version-RFB-320.onnx`, sha256 `34cd7e60…f88017`, in
+  `modelli/volto/` con LICENZA.md). Il grafo fa già softmax e decodifica:
+  sul pannello restano soglia e NMS. Scaricato da GitHub (Hugging Face e
+  Wikimedia sono bloccati dalla rete di questo ambiente).
+- **Misurato** (onnxruntime-web 1.30, wasm, 1 thread, come sul pannello):
+  **22 ms** a fotogramma (mediana, p90 28 ms) su questo server x86. Sul
+  tablet ARM mi aspetto 3-5 volte tanto (70-110 ms): **da misurare dal vivo**,
+  il pannello scrive i suoi tempi nel registro ogni 10 minuti.
+- **Prova sul volto vero** (foto NASA di dominio pubblico): volto trovato con
+  punteggio 1,00; a ~0,8 m il volto è largo 0,18 dell'inquadratura, a ~2 m
+  0,07; un'immagine vuota arriva al massimo a 0,07 di punteggio.
+- **Distanza**: dalla larghezza del volto (16 cm) e un campo visivo di ~60°
+  della fotocamera frontale: `d ≈ 0,139 / larghezza`. È una stima: va
+  tarata col tablet vero (Impostazioni → Fotocamera → distanza).
+- **Sguardo**: questo modello trova quasi solo volti di FRONTE, quindi
+  «guarda il tablet» = volto frontale vicino e sicuro (punteggio alto,
+  proporzioni da volto di fronte). Un modello di sguardo vero non c'è sotto
+  i 10 MB con licenza compatibile: approssimazione dichiarata.
+- **Batteria**: 3 fotogrammi al secondo di serie (2-5); ogni fotogramma
+  costa poco (differenza con il precedente su 64×48 punti), il modello del
+  volto gira solo quando qualcosa si muove o qualcuno è già lì, e comunque
+  almeno ogni 2 s. Di notte (23-7 di serie) la fotocamera è spenta del tutto.
+- **Privacy**: le immagini restano in memoria per il solo fotogramma in
+  corso, **mai salvate, mai inviate**: a Home Assistant arriva solo
+  `script.jarvis_presenza {pannello}` (al massimo uno ogni 5 minuti). Nessun
+  riconoscimento di chi è. Una spia sempre visibile mentre la fotocamera
+  lavora; si spegne da Impostazioni → Fotocamera.
+- **Evento**: dal websocket `fire_event` è solo per gli amministratori
+  (verificato nel sorgente di HA 2026.9.3), e il pannello non usa permessi
+  da amministratore: l'evento `jarvis_presenza {pannello}` lo manda lo script
+  nuovo `script.jarvis_presenza` del pacchetto `jarvis.yaml` (da installare).
 
 ## Scelte fatte da Code, da confermare
 
@@ -136,6 +172,36 @@ Ogni riga: cosa, perché, dove si cambia.
   «da <script>» o «da un utente» (il nome della persona chiede permessi da
   amministratore: non li uso).
 - **Interruzioni della connessione salvate sul pannello** (le ultime 30).
+- **Fotocamera (v0.6.0), presenza con uno script**: il pannello chiama
+  `script.jarvis_presenza {pannello}`, che manda l'evento
+  `jarvis_presenza`. Dal websocket `fire_event` è riservato agli
+  amministratori (verificato nel sorgente di HA 2026.9.3), e il pannello
+  non usa un token da amministratore. Il pannello prova comunque
+  `fire_event` se lo script non c'è.
+- **Guarda e parla richiede «Jarvis» acceso**: usa lo stesso ascolto del
+  microfono; con «Jarvis» spento il microfono non è aperto, e aprirlo solo
+  per lo sguardo sarebbe un secondo ascolto sempre attivo.
+- **«Guarda» è un'approssimazione**: volto vicino (entro la distanza) e di
+  fronte (proporzioni del riquadro del volto, 0,6-1,15). Il modello non
+  stima la direzione degli occhi. Si tara con Impostazioni → Fotocamera
+  (ultimo volto visto, punteggio e distanza).
+- **Distanza stimata dalla larghezza del volto** (0,139 / larghezza):
+  dipende dall'obiettivo del tablet. Se sbaglia, la distanza si regola nelle
+  impostazioni guardando la stima mostrata lì.
+- **«Jarvis» più facile da vicino: di serie un passo di 0,05**, lo stesso
+  della soglia che si adatta (v0.5.4), quindi chi è vicino annulla un
+  rialzo dovuto ai falsi scatti ma non va sotto la soglia di serie meno un
+  passo. Mai sotto 0,2. «Vicino» = visto negli ultimi 10 s entro la
+  distanza; lo sguardo implica la vicinanza. Impostazioni → Fotocamera →
+  «Di quanto più facile» (0,01-0,2).
+- **Punto 7.3 cambiato il 02/10 (decisione di Salvatore)**: la regola «con
+  la TV accesa «Jarvis» conta solo se c'è qualcuno vicino» era già scritta e
+  provata, ed è stata **tolta prima della release**: bloccava «Jarvis» dal
+  divano. Il file di impostazioni di un pannello che l'avesse non la
+  riaccende (chiave ignorata).
+- **Nelle prove automatiche la fotocamera è spenta** salvo le prove della
+  fotocamera: quella finta di Chromium si muove sempre e sveglierebbe il
+  pannello in tutte le altre prove.
 
 ## Punti bloccati e cosa serve
 
@@ -180,10 +246,36 @@ Ogni riga: cosa, perché, dove si cambia.
 - **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
   rilettura ogni N secondi, stanze per spostarla, playlist preferite (la
   stella; «Togli le preferite»).
+- **Fotocamera** (v0.6.0, pannello): presenza, guarda e parla, «Jarvis»
+  più facile da vicino e di quanto (0,05), distanza (1,5 m), sensibilità (normale), fotogrammi al secondo
+  (3), spenta dalle 23 alle 7. Tutto acceso di serie; si esporta.
 - **Schermo a riposo**: attesa, notte dalle/alle. **Audio**: audio sveglio.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.6.0, la fotocamera** (punto 7 del piano; valutazione sopra):
+  1. **presenza**: chi si avvicina (entro 1,5 m di serie) sveglia il
+     pannello dal riposo e Home Assistant riceve `jarvis_presenza
+     {pannello}` (al massimo ogni 5 minuti; serve `script.jarvis_presenza`
+     del pacchetto aggiornato);
+  2. **«Jarvis» più facile da vicino**: con qualcuno vicino al pannello la
+     soglia scende di un passo (0,05). Nessuno visibile, anche con la TV
+     accesa = esattamente come prima: la fotocamera non limita mai;
+  3. **guarda e parla**: guardi il tablet e parli, ti ascolta senza
+     «Jarvis»; se non dici niente si chiude in silenzio;
+  4. **spia** sempre visibile mentre la fotocamera lavora, spenta di notte,
+     immagini mai fuori dal tablet e mai salvate; tempi del modello nel
+     registro ogni 10 minuti;
+  5. **Impostazioni → Fotocamera** con tutto personalizzabile e lo stato
+     vero (ultimo volto: punteggio e distanza).
+  Provato nel browser col modello vero e una fotocamera finta (foto NASA,
+  dominio pubblico): presenza mandata una volta sola; lontano niente evento
+  a 1,5 m e sì a 2,5 m; ore di riposo; risveglio dal riposo; TV accesa e
+  stanza vuota → «Jarvis» scatta a soglia normale; qualcuno vicino → soglia
+  0,45 (e 0,50 con l'aiuto spento); un punteggio di 0,47 scatta solo con
+  qualcuno vicino (prova unitaria su `AscoltoParola`); guarda e parla, con le controprove (stanza vuota,
+  nessuna parola). Pacchetto HA: script e evento provati su HA 2026.9.3.
 
 - **Finito: v0.5.10, esporta/importa e giro della personalizzazione**:
   1. **Impostazioni → Esporta e importa**: un file JSON con le impostazioni
@@ -326,7 +418,28 @@ Ogni riga: cosa, perché, dove si cambia.
 | sha256 dello zip | `08afdd1a33babcfd195539e2027dff12b16f42fe5ffd5b6e06e80ed4ec9973ad` (6,9 MB, service worker 0.5.10, `parola/` con 5 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
 | Precedente | v0.5.9, sha256 `f0bb25fded5492d10aac620de54fd00d68f052accc092348368e141f235eb217` (6,9 MB, service worker 0.5.9, `parola/` con 5 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.5.10
+## Da installare lato server: v0.6.0
+
+1. Lo zip sopra `/config/www/jarvis/`.
+2. **`packages/jarvis.yaml` aggiornato**: c'è lo script nuovo
+   `script.jarvis_presenza` (campo `pannello`), che manda l'evento
+   `jarvis_presenza {pannello}`. **Non** esporlo ad Assist. Poi ricarica
+   gli script (o riavvia HA).
+3. Se volete che il buongiorno parta quando qualcuno arriva al pannello,
+   l'automazione del buongiorno può ascoltare l'evento `jarvis_presenza`
+   (oggi parte come prima; l'evento è in più).
+
+**Come provare la v0.6.0**: al primo avvio il tablet chiede il permesso
+della fotocamera: consentilo. In alto compare la spia. Allontanati per più
+di un minuto, poi avvicinati: il pannello si sveglia e in Strumenti per
+sviluppatori → Eventi, ascoltando `jarvis_presenza`, arriva l'evento col
+nome del pannello. Impostazioni → Fotocamera mostra la distanza stimata:
+se a un metro dice molto altro, regola «Vicino, fino a».
+
+**Lo zip della v0.6.0 ha 8 file in `parola/`** (3 JS, 1 wasm, 4 onnx: in
+più il modello del volto): la verifica dello zip va fatta con 8.
+
+## Prima: v0.5.10
 
 Solo lo zip sopra `/config/www/jarvis/`. Lato HA niente di nuovo (vale
 quanto scritto per la v0.5.9, se non è ancora installata: jarvis_musica

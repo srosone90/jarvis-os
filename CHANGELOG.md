@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.6.0
+
+La fotocamera (punto 7 del piano): presenza, «Jarvis» più facile da vicino,
+guarda e parla. La fotocamera aiuta l'attivazione e non la limita mai. Le immagini non escono mai dal tablet e non si salvano.
+
+- **Presenza**: chi si avvicina al pannello (di serie entro 1,5 m) lo
+  sveglia dallo schermo a riposo e lo dice a Home Assistant
+  (`script.jarvis_presenza`, al massimo una volta ogni 5 minuti): l'evento
+  `jarvis_presenza` è pronto per il buongiorno lato server. Serve lo script
+  nuovo del pacchetto `jarvis.yaml`.
+- **«Jarvis» più facile da vicino**: con qualcuno vicino al pannello (o che
+  guarda il tablet) la soglia di «Jarvis» scende di un passo (di serie 0,05;
+  il registro lo dice a ogni scatto). Senza nessuno davanti, anche con la TV
+  accesa, funziona esattamente come prima: «Jarvis» dal divano resta
+  com'era.
+- **Guarda e parla**: se guardi il tablet e cominci a parlare, ti ascolta
+  senza «Jarvis» (serve «Jarvis» acceso). Se poi non dici niente, si chiude
+  in silenzio.
+- **Spia** sempre visibile in alto mentre la fotocamera lavora; **spenta di
+  notte** (23-7).
+- **Impostazioni → Fotocamera**: presenza, guarda e parla, «Jarvis» più
+  facile da vicino e di quanto, distanza, sensibilità, fotogrammi al secondo, orari in cui è spenta; e lo
+  stato vero con l'ultimo volto visto (punteggio e distanza stimata, per
+  tarare). Si esporta con le altre impostazioni.
+- Modello: UltraFace RFB-320 (MIT, 1,27 MB), caricato solo quando la
+  fotocamera parte; i tempi vanno nel registro ogni 10 minuti.
+
 ## v0.5.10
 
 Il giro della personalizzazione (punto 6 del piano), con esporta e importa.

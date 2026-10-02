@@ -78,10 +78,17 @@ test("il motore (17 MB) si scarica una volta: ricaricando arriva dalla cache sua
   await acceso(page);
   await accedi(page);
   await expect(indicatore(page)).toHaveAttribute("data-stato", "ascolta", PRONTO);
-  // i 5 file di parola/ (motore, wasm, 3 modelli) nella cache "jarvis-parola"
-  await expect
-    .poll(() => page.evaluate(async () => (await (await caches.open("jarvis-parola")).keys()).length))
-    .toBe(5);
+  // i 6 file di parola/ che servono alla parola nella cache "jarvis-parola": motore e
+  // onnxruntime (dalla v0.6.0 un pezzo a sé, condiviso con la fotocamera), wasm, 3 modelli.
+  // La fotocamera è spenta (accedi): il suo modello e il suo codice non si scaricano
+  const nomi = () =>
+    page.evaluate(async () =>
+      (await (await caches.open("jarvis-parola")).keys()).map((r) =>
+        new URL(r.url).pathname.split("/").pop(),
+      ),
+    );
+  await expect.poll(async () => (await nomi()).length).toBe(6);
+  expect((await nomi()).filter((n) => /RFB|volto/i.test(n ?? ""))).toEqual([]);
   const prima = (await info(request)).richieste;
   await page.reload();
   await expect(indicatore(page)).toHaveAttribute("data-stato", "ascolta", PRONTO);

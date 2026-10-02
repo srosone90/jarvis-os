@@ -5,6 +5,8 @@ import type { Timer } from "../timer/timer";
 import { Microfono, MicrofonoNonDisponibile } from "../voce/microfono";
 import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";
 import type { DoveVoce, Voce } from "../voce/voce";
+import type { Presenza } from "../fotocamera/presenza";
+import { RilevaParlato } from "../voce/parlato";
 import { MemoriaCircolare } from "./memoria";
 import type { EsitoParola, MotoreParola } from "./motore";
 import { DecisioneScatto, type CambioSoglia, type Soglie } from "./decisione";
@@ -94,6 +96,12 @@ export interface DipendenzeAscolto {
   assistente: Pick<Assistente, "inviaContesto" | "occupato">;
   voce: Pick<Voce, "attiva" | "fase" | "ascolta" | "parla">;
   timer: Pick<Timer, "suonano" | "silenzia" | "ferma">;
+  /**
+   * La fotocamera (v0.6.0): AIUTA l'attivazione, non la limita mai. Con
+   * qualcuno vicino al pannello la soglia scende di un passo; chi guarda il
+   * tablet può parlare senza «Jarvis». Nessuno visibile = come prima.
+   */
+  presenza?: Pick<Presenza, "scontoSoglia" | "staGuardando">;
   /** Carica il motore (di serie con un import() pigro: onnxruntime e modelli non sono nel bundle iniziale). */
   carica?: () => Promise<MotoreParola>;
   adesso?: () => number;
@@ -144,6 +152,8 @@ export class AscoltoParola {
   private readonly memoria = new MemoriaCircolare(SECONDI_MEMORIA);
   private inCoda = 0;
   private ultimoScatto = -Infinity;
+  /** Guarda e parla (v0.6.0): si ascolta se qualcuno comincia a parlare mentre guarda. */
+  private sguardo: RilevaParlato | null = null;
   private fineVoce = -Infinity;
   private eraAttiva = false;
   private tempi: number[] = [];
@@ -387,6 +397,7 @@ export class AscoltoParola {
     // quando è arrivato l'audio: la "fine della parola" per la misura di reattività
     const arrivo = performance.now();
     this.memoria.scrivi(pcm);
+    this.forseSguardo(pcm);
     // il dispositivo non sta al passo: meglio buttare audio vecchio che rispondere in ritardo
     if (this.inCoda * (pcm.length / 1280) > RITARDO_MASSIMO_FRAME) {
       this.stat.scartati += pcm.length / 1280;
@@ -434,15 +445,20 @@ export class AscoltoParola {
       )
     )
       return;
-    this.scatta(e, motore, adesso, arrivo, soglia);
+    this.scatta(e, motore, adesso, arrivo, soglia, (soglie.sconto ?? 0) > 0);
   }
 
-  /** Le soglie di adesso: quella scelta a mano vince su tutto (anche sulla personale). */
+  /**
+   * Le soglie di adesso: quella scelta a mano vince su tutto (anche sulla
+   * personale). Con qualcuno vicino al pannello scendono tutte di un passo
+   * (v0.6.0, fotocamera).
+   */
   private soglie(motore: MotoreParola): Soglie {
     const manuale = this.pref.sogliaManuale;
+    const sconto = this.dip.presenza?.scontoSoglia() ?? 0;
     return manuale !== null
-      ? { serie: manuale, personale: null }
-      : { serie: motore.sogliaSerie, personale: motore.sogliaPersonale };
+      ? { serie: manuale, personale: null, sconto }
+      : { serie: motore.sogliaSerie, personale: motore.sogliaPersonale, sconto };
   }
 
   private scriviCambio(c: CambioSoglia | null): void {
@@ -488,7 +504,43 @@ export class AscoltoParola {
     this.riepilogo = { da: adesso, massimo: 0, base: 0, livello: 0, frame: 0 };
   }
 
-  private scatta(e: EsitoParola, motore: MotoreParola, adesso: number, arrivo: number, soglia: number): void {
+  /**
+   * Guarda e parla (v0.6.0, punto 7.4): mentre qualcuno guarda il tablet, se
+   * comincia a parlare la domanda parte senza «Jarvis», con l'audio da poco
+   * prima. Se HA non sente parole si chiude in silenzio.
+   */
+  private forseSguardo(pcm: Int16Array): void {
+    const adesso = this.adesso();
+    if (
+      !this.dip.presenza?.staGuardando() ||
+      this.voceOccupata() ||
+      this.dip.assistente.occupato ||
+      adesso - this.ultimoScatto < PAUSA_DOPO_SCATTO_MS ||
+      adesso - this.fineVoce < PAUSA_DOPO_VOCE_MS
+    ) {
+      this.sguardo = null;
+      return;
+    }
+    this.sguardo ??= new RilevaParlato();
+    if (!this.sguardo.pezzo(pcm)) return;
+    this.sguardo = null;
+    this.ultimoScatto = adesso;
+    // ~1 s prima del parlato: l'inizio della frase non si perde
+    const preroll = this.memoria.ultimi().slice(-16000);
+    this.memoria.svuota();
+    log.info("Guarda e parla: qualcuno guarda il pannello e parla, ascolto senza «Jarvis»");
+    void this.dip.voce.parla(this.doveParlare(), false, { preroll, silenziosoSeVuoto: true });
+    this.notifica();
+  }
+
+  private scatta(
+    e: EsitoParola,
+    motore: MotoreParola,
+    adesso: number,
+    arrivo: number,
+    soglia: number,
+    vicino = false,
+  ): void {
     const scatto = performance.now();
     this.ultimoScatto = adesso;
     this.stat.scatti += 1;
@@ -512,7 +564,7 @@ export class AscoltoParola {
     // per imparare, se poi la trascrizione è vuota (v0.5.4)
     const istantanea = motore.istantanea();
     log.info(
-      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ", modello di base"}, soglia ${soglia.toFixed(2)}), ` +
+      `«${motore.parola}» sentito (punteggio ${e.punteggio.toFixed(2)}${e.verificato ? `, dal verificatore; base ${e.base.toFixed(2)}` : ", modello di base"}, soglia ${soglia.toFixed(2)}${vicino ? ", più bassa: qualcuno vicino al pannello" : ""}), ` +
         `mando ${s(preroll.length)} s di frase` +
         `${contesto ? `${contestoInviato ? "" : " (contesto NON partito)"} e ${s(contesto.length)} s di contesto prima` : ", nessun parlato prima"}` +
         `${suonava ? "; suoneria zittita" : ""}`,

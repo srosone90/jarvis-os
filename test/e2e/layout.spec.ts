@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriChat, apriImpostazioni, chiedi, comando } from "./aiuti";
+import { accedi, apriChat, apriImpostazioni, chiedi, comando, fotocameraAccesa } from "./aiuti";
 
 /**
  * Regola: MAI sovrapposizioni, a nessuna misura da 320 px di larghezza in su.
@@ -499,6 +499,7 @@ for (const v of MISURE) {
       "riposo",
       "audio",
       "copia",
+      "fotocamera",
       "diagnostica",
     ]) {
       if (s === "stanza") await page.getByTestId("ora").click({ delay: 3300 });
@@ -988,5 +989,46 @@ for (const v of MISURE) {
       ],
       "copia",
     ).toEqual([]);
+  });
+}
+
+// --- v0.6.0: fotocamera accesa (spia sopra ogni schermata) e Impostazioni → Fotocamera ---
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.6.0: spia della fotocamera, Impostazioni → Fotocamera`, async ({ page }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await fotocameraAccesa(page);
+    await accedi(page);
+    const spia = page.getByTestId("spia-fotocamera");
+    await expect(spia).toBeVisible({ timeout: 15_000 });
+    await page.screenshot({ path: `schermate/layout/casa-spia-fotocamera-${v.nome}.png` });
+    const box = await spia.boundingBox();
+    expect(box && box.y >= 0 && box.y + box.height <= 24 && box.width < 120, "spia piccola, in alto").toBe(
+      true,
+    );
+    expect(
+      [...controlla(await misura(page), v.width, v.height, v.unica), ...(await problemiTesto(page, v.width))],
+      "casa",
+    ).toEqual([]);
+    await apriImpostazioni(page, "fotocamera");
+    await expect(page.getByTestId("fotocamera-stato-testo")).toHaveText(/Accesa/);
+    await page.screenshot({ path: `schermate/layout/impostazioni-fotocamera-${v.nome}.png` });
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          ["jarvis-app", "jarvis-impostazioni", "header"],
+          ["jarvis-app", "jarvis-impostazioni", "nav"],
+          ["jarvis-app", "jarvis-impostazioni", "main"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "impostazioni fotocamera",
+    ).toEqual([]);
+    // più giù: «Jarvis» più facile da vicino e di quanto (punto 7.3 come deciso il 02/10)
+    await page.getByTestId("campo-fotocamera-passo").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `schermate/layout/impostazioni-fotocamera-aiuto-${v.nome}.png` });
+    expect(await problemiTesto(page, v.width), "impostazioni fotocamera, più giù").toEqual([]);
+    // il valore di serie si legge giusto (1,5 m, non arrotondato a 2)
+    await expect(page.getByTestId("serie-fotocamera-distanza")).toHaveText("Di serie: 1,5 metri");
+    await expect(page.getByTestId("serie-fotocamera-passo")).toHaveText("Di serie: 0,05 di soglia");
   });
 }

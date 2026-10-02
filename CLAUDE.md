@@ -1434,6 +1434,52 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `script.jarvis_*` (stato "on" per 1,2 s), batterie con `device_class`.
   Entità: 35.
 
+### Fotocamera: presenza, «Jarvis» più facile da vicino, guarda e parla (v0.6.0, 02/10)
+
+- **Modello**: UltraFace RFB-320 (MIT, 1,27 MB, `modelli/volto/` con
+  LICENZA.md). Il grafo fa già softmax e decodifica (`scores`, `boxes`):
+  restano soglia e NMS (`src/fotocamera/volto.ts`). Distanza = 0,139 /
+  larghezza del volto; «guarda» = volto vicino e di fronte (proporzioni),
+  approssimazione dichiarata. Caricato con `import()` (`motore-volto.ts`):
+  finisce in `parola/` con onnxruntime condiviso. **`parola/` ora ha 8 file**
+  (3 JS, 1 wasm, 4 onnx): `scripts/dopo-build.mjs` lo controlla, e la verifica
+  dello zip dopo ogni release va fatta con 8, non più 5. La parola da sola ne
+  carica 6 nella cache `jarvis-parola` (onnxruntime è ora un pezzo JS a sé,
+  condiviso): `parola.spec.ts` lo controlla, e controlla che a fotocamera
+  spenta il modello del volto non si scarichi.
+- **`Presenza`** (`src/fotocamera/presenza.ts`): fotogrammi a `fps`, movimento
+  su grigio 64×48, modello solo se qualcosa si muove, se qualcuno è già lì, o
+  ogni 2 s. Arrivo = vicino dopo ≥ 60 s di assenza → `alArrivo` (main.ts:
+  dal riposo al pannello completo) e `script.jarvis_presenza {pannello}`
+  (al massimo ogni 5 min; `fire_event` dal websocket è solo per
+  amministratori, verificato nel sorgente di HA 2026.9.3). Nelle sue ore di
+  riposo (23-7) la fotocamera è chiusa. L'errore «non consentita» non si
+  riprova da solo.
+- **La fotocamera AIUTA l'attivazione, non la limita MAI** (7.3, decisione di
+  Salvatore del 02/10): niente regole che ignorano «Jarvis» perché non si
+  vede nessuno (si chiama anche dal divano, pannello in un'altra zona).
+  `Presenza.scontoSoglia()` = `passoVicino` (di serie 0,05) se qualcuno è
+  vicino negli ultimi 10 s, altrimenti 0; `AscoltoParola.soglie()` lo mette
+  in `Soglie.sconto` e `DecisioneScatto.soglia()` lo toglie DOPO la soglia
+  che si adatta (mai sotto `SOGLIA_MINIMA` 0,2, mai sopra la soglia senza
+  sconto). Vale anche per la conferma su più frame e per la linea della
+  barra dal vivo. Nessuno visibile o fotocamera spenta = identico a prima.
+  Contro i falsi scatti restano la soglia che si adatta (v0.5.4) e il filtro
+  di jarvis_voce 0.3.1 lato server (trascrizione senza «Jarvis» →
+  `stt-no-text-recognized`, che il pannello chiude già in silenzio).
+- **Guarda e parla** (7.4): `forseSguardo()` nell'ascolto di «Jarvis» (stesso
+  microfono): `RilevaParlato` mentre `staGuardando()`, poi `voce.parla` con
+  ~1 s di audio prima e `silenziosoSeVuoto` (OpzioniVoce nuova: senza parole
+  si chiude in silenzio, come un falso scatto). **Serve «Jarvis» acceso.**
+- **Prove**: fotocamera finta di Chromium da un y4m
+  (`--use-file-for-fake-video-capture`, `dispositiviFinti()` in aiuti.ts) con
+  una foto NASA di dominio pubblico (`test/dati/video/`, `rifai.py`); il
+  modello vero gira nel pannello compilato e in `volto-modello.test.ts`
+  (Node). **`accedi()` spegne la fotocamera** se la prova non la chiede con
+  `fotocameraAccesa()`: la fotocamera finta di serie si muove sempre. Il
+  browser delle prove è su **Europe/Rome** (playwright.config.ts) e Node su
+  UTC: gli orari calcolati nelle prove vanno nel fuso del browser.
+
 ### Esporta / importa e giro della personalizzazione (v0.5.10, 02/10)
 
 - **`src/impostazioni/copia.ts`**: un elenco CHIUSO di chiavi copiabili
@@ -1821,7 +1867,7 @@ VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
-.venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 115/115
+.venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 117/117
 .venv-ha/bin/hass --script check_config -c <cartella con configuration.yaml + packages/>
 ```
 

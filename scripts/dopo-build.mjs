@@ -4,7 +4,8 @@
  *  2. controlla i limiti del progetto: pochi file (ogni richiesta sull'HTTPS
  *     costa ~1,5 s) e bundle iniziale < 200 KB gzip.
  *
- * Il motore della parola «Jarvis» (v0.5.0: onnxruntime, modelli, ~17 MB) sta
+ * Il motore della parola «Jarvis» (v0.5.0: onnxruntime, modelli, ~17 MB) e dalla
+ * v0.6.0 quello del volto (fotocamera, 1,2 MB di modello) stanno
  * in parola/: fuori dal bundle iniziale e dal limite dei file, in una cache
  * sua del service worker che scarica solo i file cambiati.
  */
@@ -79,17 +80,21 @@ if (js.length !== 1) {
 }
 const mb = parola.reduce((s, f) => s + statSync(join(DIST, f)).size, 0) / 1024 / 1024;
 console.log(
-  `\nMotore della parola «Jarvis» (caricato dopo, cache a parte): ${parola.length} file, ${mb.toFixed(1)} MB`,
+  `\nMotori della parola «Jarvis» e del volto (caricati dopo, cache a parte): ${parola.length} file, ${mb.toFixed(1)} MB`,
 );
 for (const f of parola) console.log(`  ${f}  (${(statSync(join(DIST, f)).size / 1024).toFixed(1)} KB)`);
+// v0.6.0: motore della parola, motore del volto e onnxruntime condiviso (1-3 pezzi JS),
+// un solo .wasm, 3 modelli della parola + 1 del volto
 const jsParola = parola.filter((f) => f.endsWith(".js"));
 if (
-  jsParola.length !== 1 ||
-  !parola.some((f) => f.endsWith(".wasm")) ||
-  parola.filter((f) => f.endsWith(".onnx")).length !== 3
+  jsParola.length < 1 ||
+  jsParola.length > 3 ||
+  parola.filter((f) => f.endsWith(".wasm")).length !== 1 ||
+  parola.filter((f) => f.endsWith(".onnx")).length !== 4 ||
+  !parola.some((f) => /version-RFB-320.*\.onnx$/.test(f))
 ) {
   console.error(
-    `ERRORE: in parola/ attesi 1 JavaScript, il .wasm e 3 modelli .onnx: trovati ${parola.join(", ")}`,
+    `ERRORE: in parola/ attesi 1-3 JavaScript, un .wasm, 3 modelli della parola e quello del volto: trovati ${parola.join(", ")}`,
   );
   errori++;
 }

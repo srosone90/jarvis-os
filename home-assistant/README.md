@@ -14,6 +14,7 @@ solo file: [`packages/jarvis.yaml`](packages/jarvis.yaml).
 | Temperatura percepita | `sensor.jarvis_temperatura_percepita_camera`, `…_soggiorno` | Formula di Steadman da temperatura e umidità dei Meter |
 | Soglie clima | `input_number.jarvis_clima_*` (4) | Sopra 26° percepiti raffresca a 24°, sotto 18° riscalda a 21° (valori di partenza, vedi sotto) |
 | Scene | `script.jarvis_buonanotte`, `script.jarvis_esco`, `script.jarvis_rientro` | I tre pulsanti del pannello |
+| Presenza (pannello v0.6.0) | `script.jarvis_presenza` (`pannello`) | Lo chiama la fotocamera di un pannello quando qualcuno si avvicina (al massimo ogni 5 minuti): manda l'evento `jarvis_presenza {pannello}`, da usare per il buongiorno lato server. Uno script perché dal websocket `fire_event` è solo per gli amministratori. **Non** esporlo ad Assist |
 | Previsioni per l'assistente | `script.jarvis_previsioni` | Restituisce le previsioni (giornaliere 5 giorni, orarie 12 ore) a Gemini; va **esposto ad Assist** |
 | Notifiche | `script.jarvis_notifica` | Unico punto che scrive al telefono |
 | Presenza | automazioni "Uscita" (solo notifica + pulsante) e "Rientro" (clima all'arrivo) | |

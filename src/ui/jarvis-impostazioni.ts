@@ -1,5 +1,6 @@
 import {
   mdiBullhorn,
+  mdiCamera,
   mdiClose,
   mdiViewDashboardOutline,
   mdiHome,
@@ -26,9 +27,19 @@ import "./jarvis-impostazioni-annunci";
 import "./jarvis-impostazioni-schermate";
 import "./jarvis-impostazioni-musica";
 import "./jarvis-impostazioni-copia";
+import "./jarvis-impostazioni-fotocamera";
 
 export type Sezione =
-  "stanza" | "schermate" | "musica" | "voce" | "annunci" | "riposo" | "audio" | "copia" | "diagnostica";
+  | "stanza"
+  | "schermate"
+  | "musica"
+  | "voce"
+  | "fotocamera"
+  | "annunci"
+  | "riposo"
+  | "audio"
+  | "copia"
+  | "diagnostica";
 
 const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   { id: "stanza", titolo: "Stanza e nome", icona: mdiHome },
@@ -36,6 +47,8 @@ const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   // v0.5.9: su quale dispositivo Spotify suona questo pannello
   { id: "musica", titolo: "Musica", icona: mdiMusic },
   { id: "voce", titolo: "Voce", icona: mdiMicrophone },
+  // v0.6.0: presenza, guarda e parla, «Jarvis» più facile da vicino
+  { id: "fotocamera", titolo: "Fotocamera", icona: mdiCamera },
   { id: "annunci", titolo: "Jarvis parla per primo", icona: mdiBullhorn },
   { id: "riposo", titolo: "Schermo a riposo", icona: mdiWeatherNight },
   { id: "audio", titolo: "Audio", icona: mdiVolumeHigh },
@@ -438,9 +451,11 @@ export class JarvisImpostazioni extends RiquadroSicuro {
                   ? this.riposo()
                   : s === "audio"
                     ? this.audio()
-                    : s === "copia"
-                      ? html`<jarvis-impostazioni-copia></jarvis-impostazioni-copia>`
-                      : html`<jarvis-diagnostica></jarvis-diagnostica>`;
+                    : s === "fotocamera"
+                      ? html`<jarvis-impostazioni-fotocamera></jarvis-impostazioni-fotocamera>`
+                      : s === "copia"
+                        ? html`<jarvis-impostazioni-copia></jarvis-impostazioni-copia>`
+                        : html`<jarvis-diagnostica></jarvis-diagnostica>`;
     return html`<header>
         <h1>Impostazioni</h1>
         <button

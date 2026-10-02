@@ -12,6 +12,8 @@ import { Annunci } from "../annunci/annunci";
 import { Assistente } from "../assistente/assistente";
 import { Musica } from "../musica/musica";
 import { CollegaDispositivo } from "../musica/dispositivi";
+import { Presenza } from "../fotocamera/presenza";
+import { OcchioFotocamera } from "../fotocamera/occhio";
 import { RegistroInterruzioni } from "./interruzioni";
 import { PausaMusica } from "../voce/pausa-musica";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
@@ -124,12 +126,23 @@ export class Connessione {
     (servizio, dati) => this.chiamaServizio("jarvis_voce", servizio, dati),
     proprietarioTimer,
   );
-  /** «Jarvis» sempre in ascolto (v0.5.0): dopo voce e timer, che usa. */
+  /**
+   * Fotocamera (v0.6.0): presenza, «Jarvis» più facile da vicino, guarda e parla. PRIMA
+   * della parola, che la usa (i campi si creano in ordine).
+   */
+  readonly presenza = new Presenza({
+    occhio: new OcchioFotocamera(),
+    caricaMotore: () => import("../fotocamera/motore-volto").then((m) => m.creaMotoreVolto()),
+    invia: (pannello) => this.inviaPresenza(pannello),
+    pannello: dispositivoPannello,
+  });
+  /** «Jarvis» sempre in ascolto (v0.5.0): dopo voce, timer e fotocamera, che usa. */
   readonly parola = new AscoltoParola({
     micro: this.microfono,
     assistente: this.assistente,
     voce: this.voce,
     timer: this.timer,
+    presenza: this.presenza,
   });
 
   constructor() {
@@ -167,6 +180,36 @@ export class Connessione {
 
   /** Le volte che HA non era raggiungibile da qui (v0.5.7, Avvisi → Connessione). */
   readonly interruzioni = new RegistroInterruzioni();
+
+  /**
+   * `jarvis_presenza {pannello}` (v0.6.0) con lo script del pacchetto: dal
+   * websocket `fire_event` è solo per gli amministratori. Senza lo script si
+   * prova `fire_event` (funziona solo con un utente amministratore).
+   */
+  private async inviaPresenza(pannello: string): Promise<void> {
+    const conn = this.conn;
+    if (!conn || !conn.connected) throw new Error("Home Assistant non collegato");
+    try {
+      await conn.sendMessagePromise({
+        type: "call_service",
+        domain: "script",
+        service: "jarvis_presenza",
+        service_data: { pannello },
+      });
+    } catch (errore) {
+      const testo = descriviErrore(errore);
+      if (!/not found|non trovat/i.test(testo)) throw errore;
+      try {
+        await conn.sendMessagePromise({
+          type: "fire_event",
+          event_type: "jarvis_presenza",
+          event_data: { pannello },
+        });
+      } catch {
+        throw new Error("manca script.jarvis_presenza (pacchetto jarvis.yaml da aggiornare)");
+      }
+    }
+  }
 
   /** <dominio>.<servizio> con la risposta: jarvis_musica (stato vero di Spotify) e jarvis_voce (timer). */
   private async chiamaServizio(

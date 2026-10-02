@@ -24,6 +24,7 @@ export const CHIAVI_COPIABILI: readonly (readonly [string, string])[] = [
   ["jarvis-parola", "«Jarvis» sempre in ascolto"],
   ["jarvis-microfono", "Elaborazione del microfono"],
   ["jarvis-annunci", "Annunci sul pannello"],
+  ["jarvis-fotocamera", "Fotocamera"],
   ["jarvis-riposo", "Schermo a riposo"],
   ["jarvis-audio-sveglio", "Audio sveglio"],
 ];

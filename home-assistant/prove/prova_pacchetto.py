@@ -73,6 +73,7 @@ class Banco:
         self.hass = hass
         self.chiamate: list[tuple[str, str, dict]] = []
         self.eventi_buonanotte = 0
+        self.eventi_presenza: list[dict] = []
 
     # ----- servizi finti ---------------------------------------------------------
     async def registra_servizi(self) -> None:
@@ -140,6 +141,7 @@ class Banco:
             self.eventi_buonanotte += 1
 
         hass.bus.async_listen("jarvis_buonanotte", conta_buonanotte)
+        hass.bus.async_listen("jarvis_presenza", lambda e: self.eventi_presenza.append(dict(e.data)))
 
     # ----- stato iniziale: i valori veri dell'elenco del 26/09 -------------------
     def stati_iniziali(self) -> None:
@@ -574,6 +576,14 @@ async def prova() -> int:
         verifica(b.chiamate_di("media_player", "turn_off") != [], "TV salotto spenta")
         verifica(b.eventi_buonanotte == 1, "evento jarvis_buonanotte mandato al pannello")
         verifica(not b.chiamate_di("switch"), "TV camera (infrarossi) non toccata")
+
+        print("\n13b. Presenza (pannello v0.6.0): lo script manda jarvis_presenza col pannello")
+        await b.esegui_script("jarvis_presenza", {"pannello": "jarvis_cucina"})
+        verifica(b.eventi_presenza == [{"pannello": "jarvis_cucina"}], "evento jarvis_presenza {pannello}",
+                 b.eventi_presenza)
+        # controprova: un nome che non è un pannello non manda niente
+        await b.esegui_script("jarvis_presenza", {"pannello": "cucina"})
+        verifica(len(b.eventi_presenza) == 1, "pannello non valido: nessun evento", b.eventi_presenza)
 
         print("\n14. Batteria bassa")
         b.azzera_chiamate()

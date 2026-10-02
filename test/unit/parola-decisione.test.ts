@@ -144,7 +144,7 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  function prepara() {
+  function prepara(presenza?: { scontoSoglia: () => number; staGuardando: () => boolean }) {
     const f = connessioneFinta();
     let aperto = false;
     const microfono = {
@@ -178,6 +178,7 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
         ferma: () => undefined,
       } as unknown as ConstructorParameters<typeof AscoltoParola>[0]["timer"],
       adesso: () => t,
+      ...(presenza ? { presenza } : {}),
     });
     const motore = {
       sogliaSerie: 0.5,
@@ -189,10 +190,12 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
     };
     const interna = a as unknown as { suEsito(e: unknown, m: unknown, t: number): void };
     /** Uno scatto (due frame) e la risposta di HA: testo o "nessuna parola". */
-    const scatto = async (testo: string | null) => {
+    const scatto = async (testo: string | null, punteggio = 0.8) => {
+      const prima = f.sottoscrizioni.length;
       for (let k = 0; k < 2; k++)
-        interna.suEsito({ punteggio: 0.8, base: 0.8, verificato: false, ms: 5 }, motore, 0);
+        interna.suEsito({ punteggio, base: punteggio, verificato: false, ms: 5 }, motore, 0);
       for (let k = 0; k < 4; k++) await Promise.resolve();
+      if (f.sottoscrizioni.length === prima) return false;
       const sub = f.sottoscrizioni.at(-1);
       sub?.callback({ type: "run-start", data: { runner_data: { stt_binary_handler_id: 3 } } });
       if (testo) sub?.callback({ type: "stt-end", data: { stt_output: { text: testo } } });
@@ -200,6 +203,7 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
       voce.ferma();
       voce.ferma();
       t += 60_000; // un minuto dopo, fuori dalle pause
+      return true;
     };
     return { a, scatto, imparati, voce };
   }
@@ -223,6 +227,22 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
     expect(log.voci().some((v) => v.messaggio.startsWith("«Jarvis»: soglia +0,05 sopra la sua base"))).toBe(
       true,
     );
+  });
+
+  it("fotocamera (v0.6.0): con qualcuno vicino un punteggio appena sotto soglia scatta; senza nessuno no", async () => {
+    let sconto = 0;
+    const p = prepara({ scontoSoglia: () => sconto, staGuardando: () => false });
+    // nessuno visibile (anche con la TV accesa): come senza fotocamera, 0,47 < 0,50 non scatta
+    expect(await p.scatto("che ore sono", 0.47)).toBe(false);
+    // qualcuno vicino: la soglia scende di un passo (0,45) e lo stesso punteggio scatta
+    sconto = 0.05;
+    expect(await p.scatto("che ore sono", 0.47)).toBe(true);
+    expect(
+      log.voci().some((v) => /soglia 0\.45, più bassa: qualcuno vicino al pannello/.test(v.messaggio)),
+    ).toBe(true);
+    // e la fotocamera non blocca mai: senza nessuno un punteggio alto scatta come sempre
+    sconto = 0;
+    expect(await p.scatto("che ore sono", 0.9)).toBe(true);
   });
 
   it("con «impara» spento i falsi scatti non diventano esempi", async () => {

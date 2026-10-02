@@ -248,6 +248,33 @@ script:
               entity_id: media_player.soggiorno_tv_salotto
       - event: jarvis_buonanotte
 
+  # PRESENZA (pannello v0.6.0): la fotocamera di un pannello ha visto qualcuno
+  # avvicinarsi. Il pannello chiama questo script (al massimo una volta ogni 5
+  # minuti) e lo script manda l'evento jarvis_presenza {pannello}, da usare
+  # per il buongiorno lato server. Uno script e non fire_event: dal
+  # websocket fire_event è solo per gli amministratori, e il pannello non usa
+  # permessi da amministratore. Nessuna immagine arriva qui: solo il nome del
+  # pannello.
+  jarvis_presenza:
+    alias: "Jarvis · Presenza"
+    icon: mdi:account-eye
+    mode: queued
+    max: 10
+    fields:
+      pannello:
+        name: Pannello
+        description: device_id del pannello (jarvis_<area>).
+        required: true
+        example: jarvis_cucina
+        selector:
+          text:
+    sequence:
+      - condition: template
+        value_template: "{{ pannello is string and pannello.startswith('jarvis_') }}"
+      - event: jarvis_presenza
+        event_data:
+          pannello: "{{ pannello }}"
+
   # Scena ESCO: spegne ciò che si può spegnere con certezza (TV salotto,
   # condizionatore) e ti dice cosa resta. Lo scaldabagno segue il suo
   # programma e non si tocca.

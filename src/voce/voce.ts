@@ -99,6 +99,12 @@ export interface OpzioniVoce extends OpzioniParla {
    * sola; non per il doppione (ha risposto un altro pannello).
    */
   dopoScatto?: (testo: string | null) => void;
+  /**
+   * Domanda partita senza «Jarvis» ma da un segnale che può sbagliare
+   * (v0.6.0: guarda e parla): se HA non sente parole si chiude in silenzio,
+   * come dopo un falso scatto, invece di «Non ho capito».
+   */
+  silenziosoSeVuoto?: boolean;
 }
 
 /** Le misure di reattività di una domanda nata da «Jarvis». */
@@ -249,7 +255,7 @@ export class Voce {
     this.riquadro = dove === "riquadro";
     this.problemaMic = null;
     this.seguito = seguito;
-    this.daParola = opzioni.parola !== undefined;
+    this.daParola = opzioni.parola !== undefined || opzioni.silenziosoSeVuoto === true;
     if (!seguito) this.idTurno = null;
     if (!this.dip.collegato() || this.dip.assistente.occupato) {
       this.imposta("spenta");

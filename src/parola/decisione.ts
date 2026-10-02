@@ -48,12 +48,19 @@ export const DECISIONE_DI_SERIE: OpzioniDecisione = {
 
 /** La soglia non sale mai oltre: sopra, anche la parola vera non passerebbe più. */
 export const SOGLIA_MASSIMA = 0.95;
+/** Con lo sconto di chi è vicino (v0.6.0) la soglia non scende mai sotto. */
+export const SOGLIA_MINIMA = 0.2;
 
 export interface Soglie {
   /** Soglia di serie (0,5, o quella scelta in Impostazioni / parola.json). */
   serie: number;
   /** Soglia personale dagli esempi (v0.5.3), null se non c'è. */
   personale: number | null;
+  /**
+   * Quanto scende adesso perché qualcuno è vicino al pannello (v0.6.0,
+   * fotocamera): la fotocamera aiuta l'attivazione, non la limita mai.
+   */
+  sconto?: number;
 }
 
 export interface CambioSoglia {
@@ -81,7 +88,9 @@ export class DecisioneScatto {
   /** La soglia che vale per questo frame. */
   soglia(e: { verificato: boolean }, s: Soglie): number {
     const base = e.verificato && s.personale !== null ? s.personale : s.serie;
-    return Math.min(SOGLIA_MASSIMA, base + this.aumentoAttuale);
+    const soglia = Math.min(SOGLIA_MASSIMA, base + this.aumentoAttuale);
+    const sconto = s.sconto ?? 0;
+    return sconto > 0 ? Math.max(Math.min(soglia, SOGLIA_MINIMA), soglia - sconto) : soglia;
   }
 
   /** Un frame: true se completa la conferma (e allora la fila riparte da zero). */

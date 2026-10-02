@@ -74,6 +74,16 @@ export const stanza = (page: Page, nome: string) => page.getByTestId("stanza").f
 
 /** Primo accesso: schermata "Collega", login OAuth, pannello connesso. */
 export async function accedi(page: Page): Promise<void> {
+  // v0.6.0: la fotocamera (accesa di serie) resta spenta nelle prove che non la chiedono
+  // con fotocameraAccesa(): la fotocamera finta di Chromium si muove sempre e farebbe
+  // girare il modello del volto in ogni prova
+  await page.addInitScript(() => {
+    if (localStorage.getItem("jarvis-fotocamera") === null)
+      localStorage.setItem(
+        "jarvis-fotocamera",
+        JSON.stringify({ presenza: false, guardaParla: false, aiutoVicino: false }),
+      );
+  });
   await page.goto("./index.html");
   await expect(page.getByTestId("accesso")).toBeVisible();
   await page.getByRole("button", { name: "Accedi" }).click();
@@ -100,6 +110,7 @@ export async function apriImpostazioni(
     | "riposo"
     | "audio"
     | "copia"
+    | "fotocamera"
     | "diagnostica" = "stanza",
 ): Promise<void> {
   const ora = page.getByTestId("ora");
@@ -147,6 +158,29 @@ export const microfonoDaFile = (file: string) => ({
     ...(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {}),
   },
 });
+
+/**
+ * v0.6.0: fotocamera finta da un video di test/dati/video (e, se c'è, microfono
+ * finto da un WAV). Va in `test.use()` a livello di file.
+ */
+export const dispositiviFinti = (o: { video: string; audio?: string }) => ({
+  launchOptions: {
+    args: [
+      ...ARGOMENTI,
+      `--use-file-for-fake-video-capture=${resolve(`test/dati/video/${o.video}`)}`,
+      ...(o.audio ? [`--use-file-for-fake-audio-capture=${resolve(`test/dati/audio/${o.audio}`)}`] : []),
+    ],
+    ...(process.env.PLAYWRIGHT_CHROMIUM ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM } : {}),
+  },
+  permissions: ["microphone", "camera"],
+});
+
+/** v0.6.0: la fotocamera con le preferenze date (di serie: tutto acceso), PRIMA di accedi(). */
+export async function fotocameraAccesa(page: Page, pref: Record<string, unknown> = {}): Promise<void> {
+  // tutte le ore: le prove girano anche di notte
+  const p = { spentaDa: "00:00", spentaA: "00:00", ...pref };
+  await page.addInitScript((v) => localStorage.setItem("jarvis-fotocamera", v), JSON.stringify(p));
+}
 
 /** v0.5.3: la pipeline del contesto prima di «Jarvis» (device_id «…__contesto»). */
 export const eContesto = (r: { device_id: string | null }): boolean =>
