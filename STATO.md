@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 02/10/2026 — v0.5.9 (la musica parte dal dispositivo da cui la chiedi, jarvis_musica 0.5.0). Piano autonomo in corso._
+_Ultimo aggiornamento: 02/10/2026 — v0.5.10 (esporta e importa le impostazioni, giro della personalizzazione). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -16,7 +16,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.5.9 (la musica parte dal dispositivo da
 | 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | **fatto** |
 | B. Riascolto breve, errori di Google, timer coi servizi, conferma scene (messaggio del 02/10) | v0.5.8 | **fatto** |
 | M. Musica dal dispositivo del pannello + «Collega questo dispositivo» (priorità alta, 02/10) | v0.5.9 | **fatto** |
-| 6. Giro della personalizzazione + esporta/importa | v0.5.10 | da fare |
+| 6. Giro della personalizzazione + esporta/importa | v0.5.10 | **fatto** |
 | 7. Fotocamera | v0.6.0 | da fare |
 | 8. Modello su misura | — | da fare |
 
@@ -98,6 +98,14 @@ Ogni riga: cosa, perché, dove si cambia.
   (quella della v0.5.3). Impostazioni → Voce.
 - **v0.5.8 — conferma delle scene: secondo tocco entro 4 s**. Fisso.
 
+- **v0.5.10 — si esportano solo le preferenze cambiate** (quelle di serie
+  non sono salvate, quindi non sono nel file): importando, il resto del
+  pannello che riceve resta com'è, non torna di serie.
+- **v0.5.10 — dopo l'import il pannello si ricarica**: ogni parte rilegge e
+  ripulisce i suoi valori all'avvio, ed è il modo sicuro per applicarli
+  tutti insieme.
+- **v0.5.10 — la scelta del dispositivo Spotify non è nel file**: sta sul
+  server, per stanza (v0.5.9).
 - **v0.5.9 — la scelta del dispositivo si salva per stanza del pannello**
   (il device_id `jarvis_<stanza>`): senza stanza non si ricorda niente,
   «Dove la suono?» chiede ogni volta. Due pannelli nella stessa stanza
@@ -163,6 +171,10 @@ Ogni riga: cosa, perché, dove si cambia.
   Scene: quali e in che ordine (le prime 3 anche in Casa), conferma prima
   delle scene (v0.5.8); Spesa: quale
   lista, cose prese; Avvisi: ore, soglia della batteria.
+- **v0.5.10**: annunci scritti a riposo (quanti 5, per quante ore 12),
+  tempo per il secondo tocco delle scene (4 s), riquadro della voce dopo
+  la risposta (6 s). E tutto si esporta/importa (Impostazioni → Esporta e
+  importa).
 - **Musica** (v0.5.9, per stanza del pannello, sul server): su quale
   dispositivo Spotify suona, o «Chiedi ogni volta».
 - **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
@@ -172,6 +184,20 @@ Ogni riga: cosa, perché, dove si cambia.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.5.10, esporta/importa e giro della personalizzazione**:
+  1. **Impostazioni → Esporta e importa**: un file JSON con le impostazioni
+     di questo pannello; all'import si vede cosa cambia e poi il pannello
+     si ricarica. Fuori sempre: collegamento a HA (token), stanza,
+     registro, interruzioni, pronuncia di «Jarvis»;
+  2. **valori che erano fissi, ora personalizzabili**: annunci scritti a
+     riposo (quanti, per quante ore), tempo per il secondo tocco delle
+     scene, secondi del riquadro della voce dopo la risposta.
+  Controprove: un file con dentro il token o la stanza li scarta (anche
+  chiamando `importa()` a mano); file rotto, di un altro programma, vuoto
+  o già uguale; tolto l'annuncio in cima non ricompare uno vecchio già
+  scartato. Trovati col layout: il campo file nascosto contava come testo
+  tagliato, e i nomi tecnici delle chiavi scartate si spezzavano.
 
 - **Finito: v0.5.9, la musica parte dal dispositivo da cui la chiedi**
   (problema del Redmi del 02/10):
@@ -300,7 +326,19 @@ Ogni riga: cosa, perché, dove si cambia.
 | sha256 dello zip | `f0bb25fded5492d10aac620de54fd00d68f052accc092348368e141f235eb217` (6,9 MB, service worker 0.5.9, `parola/` con 5 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
 | Precedente | v0.5.8, sha256 `e2ade89e0716d42466c477be7e5c8c7059071d9233e8d2452ab82102cbdc6917` (6,9 MB, service worker 0.5.8, `parola/` con 5 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.5.9
+## Da installare lato server: v0.5.10
+
+Solo lo zip sopra `/config/www/jarvis/`. Lato HA niente di nuovo (vale
+quanto scritto per la v0.5.9, se non è ancora installata: jarvis_musica
+0.5.0).
+
+**Come provare la v0.5.10**: sul tablet, Impostazioni → Esporta e importa →
+**Esporta**: scarica un file. Sul Redmi, Impostazioni → Esporta e importa →
+**Importa** → scegli quel file: compare cosa cambia; «Importa e ricarica»;
+il Redmi riparte con le stesse impostazioni del tablet, ma resta collegato
+a HA e tiene la sua stanza.
+
+## Prima: v0.5.9
 
 1. Lo zip sopra `/config/www/jarvis/`.
 2. **jarvis_musica 0.5.0**: sovrascrivi

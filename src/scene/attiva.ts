@@ -32,7 +32,7 @@ export async function attivaScena(s: Scena): Promise<boolean> {
   }
 }
 
-/** Quanto resta valido il primo tocco quando le scene chiedono conferma (v0.5.8). */
+/** Quanto resta valido il primo tocco quando le scene chiedono conferma (v0.5.8; di serie, si cambia dalla v0.5.10). */
 export const CONFERMA_SCENA_MS = 4000;
 
 /**
@@ -47,15 +47,15 @@ export class ConfermaScena {
 
   constructor(private readonly ridisegna: () => void) {}
 
-  /** true = avviala adesso; false = primo tocco, aspetta il secondo. */
-  tocca(entita: string, chiedi: boolean): boolean {
+  /** true = avviala adesso; false = primo tocco, aspetta il secondo (per `ms`, v0.5.10). */
+  tocca(entita: string, chiedi: boolean, ms = CONFERMA_SCENA_MS): boolean {
     if (!chiedi || this.attesa === entita) {
       this.annulla();
       return true;
     }
     clearTimeout(this.scadenza);
     this.attesa = entita;
-    this.scadenza = setTimeout(() => this.annulla(), CONFERMA_SCENA_MS);
+    this.scadenza = setTimeout(() => this.annulla(), ms);
     this.ridisegna();
     return false;
   }

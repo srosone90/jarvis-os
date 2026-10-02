@@ -798,7 +798,9 @@ export class JarvisApp extends LitElement {
               data-conferma=${this.confermaScena.inAttesa(s.entita) ? "si" : "no"}
               ?disabled=${scollegato || (connessione.negozio.pronto && !s.esiste)}
               @click=${() => {
-                if (this.confermaScena.tocca(s.entita, schermate.valori.sceneConferma)) void attivaScena(s);
+                const v = schermate.valori;
+                if (this.confermaScena.tocca(s.entita, v.sceneConferma, v.sceneConfermaSecondi * 1000))
+                  void attivaScena(s);
               }}
             >
               ${icona(s.icona)}${this.confermaScena.inAttesa(s.entita) ? "Tocca ancora" : s.nome}

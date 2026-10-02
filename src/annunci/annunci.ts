@@ -20,9 +20,14 @@ import type { DoveVoce, Voce } from "../voce/voce";
  */
 export const EVENTO = "jarvis_annuncio";
 export const SENSORE_SILENZIO = "binary_sensor.jarvis_annunci_in_silenzio";
-/** Scritti a riposo: al massimo tanti (i più vecchi se ne vanno) e per al massimo 12 ore. */
+/**
+ * Scritti a riposo: al massimo tanti (i più vecchi se ne vanno) e per al
+ * massimo tante ore. Di serie 5 e 12 ore; dalla v0.5.10 si cambiano
+ * (Impostazioni → Jarvis parla per primo → Solo questo pannello).
+ */
 export const PROMEMORIA_MASSIMI = 5;
 export const PROMEMORIA_DURATA_MS = 12 * 3_600_000;
+export const LIMITI_ANNUNCI = { promemoria: [1, 20], promemoriaOre: [1, 48] } as const;
 
 export interface Annuncio {
   pannello: string;
@@ -54,8 +59,17 @@ export interface PreferenzeAnnunci {
   soloTesto: boolean;
   /** Volume degli annunci, 0-100 (del volume del tablet). */
   volume: number;
+  /** v0.5.10: quanti annunci scritti a riposo, al massimo. */
+  promemoria: number;
+  /** v0.5.10: per quante ore restano scritti. */
+  promemoriaOre: number;
 }
-export const PREFERENZE_ANNUNCI_DI_SERIE: PreferenzeAnnunci = { soloTesto: false, volume: 100 };
+export const PREFERENZE_ANNUNCI_DI_SERIE: PreferenzeAnnunci = {
+  soloTesto: false,
+  volume: 100,
+  promemoria: PROMEMORIA_MASSIMI,
+  promemoriaOre: PROMEMORIA_DURATA_MS / 3_600_000,
+};
 const CHIAVE = "jarvis-annunci";
 
 export function leggiPreferenzeAnnunci(grezzo: string | null): PreferenzeAnnunci {
@@ -66,6 +80,11 @@ export function leggiPreferenzeAnnunci(grezzo: string | null): PreferenzeAnnunci
     if (typeof d["soloTesto"] === "boolean") p.soloTesto = d["soloTesto"];
     if (typeof d["volume"] === "number" && Number.isFinite(d["volume"]))
       p.volume = Math.round(Math.min(100, Math.max(0, d["volume"])));
+    for (const k of ["promemoria", "promemoriaOre"] as const) {
+      const v = d[k];
+      const [min, max] = LIMITI_ANNUNCI[k];
+      if (typeof v === "number" && Number.isFinite(v)) p[k] = Math.round(Math.min(max, Math.max(min, v)));
+    }
   } catch {
     // illeggibile: valori di serie
   }
@@ -116,8 +135,9 @@ export class Annunci {
   }
   /** Annunci da leggere a schermo (non detti a voce), dal più recente. */
   get promemoria(): readonly Promemoria[] {
-    const limite = this.adesso() - PROMEMORIA_DURATA_MS;
+    const limite = this.adesso() - this.pref.promemoriaOre * 3_600_000;
     return this.scritti
+      .slice(-this.pref.promemoria)
       .filter((p) => p.ora >= limite)
       .slice()
       .reverse();
@@ -225,7 +245,7 @@ export class Annunci {
   private scrivi(a: Annuncio, motivo: string): void {
     this.contatore += 1;
     this.scritti = [
-      ...this.scritti.slice(-(PROMEMORIA_MASSIMI - 1)),
+      ...this.scritti.slice(-(this.pref.promemoria - 1)),
       { id: this.contatore, testo: a.testo, ora: this.adesso(), motivo },
     ];
     log.info(`Annuncio non detto a voce (${motivo}): resta scritto sullo schermo`);

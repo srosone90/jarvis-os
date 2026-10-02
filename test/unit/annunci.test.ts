@@ -132,12 +132,32 @@ describe("annunci", () => {
     expect(f.a.promemoria).toHaveLength(0);
   });
 
+  it("v0.5.10: quanti scritti e per quante ore si cambiano (nei limiti); abbassati, i più vecchi spariscono", () => {
+    const f = finto();
+    f.a.cambiaPreferenze({ soloTesto: true, promemoria: 2, promemoriaOre: 1 });
+    for (let k = 0; k < 4; k++) f.a.ricevi(ev(`n${k}`));
+    expect(f.a.promemoria.map((p) => p.testo)).toEqual(["n3", "n2"]);
+    // controprova: tolto il primo non ricompare uno vecchio già scartato
+    const primo = f.a.promemoria[0];
+    if (primo) f.a.togli(primo.id);
+    expect(f.a.promemoria.map((p) => p.testo)).toEqual(["n2"]);
+    f.stato.t += 3_600_001;
+    expect(f.a.promemoria).toHaveLength(0);
+    f.a.cambiaPreferenze({ promemoria: 999, promemoriaOre: 0 });
+    expect(f.a.preferenze).toMatchObject({ promemoria: 20, promemoriaOre: 1 });
+    f.a.cambiaPreferenze({ promemoria: null, promemoriaOre: null });
+    expect(f.a.preferenze).toMatchObject({ promemoria: 5, promemoriaOre: 12 });
+  });
+
   it("volume e solo testo: preferenze del pannello, salvate, col ripristino", () => {
     const f = finto();
     f.a.cambiaPreferenze({ volume: 40 });
     f.a.ricevi(ev("Piano"));
     expect(f.stato.detti[0]?.volume).toBe(0.4);
-    expect(JSON.parse(f.memoria.get("jarvis-annunci") ?? "{}")).toEqual({ soloTesto: false, volume: 40 });
+    expect(JSON.parse(f.memoria.get("jarvis-annunci") ?? "{}")).toMatchObject({
+      soloTesto: false,
+      volume: 40,
+    });
     f.a.cambiaPreferenze({ volume: null });
     expect(f.a.preferenze).toEqual(PREFERENZE_ANNUNCI_DI_SERIE);
   });

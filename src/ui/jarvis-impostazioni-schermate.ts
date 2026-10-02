@@ -379,10 +379,24 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
       ${campoInterruttore({
         id: "scene-conferma",
         titolo: "Chiedi conferma prima delle scene",
-        spiegazione: "Il primo tocco chiede «Tocca ancora», il secondo (entro 4 secondi) avvia la scena.",
+        spiegazione:
+          "Il primo tocco chiede «Tocca ancora», il secondo avvia la scena (entro il tempo qui sotto).",
         valore: v.sceneConferma,
         diSerie: PREFERENZE_SCHERMATE_DI_SERIE.sceneConferma,
         cambia: (b) => schermate.cambia({ sceneConferma: b }),
+      })}
+      ${campoNumero({
+        id: "scene-conferma-secondi",
+        titolo: "Tempo per il secondo tocco",
+        spiegazione: "Con la conferma accesa: dopo questi secondi «Tocca ancora» torna com'era.",
+        valore: v.sceneConfermaSecondi,
+        diSerie: PREFERENZE_SCHERMATE_DI_SERIE.sceneConfermaSecondi,
+        min: LIMITI_SCHERMATE.sceneConfermaSecondi[0],
+        max: LIMITI_SCHERMATE.sceneConfermaSecondi[1],
+        passo: 1,
+        unita: "secondi",
+        disattivo: !v.sceneConferma,
+        cambia: (n) => schermate.cambia({ sceneConfermaSecondi: n }),
       })}`;
   }
 

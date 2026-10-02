@@ -18,13 +18,20 @@ export interface PreferenzeVoce {
   riascoltoSecondi: number;
   riascoltoAzioneSecondi: number;
   sensibilitaParlato: SensibilitaParlato;
+  /** v0.5.10: per quanti secondi il riquadro piccolo resta dopo la risposta. */
+  riquadroSecondi: number;
 }
 export const PREFERENZE_VOCE_DI_SERIE: PreferenzeVoce = {
   riascoltoSecondi: 8,
   riascoltoAzioneSecondi: 2,
   sensibilitaParlato: "normale",
+  riquadroSecondi: 6,
 };
-export const LIMITI_VOCE = { riascoltoSecondi: [0, 30], riascoltoAzioneSecondi: [0, 15] } as const;
+export const LIMITI_VOCE = {
+  riascoltoSecondi: [0, 30],
+  riascoltoAzioneSecondi: [0, 15],
+  riquadroSecondi: [2, 60],
+} as const;
 export const SENSIBILITA_PARLATO: readonly SensibilitaParlato[] = ["bassa", "normale", "alta"];
 const CHIAVE = "jarvis-voce";
 
@@ -42,6 +49,8 @@ export function leggiPreferenzeVoce(grezzo: string | null): PreferenzeVoce {
       p.riascoltoSecondi = limita(d["riascoltoSecondi"], LIMITI_VOCE.riascoltoSecondi);
     if (numero(d["riascoltoAzioneSecondi"]))
       p.riascoltoAzioneSecondi = limita(d["riascoltoAzioneSecondi"], LIMITI_VOCE.riascoltoAzioneSecondi);
+    if (numero(d["riquadroSecondi"]))
+      p.riquadroSecondi = limita(d["riquadroSecondi"], LIMITI_VOCE.riquadroSecondi);
     const s = d["sensibilitaParlato"];
     if (typeof s === "string" && (SENSIBILITA_PARLATO as readonly string[]).includes(s))
       p.sensibilitaParlato = s as SensibilitaParlato;

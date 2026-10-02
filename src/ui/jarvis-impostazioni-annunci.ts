@@ -6,6 +6,7 @@ import { connessione } from "../connessione/connessione";
 import { descriviErrore, log } from "../diagnostica/log";
 import { OsservaEntita, RiquadroSicuro, stileBase } from "./base";
 import { campoInterruttore, campoNumero, campoOrario, campoTesto, stileCampi } from "./campi";
+import { LIMITI_ANNUNCI } from "../annunci/annunci";
 
 /**
  * Impostazioni → «Jarvis parla per primo» (v0.5.4). Due tipi di scelte:
@@ -260,6 +261,31 @@ export class JarvisImpostazioniAnnunci extends RiquadroSicuro {
         valore: p.soloTesto,
         diSerie: PREFERENZE_ANNUNCI_DI_SERIE.soloTesto,
         cambia: (v) => a.cambiaPreferenze({ soloTesto: v }),
+      })}
+      ${campoNumero({
+        id: "annunci-scritti",
+        titolo: "Annunci scritti a riposo",
+        spiegazione:
+          "Quelli non detti a voce (notte, silenzio, solo testo): al massimo tanti, i più vecchi se ne vanno.",
+        valore: p.promemoria,
+        diSerie: PREFERENZE_ANNUNCI_DI_SERIE.promemoria,
+        min: LIMITI_ANNUNCI.promemoria[0],
+        max: LIMITI_ANNUNCI.promemoria[1],
+        passo: 1,
+        unita: "annunci",
+        cambia: (v) => a.cambiaPreferenze({ promemoria: v }),
+      })}
+      ${campoNumero({
+        id: "annunci-ore",
+        titolo: "Per quante ore restano scritti",
+        spiegazione: "Poi spariscono da soli (un tocco li toglie prima).",
+        valore: p.promemoriaOre,
+        diSerie: PREFERENZE_ANNUNCI_DI_SERIE.promemoriaOre,
+        min: LIMITI_ANNUNCI.promemoriaOre[0],
+        max: LIMITI_ANNUNCI.promemoriaOre[1],
+        passo: 1,
+        unita: "ore",
+        cambia: (v) => a.cambiaPreferenze({ promemoriaOre: v }),
       })}`;
   }
 }

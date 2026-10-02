@@ -16,6 +16,8 @@ export interface PreferenzeSchermate {
   scene: string[];
   /** v0.5.8: prima di avviare una scena chiede un secondo tocco. */
   sceneConferma: boolean;
+  /** v0.5.10: entro quanti secondi il secondo tocco conferma. */
+  sceneConfermaSecondi: number;
   /** La lista della spesa di Home Assistant (un'entità todo). */
   spesaLista: string;
   /** Anche le cose già prese, barrate in fondo. */
@@ -32,6 +34,7 @@ export const PREFERENZE_SCHERMATE_DI_SERIE: PreferenzeSchermate = {
   climaConsumi: true,
   scene: ["script.jarvis_buonanotte", "script.jarvis_esco", "script.jarvis_rientro"],
   sceneConferma: false,
+  sceneConfermaSecondi: 4,
   spesaLista: "todo.shopping_list",
   spesaPresi: true,
   avvisiOre: 24,
@@ -44,6 +47,7 @@ export const LIMITI_SCHERMATE = {
   climaOre: [6, 72],
   avvisiOre: [1, 72],
   avvisiSogliaBatteria: [5, 50],
+  sceneConfermaSecondi: [2, 10],
 } as const;
 
 const CHIAVE = "jarvis-schermate";
@@ -96,6 +100,8 @@ export function leggiPreferenzeSchermate(grezzo: string | null): PreferenzeScher
   if (typeof d["climaConsumi"] === "boolean") p.climaConsumi = d["climaConsumi"];
   if (Array.isArray(d["scene"])) p.scene = sceneDa(d["scene"]);
   if (typeof d["sceneConferma"] === "boolean") p.sceneConferma = d["sceneConferma"];
+  if (numeroValido(d["sceneConfermaSecondi"]))
+    p.sceneConfermaSecondi = limita(d["sceneConfermaSecondi"], LIMITI_SCHERMATE.sceneConfermaSecondi);
   if (typeof d["spesaLista"] === "string" && ENTITA_LISTA.test(d["spesaLista"].trim()))
     p.spesaLista = d["spesaLista"].trim();
   if (typeof d["spesaPresi"] === "boolean") p.spesaPresi = d["spesaPresi"];

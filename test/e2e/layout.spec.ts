@@ -490,7 +490,17 @@ for (const v of MISURE) {
     await page.getByTestId("hub-completo").click();
 
     // 4. impostazioni, sezione per sezione
-    for (const s of ["stanza", "schermate", "voce", "annunci", "riposo", "audio", "diagnostica"]) {
+    for (const s of [
+      "stanza",
+      "schermate",
+      "musica",
+      "voce",
+      "annunci",
+      "riposo",
+      "audio",
+      "copia",
+      "diagnostica",
+    ]) {
       if (s === "stanza") await page.getByTestId("ora").click({ delay: 3300 });
       await page.getByTestId(`sezione-${s}`).click();
       await page.screenshot({ path: `schermate/layout/impostazioni-${s}-${v.nome}.png` });
@@ -929,6 +939,54 @@ for (const v of MISURE) {
         ...(await problemiTesto(page, v.width)),
       ],
       "impostazioni musica",
+    ).toEqual([]);
+  });
+}
+
+// --- v0.5.10: esporta e importa, con la conferma di un file pieno ---
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.10: importa, cosa cambia e chiavi scartate`, async ({ page }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await accedi(page);
+    await apriImpostazioni(page, "copia");
+    const impostazioni: Record<string, string> = {
+      "jarvis-chiave-di-un-altro-programma-molto-lunga": "x",
+      "jarvis-token": "x",
+    };
+    for (const k of [
+      "jarvis-navigazione",
+      "jarvis-schermate",
+      "jarvis-meteo",
+      "jarvis-storico",
+      "jarvis-musica",
+      "jarvis-voce",
+      "jarvis-parola",
+      "jarvis-microfono",
+      "jarvis-annunci",
+      "jarvis-riposo",
+      "jarvis-audio-sveglio",
+    ])
+      impostazioni[k] = "{}";
+    await page.getByTestId("copia-file").setInputFiles({
+      name: "tutto.json",
+      mimeType: "application/json",
+      buffer: Buffer.from(
+        JSON.stringify({ formato: "jarvis-impostazioni", versione: "0.5.10", impostazioni }),
+      ),
+    });
+    await expect(page.getByTestId("copia-cambia").locator("li")).toHaveCount(11);
+    // le impostazioni sono un livello fisso che scorre dentro: si va alla conferma e si fotografa lo schermo
+    await page.getByTestId("copia-conferma").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `schermate/layout/impostazioni-copia-${v.nome}.png` });
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          ["jarvis-app", "jarvis-impostazioni", "header"],
+          ["jarvis-app", "jarvis-impostazioni", "nav"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "copia",
     ).toEqual([]);
   });
 }

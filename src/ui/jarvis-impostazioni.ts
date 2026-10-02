@@ -6,6 +6,7 @@ import {
   mdiInformationOutline,
   mdiMicrophone,
   mdiMusic,
+  mdiSwapVertical,
   mdiVolumeHigh,
   mdiWeatherNight,
 } from "@mdi/js";
@@ -24,9 +25,10 @@ import "./jarvis-impostazioni-voce";
 import "./jarvis-impostazioni-annunci";
 import "./jarvis-impostazioni-schermate";
 import "./jarvis-impostazioni-musica";
+import "./jarvis-impostazioni-copia";
 
 export type Sezione =
-  "stanza" | "schermate" | "musica" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica";
+  "stanza" | "schermate" | "musica" | "voce" | "annunci" | "riposo" | "audio" | "copia" | "diagnostica";
 
 const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   { id: "stanza", titolo: "Stanza e nome", icona: mdiHome },
@@ -37,6 +39,8 @@ const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   { id: "annunci", titolo: "Jarvis parla per primo", icona: mdiBullhorn },
   { id: "riposo", titolo: "Schermo a riposo", icona: mdiWeatherNight },
   { id: "audio", titolo: "Audio", icona: mdiVolumeHigh },
+  // v0.5.10: esporta e importa le impostazioni
+  { id: "copia", titolo: "Esporta e importa", icona: mdiSwapVertical },
   { id: "diagnostica", titolo: "Diagnostica", icona: mdiInformationOutline },
 ];
 
@@ -434,7 +438,9 @@ export class JarvisImpostazioni extends RiquadroSicuro {
                   ? this.riposo()
                   : s === "audio"
                     ? this.audio()
-                    : html`<jarvis-diagnostica></jarvis-diagnostica>`;
+                    : s === "copia"
+                      ? html`<jarvis-impostazioni-copia></jarvis-impostazioni-copia>`
+                      : html`<jarvis-diagnostica></jarvis-diagnostica>`;
     return html`<header>
         <h1>Impostazioni</h1>
         <button

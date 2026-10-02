@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.5.10
+
+Il giro della personalizzazione (punto 6 del piano), con esporta e importa.
+
+- **Impostazioni → Esporta e importa** (sezione nuova): **Esporta** scarica
+  un file con le impostazioni di questo pannello
+  (`jarvis-impostazioni-<stanza>-<giorno>.json`); **Importa** legge un file
+  di un altro pannello, mostra cosa cambia, e dopo «Importa e ricarica» il
+  pannello riparte con quelle impostazioni. Mai nel file, e mai importati
+  anche se un file li contiene: il collegamento a Home Assistant, la stanza
+  del pannello, il registro, le interruzioni, la pronuncia di «Jarvis».
+- **Valori che erano fissi, ora personalizzabili** (col valore di serie e
+  «Ripristina»):
+  - annunci scritti a riposo: quanti (5) e per quante ore (12) —
+    Impostazioni → Jarvis parla per primo;
+  - tempo per il secondo tocco delle scene con la conferma (4 s) —
+    Impostazioni → Schermate → Scene;
+  - per quanti secondi resta il riquadro della voce dopo la risposta (6) —
+    Impostazioni → Voce.
+
 ## v0.5.9
 
 La musica parte dal dispositivo da cui la chiedi (problema reale del 02/10:

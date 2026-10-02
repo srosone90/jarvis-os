@@ -350,6 +350,21 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
         this.requestUpdate();
       },
     })}
+    ${campoNumero({
+      id: "riquadro-secondi",
+      titolo: "Riquadro dopo la risposta",
+      spiegazione: "Per quanti secondi resta il riquadro piccolo con la risposta, poi sparisce da solo.",
+      valore: voce.preferenze.riquadroSecondi,
+      diSerie: PREFERENZE_VOCE_DI_SERIE.riquadroSecondi,
+      min: LIMITI_VOCE.riquadroSecondi[0],
+      max: LIMITI_VOCE.riquadroSecondi[1],
+      passo: 1,
+      unita: "secondi",
+      cambia: (x) => {
+        voce.cambiaPreferenze({ riquadroSecondi: x });
+        this.requestUpdate();
+      },
+    })}
     ${campoScelta({
       id: "sensibilita-parlato",
       titolo: "Quanto basta per «stai parlando»",

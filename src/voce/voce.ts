@@ -66,8 +66,8 @@ export const APERTURA_MASSIMA_MS = 10_000;
  * tocco su "ferma" annulla subito.
  */
 export const PENSA_MASSIMO_MS = 30_000;
-/** Il riquadro resta in vista così a lungo dopo la risposta, poi sparisce. */
-export const RIQUADRO_DOPO_MS = 6_000;
+/** Il riquadro resta in vista così a lungo dopo la risposta, poi sparisce (di serie; Impostazioni → Voce dalla v0.5.10). */
+export const RIQUADRO_DOPO_MS = PREFERENZE_VOCE_DI_SERIE.riquadroSecondi * 1000;
 /**
  * Audio tenuto da parte prima che HA dia l'id: al massimo ~25 s. Con «Jarvis»
  * ci sono fino a 10 s di frase PRIMA della parola (v0.5.2), più l'audio dal
@@ -590,7 +590,7 @@ export class Voce {
     this.imposta("spenta");
     if (this.riquadro) {
       clearTimeout(this.timerRiquadro);
-      this.timerRiquadro = setTimeout(() => this.nascondiRiquadro(), RIQUADRO_DOPO_MS);
+      this.timerRiquadro = setTimeout(() => this.nascondiRiquadro(), this.pref.riquadroSecondi * 1000);
     }
   }
 

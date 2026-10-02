@@ -131,5 +131,8 @@ test("Impostazioni → Jarvis parla per primo: le entità del pacchetto si cambi
   expect(JSON.parse((await page.evaluate(() => localStorage.getItem("jarvis-annunci"))) ?? "{}")).toEqual({
     soloTesto: true,
     volume: 100,
+    // v0.5.10: quanti annunci scritti a riposo e per quante ore
+    promemoria: 5,
+    promemoriaOre: 12,
   });
 });

@@ -93,7 +93,8 @@ export class JarvisPaginaScene extends RiquadroSicuro {
   }
 
   private async attiva(s: Scena): Promise<void> {
-    if (!this.conferma.tocca(s.entita, schermate.valori.sceneConferma)) return;
+    const v = schermate.valori;
+    if (!this.conferma.tocca(s.entita, v.sceneConferma, v.sceneConfermaSecondi * 1000)) return;
     this.inCorso = s.entita;
     await attivaScena(s);
     this.inCorso = null;

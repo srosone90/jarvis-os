@@ -1434,6 +1434,26 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `script.jarvis_*` (stato "on" per 1,2 s), batterie con `device_class`.
   Entità: 35.
 
+### Esporta / importa e giro della personalizzazione (v0.5.10, 02/10)
+
+- **`src/impostazioni/copia.ts`**: un elenco CHIUSO di chiavi copiabili
+  (`CHIAVI_COPIABILI`) e uno di chiavi mai copiate (`CHIAVI_MAI`: token,
+  registro, interruzioni, stanza, guida), controllato sia all'esportazione
+  sia all'importazione (anche `importa()` chiamata a mano scarta le
+  vietate). Si copiano le stringhe così come sono salvate: ogni modulo le
+  ripulisce all'avvio coi suoi `leggiPreferenze…`, quindi dopo l'import il
+  pannello si RICARICA. Chiave nuova di preferenze → va aggiunta qui, se no
+  non si esporta (e non lo dice nessuno).
+- **Valori resi personalizzabili**: `promemoria`/`promemoriaOre` negli
+  annunci (si tagliano alla scrittura, non nel getter: se no, tolto quello
+  in cima, ricompariva uno vecchio già scartato), `sceneConfermaSecondi`
+  nelle schermate, `riquadroSecondi` nella voce.
+- **Layout**: un `<input type=file>` nascosto con 1 px conta come testo
+  tagliato: `display: none` (il `<label>` lo apre lo stesso, e Playwright
+  `setInputFiles` funziona). Nomi tecnici mai davanti alle persone
+  (`descriviScartate`). «mini‑lettore» col trattino che non spezza (U+2011)
+  dove può andare a capo.
+
 ### Musica dal dispositivo del pannello (v0.5.9 + jarvis_musica 0.5.0, 02/10)
 
 - **Il problema vero**: dal Redmi una playlist era partita dall'Echo della

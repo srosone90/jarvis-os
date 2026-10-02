@@ -92,7 +92,15 @@ export async function aspettaServiceWorker(page: Page): Promise<void> {
 export async function apriImpostazioni(
   page: Page,
   sezione:
-    "stanza" | "schermate" | "musica" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica" = "stanza",
+    | "stanza"
+    | "schermate"
+    | "musica"
+    | "voce"
+    | "annunci"
+    | "riposo"
+    | "audio"
+    | "copia"
+    | "diagnostica" = "stanza",
 ): Promise<void> {
   const ora = page.getByTestId("ora");
   const box = await ora.boundingBox();
