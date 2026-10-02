@@ -1,21 +1,23 @@
 import { mdiPauseCircleOutline, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { chiediEAspetta } from "../assistente/chiedi";
 import { avvisi } from "../comandi/avvisi";
 import { connessione } from "../connessione/connessione";
 import { schermate } from "../pagine/preferenze";
-import { durataParlata, etichettaDurata, fraseAnnullaTimer, fraseNuovoTimer } from "../timer/frasi";
-import { formattaRimasto, rimastoMs, type TimerAttivo } from "../timer/timer";
+import { durataParlata, etichettaDurata } from "../timer/frasi";
+import { slugStanza } from "../timer/pannello";
+import { formattaRimasto, rimastoMs, type AzioneTimer, type TimerAttivo } from "../timer/timer";
+import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
 import { icona, RiquadroSicuro, stileBase } from "./base";
 import { stilePagina } from "./stile-pagina";
 
 /**
  * Schermata Timer (v0.5.7, mockup N2 "6 · Timer e sveglie"): i timer di
  * questo pannello con il conto alla rovescia, e i pulsanti per uno nuovo.
- * Il server non ha un servizio per crearli: i pulsanti chiedono a Jarvis la
- * frase che si direbbe a voce (src/timer/frasi.ts), con il device_id del
- * pannello, così il timer suona qui. Sveglie e promemoria arriveranno quando
- * il server li avrà (STATO.md).
+ * Dalla v0.5.8 i pulsanti usano i servizi di jarvis_voce 0.3.0
+ * (`timer_stanza` con la stanza del pannello, `timer_comando` per pausa,
+ * ripresa e annullamento): niente più frasi mandate a Jarvis. Il timer
+ * compare con l'evento `started`, come a voce. Sveglie e promemoria
+ * arriveranno quando il server li avrà (STATO.md).
  */
 export class JarvisPaginaTimer extends RiquadroSicuro {
   static override properties = { inviata: { state: true } };
@@ -74,11 +76,18 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
       .riga.timer .testo {
         flex: 1 1 160px;
       }
+      /* il conto e i comandi: se non stanno in riga (320 px) i comandi scendono sotto, a destra */
       .fine {
         display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         align-items: center;
-        gap: 12px;
+        gap: 8px 12px;
         margin-left: auto;
+      }
+      .comandi {
+        display: flex;
+        gap: 8px;
       }
     `,
   ];
@@ -96,9 +105,9 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
     const ridisegna = () => this.requestUpdate();
     this.smetti = [
       connessione.timer.ascolta(ridisegna),
-      connessione.assistente.ascolta(ridisegna),
       connessione.ascolta(ridisegna),
       schermate.ascolta(ridisegna),
+      ascoltaStanzaPannello(ridisegna),
     ];
     // il conto alla rovescia, un secondo alla volta
     this.battito = setInterval(ridisegna, 1000);
@@ -111,15 +120,26 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
     clearInterval(this.battito);
   }
 
-  private async chiedi(frase: string): Promise<void> {
-    this.inviata = frase;
-    const errore = await chiediEAspetta(connessione.assistente, frase);
+  /** Un servizio alla volta: `cosa` è quello che dice la nota mentre aspetta. */
+  private async chiedi(cosa: string, fai: () => Promise<string | null>): Promise<void> {
+    this.inviata = cosa;
+    const errore = await fai();
     this.inviata = null;
     if (errore) avvisi.mostra(`Timer: ${errore}`, "errore");
   }
 
+  private nuovo(stanza: string, minuti: number): void {
+    void this.chiedi(`timer di ${durataParlata(minuti * 60)}`, () =>
+      connessione.timer.avvia(slugStanza(stanza), { minuti }),
+    );
+  }
+
+  private comando(t: TimerAttivo, azione: AzioneTimer, nome: string): void {
+    const parole = { annulla: "annullo", pausa: "metto in pausa", riprendi: "riprendo" }[azione];
+    void this.chiedi(`${parole} ${nome}`, () => connessione.timer.comando(t.id, azione));
+  }
+
   private timer(t: TimerAttivo, adesso: number, occupato: boolean): TemplateResult {
-    const annulla = fraseAnnullaTimer(t);
     const nome = t.nome?.trim() || "Timer";
     return html`<div class="riga timer" data-test="timer-attivo">
       ${icona(t.inPausa ? mdiPauseCircleOutline : mdiTimerOutline)}
@@ -133,18 +153,24 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
       >
       <span class="fine">
         <b class="resto" data-test="timer-resto">${formattaRimasto(rimastoMs(t, adesso))}</b>
-        ${
-          annulla
-            ? html`<button
-                data-test="timer-annulla"
-                aria-label="Annulla ${nome}"
-                ?disabled=${occupato}
-                @click=${() => void this.chiedi(annulla)}
-              >
-                Annulla
-              </button>`
-            : nothing
-        }
+        <span class="comandi">
+          <button
+            data-test=${t.inPausa ? "timer-riprendi" : "timer-pausa"}
+            aria-label="${t.inPausa ? "Riprendi" : "Pausa"} ${nome}"
+            ?disabled=${occupato}
+            @click=${() => this.comando(t, t.inPausa ? "riprendi" : "pausa", nome)}
+          >
+            ${t.inPausa ? "Riprendi" : "Pausa"}
+          </button>
+          <button
+            data-test="timer-annulla"
+            aria-label="Annulla ${nome}"
+            ?disabled=${occupato}
+            @click=${() => this.comando(t, "annulla", nome)}
+          >
+            Annulla
+          </button>
+        </span>
       </span>
     </div>`;
   }
@@ -154,7 +180,8 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
     const attivi = connessione.timer.attivi;
     const durate = schermate.valori.timerDurate;
     const scollegato = connessione.stato.stato !== "connesso";
-    const occupato = scollegato || connessione.assistente.occupato || this.inviata !== null;
+    const occupato = scollegato || this.inviata !== null;
+    const stanza = stanzaPannello();
     return html`<h1>Timer</h1>
       <section>
         ${
@@ -173,8 +200,8 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
                     html`<button
                       data-test="timer-nuovo"
                       aria-label="Timer di ${durataParlata(m * 60)}"
-                      ?disabled=${occupato}
-                      @click=${() => void this.chiedi(fraseNuovoTimer(m))}
+                      ?disabled=${occupato || !stanza}
+                      @click=${() => stanza && this.nuovo(stanza, m)}
                     >
                       ${etichettaDurata(m)}
                     </button>`,
@@ -186,10 +213,13 @@ export class JarvisPaginaTimer extends RiquadroSicuro {
       <div class="nota" data-test="timer-nota">
         ${
           this.inviata
-            ? html`Chiedo a Jarvis: «${this.inviata}»…`
+            ? html`Un momento: ${this.inviata}…`
             : scollegato
               ? "Senza Home Assistant i timer non si creano."
-              : "I pulsanti chiedono a Jarvis, come se lo dicessi: il timer suona su questo pannello. Con un nome si chiede a voce: «Jarvis, timer di 10 minuti per la pasta»."
+              : !stanza
+                ? "Per creare un timer da qui scegli la stanza di questo pannello in Impostazioni: è lì che suona. A voce funziona anche senza."
+                : html`Il timer suona su questo pannello (${stanza}). Con un nome si chiede a voce: «Jarvis,
+                  timer di 10 minuti per la pasta».`
         }
       </div>`;
   }

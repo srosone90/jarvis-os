@@ -4,7 +4,7 @@ import type { ReactiveController, ReactiveControllerHost } from "lit";
 import { PREFERENZE } from "../configurazione";
 import { connessione } from "../connessione/connessione";
 import { costruisciStanze } from "../registri/modello";
-import { attivaScena } from "../scene/attiva";
+import { attivaScena, ConfermaScena } from "../scene/attiva";
 import { sceneDa } from "../scene/scene";
 import { schermate } from "../pagine/preferenze";
 import { icona, OsservaConnessione, OsservaEntita, SCHERMATA_UNICA } from "./base";
@@ -294,6 +294,10 @@ export class JarvisApp extends LitElement {
       opacity: 0.45;
       cursor: default;
     }
+    .scena[data-conferma="si"] {
+      border-color: var(--c);
+      color: var(--c);
+    }
     .scena:focus-visible {
       outline: 2px solid var(--accento);
     }
@@ -550,6 +554,8 @@ export class JarvisApp extends LitElement {
    * solo col primo Indietro.
    */
   private voceCronologia = false;
+  /** v0.5.8: secondo tocco sulle scene della Casa, se chiesto in Impostazioni. */
+  private readonly confermaScena = new ConfermaScena(() => this.requestUpdate());
   private ignoraIndietro = false;
   /** Impostazioni del pannello (S1): si aprono tenendo premuto l'orologio 3 s. */
   declare impostazioni: boolean;
@@ -788,10 +794,14 @@ export class JarvisApp extends LitElement {
               class="scena"
               style="--c: ${s.colore}"
               aria-pressed=${s.inCorso ? "true" : "false"}
+              aria-label=${this.confermaScena.inAttesa(s.entita) ? `Conferma ${s.nome}` : s.nome}
+              data-conferma=${this.confermaScena.inAttesa(s.entita) ? "si" : "no"}
               ?disabled=${scollegato || (connessione.negozio.pronto && !s.esiste)}
-              @click=${() => void attivaScena(s)}
+              @click=${() => {
+                if (this.confermaScena.tocca(s.entita, schermate.valori.sceneConferma)) void attivaScena(s);
+              }}
             >
-              ${icona(s.icona)}${s.nome}
+              ${icona(s.icona)}${this.confermaScena.inAttesa(s.entita) ? "Tocca ancora" : s.nome}
             </button>`,
         )}
       </div>

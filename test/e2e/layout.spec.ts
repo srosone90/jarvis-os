@@ -817,3 +817,49 @@ for (const v of MISURE) {
     await expect(page.getByTestId("vista-hub")).toBeVisible();
   });
 }
+
+// --- v0.5.8: Timer con la stanza (Pausa/Riprendi e Annulla) e scene con la conferma ---
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.8: timer in pausa con i comandi, «Tocca ancora» nella Casa`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await page.addInitScript(() => {
+      localStorage.setItem("jarvis-stanza-pannello", "Camera da letto");
+      localStorage.setItem("jarvis-schermate", JSON.stringify({ sceneConferma: true }));
+    });
+    for (const [id, nome, pausa] of [
+      ["t-1", "lasagne al forno per la cena di domenica", true],
+      ["t-2", "pasta", false],
+    ] as const)
+      await comando(request, "timer", {
+        tipo: pausa ? "updated" : "started",
+        id,
+        nome,
+        secondi_totali: 5400,
+        secondi_rimasti: 5300,
+        in_pausa: pausa,
+      });
+    await accedi(page);
+    // Casa: il primo tocco su Buonanotte (il nome più lungo) diventa «Tocca ancora»
+    const buonanotte = page.getByTestId("zona-scene").getByRole("button").first();
+    await buonanotte.click();
+    await expect(buonanotte).toHaveText("Tocca ancora");
+    await page.screenshot({ path: `schermate/layout/casa-tocca-ancora-${v.nome}.png` });
+    expect(
+      [...controlla(await misura(page), v.width, v.height, v.unica), ...(await problemiTesto(page, v.width))],
+      "casa",
+    ).toEqual([]);
+    await page.getByTestId("colonna-timer").click();
+    await expect(page.getByTestId("timer-riprendi")).toBeVisible();
+    await expect(page.getByTestId("timer-pausa")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/timer-comandi-${v.nome}.png`, fullPage: true });
+    const colonna = ["jarvis-app", "jarvis-colonna"];
+    const parti = v.unica ? [colonna, ["jarvis-app", ".pagina"]] : [colonna];
+    expect(
+      [...(await controllaParti(page, v, parti)), ...(await problemiTesto(page, v.width))],
+      "timer",
+    ).toEqual([]);
+  });
+}

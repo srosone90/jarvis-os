@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.5.8
+
+Due correzioni dall'uso reale, i timer coi servizi nuovi del server, la
+conferma delle scene.
+
+- **Ascolto dopo la risposta**: «Ti ascolto ancora…» per 8 s solo quando
+  Jarvis ha fatto una domanda (`continue_conversation`, o un annuncio che
+  aspetta risposta). Dopo un comando eseguito o una risposta chiusa, una
+  finestra breve di 2 s **senza scritte**: se continui a parlare la
+  conversazione va avanti, se no si chiude subito e torna l'ascolto di
+  «Jarvis». Impostazioni → Voce: secondi dopo una domanda (8), dopo
+  un'azione (2; 0 = chiude subito), sensibilità del parlato (bassa,
+  normale, alta).
+- **Errori di Google visibili**: se la trascrizione fallisce
+  (`stt-stream-failed`) o Gemini dà errore (sovraccarico, limite di
+  richieste) il pannello dice «Google non risponde, riprova tra poco.» e,
+  a voce, fa un suono breve (due note che scendono; niente voce). «Non ho
+  capito» (nessuna parola riconosciuta) resta silenzioso come prima.
+- **Timer dalla schermata con i servizi di jarvis_voce 0.3.0**:
+  `timer_stanza` con la stanza del pannello, `timer_comando` per
+  **Pausa**, **Riprendi** e **Annulla**. Non passano più da Jarvis e non
+  lasciano domande nella chat. Senza la stanza del pannello i pulsanti per
+  un timer nuovo sono spenti e la nota dice dove sceglierla. Errori in
+  chiaro («Timer non trovato (forse è già finito).», «serve jarvis_voce
+  0.3.0 sul server»).
+- **Conferma prima delle scene** (Impostazioni → Schermate → Scene,
+  spenta di serie): il primo tocco dice «Tocca ancora», il secondo entro
+  4 s avvia. Vale nella schermata Scene e nei pulsanti della Casa.
+- Layout: il nome lungo di un timer nella Casa non si spezza più a metà
+  parola quando la colonna è stretta (il conto scende sotto); i comandi
+  dei timer a 320 px vanno sotto il conto.
+
 ## v0.5.7
 
 Le altre schermate del mockup: Timer, Clima, Scene, Spesa, Avvisi, e Altro.

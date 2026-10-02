@@ -3,19 +3,22 @@ import { accedi, apriChat, comando, eContesto, info } from "./aiuti";
 
 /**
  * Conversazione continua (v0.5.3): finita la risposta, il pannello riascolta
- * 8 s senza «Jarvis». Qui il microfono finto è quello di serie delle prove, un
- * fruscio bassissimo: nessuno parla, quindi si chiude in silenzio e verso HA
- * non parte niente.
+ * senza «Jarvis». Dalla v0.5.8: 8 s con «Ti ascolto ancora» solo se Jarvis ha
+ * fatto una domanda (continue_conversation, nel finto HA `continua=1`);
+ * dopo un'azione una finestra breve di 2 s senza scritte. Qui il microfono
+ * finto è quello di serie delle prove, un fruscio bassissimo: nessuno parla,
+ * quindi si chiude in silenzio e verso HA non parte niente.
  */
 
 test.beforeEach(async ({ request }) => {
   await comando(request, "reset");
 });
 
-test("dopo la risposta «Ti ascolto ancora»; nessuno parla: chiude in silenzio dopo 8 s, niente a HA", async ({
+test("dopo una domanda di Jarvis «Ti ascolto ancora»; nessuno parla: chiude in silenzio dopo 8 s, niente a HA", async ({
   page,
   request,
 }) => {
+  await comando(request, "assistente?continua=1");
   await accedi(page);
   await apriChat(page);
   await page.getByRole("button", { name: "Parla", exact: true }).click();
@@ -44,7 +47,48 @@ test("dopo la risposta «Ti ascolto ancora»; nessuno parla: chiude in silenzio 
   expect(i.richiesteAssistente.filter(eContesto)).toHaveLength(0);
 });
 
+test("v0.5.8 — dopo un'azione: niente «Ti ascolto ancora», finestra breve e poi chiusa in silenzio, niente a HA", async ({
+  page,
+  request,
+}) => {
+  await accedi(page);
+  await apriChat(page);
+  await page.getByRole("button", { name: "Parla", exact: true }).click();
+  await expect(page.getByTestId("risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
+  const da = Date.now();
+  // finché la voce non si chiude: «Ti ascolto ancora» non deve comparire mai
+  const casella = page.getByRole("textbox", { name: "Domanda per Jarvis" });
+  let ancoraVisto = false;
+  while (!(await casella.isVisible()) && Date.now() - da < 8000) {
+    if (await page.getByTestId("ascolto-ancora").count()) ancoraVisto = true;
+    await page.waitForTimeout(100);
+  }
+  expect(ancoraVisto).toBe(false);
+  // la voce si chiude da sola in ~2 s (dopo la fine dell'audio della risposta)
+  await expect(casella).toBeVisible();
+  expect(Date.now() - da).toBeLessThan(6000);
+  await expect(page.getByText("Non ho capito")).toHaveCount(0);
+  const i = await info(request);
+  expect(i.richiesteAssistente).toHaveLength(1);
+});
+
+test("v0.5.8 — controprova: «dopo un'azione» a 0 secondi chiude appena finisce la risposta", async ({
+  page,
+  request,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("jarvis-voce", JSON.stringify({ riascoltoAzioneSecondi: 0 })),
+  );
+  await accedi(page);
+  await apriChat(page);
+  await page.getByRole("button", { name: "Parla", exact: true }).click();
+  await expect(page.getByTestId("risposta")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toBeVisible({ timeout: 4000 });
+  expect((await info(request)).richiesteAssistente).toHaveLength(1);
+});
+
 test("tocco su «Chiudi» durante il riascolto: si chiude subito", async ({ page, request }) => {
+  await comando(request, "assistente?continua=1");
   await accedi(page);
   await apriChat(page);
   await page.getByRole("button", { name: "Parla", exact: true }).click();

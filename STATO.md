@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 01/10/2026 — v0.5.7 (Timer, Clima, Scene, Spesa, Avvisi). Piano autonomo in corso._
+_Ultimo aggiornamento: 02/10/2026 — v0.5.8 (riascolto breve, errori di Google, timer coi servizi, conferma scene). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -14,7 +14,9 @@ _Ultimo aggiornamento: 01/10/2026 — v0.5.7 (Timer, Clima, Scene, Spesa, Avvisi
 | 3. Navigazione N2 + Stanza + Meteo | v0.5.5 | **fatto** |
 | 4. Musica | v0.5.6 | **fatto** |
 | 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | **fatto** |
-| 6. Giro della personalizzazione + esporta/importa | v0.5.8 | da fare |
+| B. Riascolto breve, errori di Google, timer coi servizi, conferma scene (messaggio del 02/10) | v0.5.8 | **fatto** |
+| M. Musica dal dispositivo del pannello + «Collega questo dispositivo» (priorità alta, 02/10) | v0.5.9 | in corso |
+| 6. Giro della personalizzazione + esporta/importa | v0.5.10 | da fare |
 | 7. Fotocamera | v0.6.0 | da fare |
 | 8. Modello su misura | — | da fare |
 
@@ -40,9 +42,9 @@ Ogni riga: cosa, perché, dove si cambia.
   rientra nel giro della v0.5.8.
 - **"Notte" degli annunci = notte dello schermo a riposo** (Impostazioni →
   Schermo a riposo), oltre all'ora del silenzio di HA.
-- **Riascolto dopo un annuncio con `ascolta=true`**: gli stessi secondi del
-  riascolto dopo le risposte (8 di serie). Impostazioni → Voce → Ti ascolto
-  ancora.
+- **Riascolto dopo un annuncio con `ascolta=true`**: conta come una domanda
+  di Jarvis (8 s di serie, «Ti ascolto ancora»). Impostazioni → Voce →
+  Dopo una domanda di Jarvis.
 
 - **Nella colonna solo le schermate che esistono** (v0.5.5): dalla v0.5.7
   ci sono tutte, come nel mockup N2.
@@ -81,12 +83,24 @@ Ogni riga: cosa, perché, dove si cambia.
   porta nella colonna o si spegne. Impostazioni → Schermate.
 - **Altro mostra tutte le schermate accese** (anche quelle già nella
   colonna), più Impostazioni e Hub, come il menu del mockup.
-- **Timer nuovi e annullati passando da Jarvis** (la frase di voce): il
-  server non ha un servizio per farlo. Il turno resta nella chat. Pulsanti
-  di serie: 1, 3, 5, 10, 15, 30 minuti. Impostazioni → Schermate → Timer.
+- **Timer dalla schermata coi servizi di jarvis_voce 0.3.0** (v0.5.8, al
+  posto della frase a Jarvis): stanza = quella del pannello; senza stanza i
+  pulsanti per un timer nuovo sono spenti (la nota dice di sceglierla in
+  Impostazioni). Pulsanti di serie: 1, 3, 5, 10, 15, 30 minuti.
+  Impostazioni → Schermate → Timer.
 - **Scene attive anche nella Casa** (prima «in arrivo»): le prime 3
-  dell'elenco, con un tocco e senza conferma, come nel mockup. Si dice
-  «avviata»: cosa fa davvero lo script si vede nelle card.
+  dell'elenco, con un tocco e senza conferma (confermato da Salvatore il
+  02/10). Si dice «avviata»: cosa fa davvero lo script si vede nelle card.
+  Conferma accendibile (v0.5.8): Impostazioni → Schermate → Scene.
+
+- **v0.5.8 — dopo un'azione 2 s di ascolto in silenzio**, dopo una domanda
+  di Jarvis 8 s con «Ti ascolto ancora»; sensibilità del parlato «normale»
+  (quella della v0.5.3). Impostazioni → Voce.
+- **v0.5.8 — conferma delle scene: secondo tocco entro 4 s**. Fisso.
+- **v0.5.8 — errori di Google: un titolo solo** («Google non risponde,
+  riprova tra poco.»), la causa (limite, sovraccarico) nella spiegazione;
+  suono di due note che scendono. Il suono segue il bip della voce, non ha
+  un interruttore suo.
 - **Buonanotte descritta senza la modalità notte del pannello**: lo script
   manda `jarvis_buonanotte`, ma il pannello non lo ascolta ancora (F6).
 - **Clima: un grafico solo per tutte le stanze**, stessa scala, 24 ore.
@@ -110,16 +124,14 @@ Ogni riga: cosa, perché, dove si cambia.
   Gemini domande vere). **Proposta: (a)**, più pulita. Fatto al posto: tocco
   sul meteo e sul nome della stanza, e `#meteo` nell'indirizzo.
 
-- **Timer**: `jarvis_voce.timer_avvia {minuti, nome?, pannello}` e
-  `jarvis_voce.timer_annulla {id}`. Con questi i pulsanti della schermata
-  Timer non passerebbero da Gemini.
 - **Sveglie e promemoria**: la parte della schermata Timer si accende
   quando il server li avrà.
 
 ## Personalizzabile (elenco che cresce a ogni versione)
 
 - **Voce** (pannello): «Jarvis» acceso; bip allo scatto; secondi di
-  riascolto (0 = spento); discorso di prima sì/no e quanti secondi; soglia
+  riascolto dopo una domanda di Jarvis (0 = spento) e dopo un'azione (0 =
+  chiude subito), sensibilità del parlato (v0.5.8); discorso di prima sì/no e quanti secondi; soglia
   di scatto (automatica o a mano); conferma (frame di fila); soglia che si
   adatta sì/no, quanti falsi scatti, in quanto tempo, passo, dopo quanto
   riscende; impara dai falsi scatti; elaborazione del microfono.
@@ -132,7 +144,8 @@ Ogni riga: cosa, perché, dove si cambia.
   grafico, umidità nel grafico.
 - **Schermate v0.5.7** (pannello): dove sta ogni schermata (colonna, solo
   in Altro, spenta); Timer: pulsanti; Clima: ore del grafico, consumi;
-  Scene: quali e in che ordine (le prime 3 anche in Casa); Spesa: quale
+  Scene: quali e in che ordine (le prime 3 anche in Casa), conferma prima
+  delle scene (v0.5.8); Spesa: quale
   lista, cose prese; Avvisi: ore, soglia della batteria.
 - **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
   rilettura ogni N secondi, stanze per spostarla, playlist preferite (la
@@ -141,6 +154,26 @@ Ogni riga: cosa, perché, dove si cambia.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.5.8** (messaggio del 02/10):
+  1. **B1 ascolto dopo la risposta**: «Ti ascolto ancora» 8 s solo se
+     Jarvis ha fatto una domanda; dopo un'azione 2 s in silenzio, e se
+     nessuno parla si chiude subito. Impostazioni → Voce;
+  2. **B2 errori di Google**: «Google non risponde, riprova tra poco.» e un
+     suono breve per `stt-stream-failed` e gli errori di Gemini; «non ho
+     capito» resta silenzioso;
+  3. **A2 timer coi servizi** `timer_stanza` / `timer_comando`, con Pausa,
+     Riprendi e Annulla; tolta la proposta sotto «Punti bloccati»;
+  4. **A1 conferma delle scene**, spenta di serie.
+  Controprove: con `continue_conversation` true la finestra breve non
+  chiude; «Jarvis» + nessuna parola resta silenzioso; sensibilità bassa
+  vuole un pezzo di voce in più; timer già finito sul server, server senza
+  la 0.3.0, pannello senza stanza; primo tocco su una scena che non avvia
+  e scade dopo 4 s. Trovati col layout e corretti: nome lungo del timer
+  spezzato a metà parola nella Casa (915x412) e «Annulla» fuori schermo a
+  320 px.
+- **In corso: v0.5.9**, la musica dal dispositivo del pannello
+  (`jarvis_musica` 0.5.0 + «Collega questo dispositivo»).
 
 - **Finito: v0.5.7, le altre schermate del mockup N2**:
   1. colonna di serie Casa, Musica, Meteo, Timer, Altro (+ Hub); ogni
@@ -231,7 +264,30 @@ Ogni riga: cosa, perché, dove si cambia.
 | sha256 dello zip | `a11b13a3deb66f5e3362d92dbc2142e04a79c6aec1e11eafbea8591f5c36f046` (6,9 MB, service worker 0.5.7, `parola/` con 5 file, nessun file delle prove; verificati) |
 | Precedente | v0.5.6, sha256 `00c61e2ba43304f21e8b4af1d4d236f8afe536530de556ab93a3c2eee93fcda6` (6,9 MB, service worker 0.5.6, `parola/` con 5 file, nessun file delle prove; verificati). La prima release della v0.5.6 era caduta in CI su 3 prove degli annunci che dipendevano dall'ora (vedi CLAUDE.md); ripubblicata dopo la correzione (commit `d39777b`) |
 
-## Da installare lato server: v0.5.7
+## Da installare lato server: v0.5.8
+
+Lo zip sopra `/config/www/jarvis/`. Serve **jarvis_voce 0.3.0** (già
+installato dalla sessione server) per i pulsanti dei timer: senza, il
+pannello dice «serve jarvis_voce 0.3.0 sul server».
+
+**Come provare la v0.5.8, dentro il pannello**:
+
+1. «Jarvis, accendi la TV del salotto»: dopo la conferma **nessuna
+   scritta** «Ti ascolto ancora»; se non dici niente, entro ~2 s torna
+   l'ascolto di «Jarvis». Se invece continui subito («…e spegni il
+   condizionatore») la conversazione va avanti.
+2. Una domanda a cui Jarvis risponde con una domanda: «Ti ascolto
+   ancora…» per 8 s, rispondi senza «Jarvis».
+3. Impostazioni → Voce: «Dopo una domanda di Jarvis», «Dopo un'azione»,
+   «Quanto basta per stai parlando».
+4. **Timer**: «5 min» → compare (suona qui); «Pausa», «Riprendi»,
+   «Annulla». Niente nella chat.
+5. Impostazioni → Schermate → Scene → «Chiedi conferma prima delle
+   scene»: dalla Casa il primo tocco su Esco dice «Tocca ancora».
+6. Quando Google è sovraccarico: «Google non risponde, riprova tra poco.»
+   e due note che scendono, invece del pannello che si chiude muto.
+
+## Prima: v0.5.7
 
 Solo lo zip sopra `/config/www/jarvis/` (contiene anche la v0.5.6, la v0.5.5
 e la v0.5.4). Lato HA niente di nuovo: usa la lista della spesa

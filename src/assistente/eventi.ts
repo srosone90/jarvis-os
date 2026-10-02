@@ -26,7 +26,8 @@ export type TipoErrore =
   | "connessione" // HA perso a metà: non si sa cosa è stato eseguito
   | "tempo" // nessuna risposta entro il tempo massimo
   | "offline" // HA non collegato: la domanda non è mai partita
-  | "nonSentito" // voce: HA non ha riconosciuto nessuna parola (o lo stream audio è caduto)
+  | "nonSentito" // voce: HA non ha riconosciuto nessuna parola
+  | "servizio" // voce: la trascrizione di Google è fallita (stt-stream-failed, v0.5.8)
   | "annullata" // voce: fermata dall'utente mentre Jarvis pensava
   | "doppione"; // «Jarvis» sentito anche da un altro pannello, che ha risposto lui (v0.5.0)
 
@@ -141,7 +142,10 @@ function conNome(nomi: string[], nome: string | null): string[] {
  */
 function tipoDaCodice(codice: string | null): TipoErrore {
   if (codice === "timeout") return "tempo";
-  if (codice === "stt-no-text-recognized" || codice === "stt-stream-failed") return "nonSentito";
+  if (codice === "stt-no-text-recognized") return "nonSentito";
+  // v0.5.8: lo stream verso Google è fallito. Non è "non ho capito": il server ha già
+  // riprovato (jarvis_voce 0.2.9), quindi è vero che Google non risponde
+  if (codice === "stt-stream-failed") return "servizio";
   // wake_word_phrase: un altro pannello ha sentito la stessa parola entro 2 s (pipeline.py)
   if (codice === "duplicate_wake_up_detected") return "doppione";
   return "agente";

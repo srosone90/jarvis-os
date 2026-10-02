@@ -375,6 +375,14 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
         valore: v.scene.join(", "),
         diSerie: PREFERENZE_SCHERMATE_DI_SERIE.scene.join(", "),
         cambia: (t) => schermate.cambia({ scene: t === null ? null : sceneDa(t) }),
+      })}
+      ${campoInterruttore({
+        id: "scene-conferma",
+        titolo: "Chiedi conferma prima delle scene",
+        spiegazione: "Il primo tocco chiede «Tocca ancora», il secondo (entro 4 secondi) avvia la scena.",
+        valore: v.sceneConferma,
+        diSerie: PREFERENZE_SCHERMATE_DI_SERIE.sceneConferma,
+        cambia: (b) => schermate.cambia({ sceneConferma: b }),
       })}`;
   }
 

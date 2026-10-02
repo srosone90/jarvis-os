@@ -1434,6 +1434,39 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `script.jarvis_*` (stato "on" per 1,2 s), batterie con `device_class`.
   Entità: 35.
 
+### Riascolto breve, errori di Google, timer coi servizi, conferma scene (v0.5.8, 02/10)
+
+- **Riascolto** (`src/voce/voce.ts`, `src/voce/preferenze-voce.ts`):
+  `rispondi()` decide tra domanda (turno con `continua`, cioè
+  `continue_conversation`, o annuncio con `ascolta`) e azione. Domanda →
+  `riascoltoSecondi` (8) con «Ti ascolto ancora» (`ascoltoAncora`); azione →
+  `riascoltoAzioneSecondi` (2) con `ascoltoBreve`: stesso `RilevaParlato`,
+  ma nessuna scritta, nessun anello, sfera dell'Hub quieta. 0 = niente
+  riascolto. Il seguito lo passa `prossimoSeguito` a `parla(…, true)`.
+  `RilevaParlato(sensibilita)`: soglie × 0,6 / 1 / 1,6, pezzi di fila 2 / 2 / 3.
+  **Nel finto HA le risposte NON hanno `continue_conversation`** se non si
+  chiede `assistente?continua=N`: una prova che si aspetta «Ti ascolto
+  ancora» deve chiederlo.
+- **Errori di Google** (`src/assistente/eventi.ts`, `messaggi.ts`):
+  `stt-stream-failed` → tipo `servizio` (prima era `nonSentito`, e con
+  «Jarvis» si chiudeva in silenzio). `erroreDiGoogle()`: `servizio`, o
+  `agente` con causa quota/occupato/gemini. Titolo unico
+  `GOOGLE_NON_RISPONDE`, la causa nella spiegazione. La voce suona
+  `Bip.suona("errore")` (520 → 390 Hz), mai il TTS.
+  `stt-no-text-recognized` resta `nonSentito`, silenzioso.
+- **Timer** (`src/timer/timer.ts`: `avvia`, `comando`,
+  `esitoServizioTimer`): `jarvis_voce.timer_stanza {stanza, minuti, nome?}`
+  con `slugStanza(stanzaPannello())` (per "Cucina" → "cucina", il server fa
+  `jarvis_cucina`) e `timer_comando {id, azione}`; risposta `{esito:
+  "ok"|"errore", messaggio}`. Il timer compare con l'evento `started` come a
+  voce: niente stato ottimistico. `chiedi.ts` e le frasi per Jarvis tolte.
+  Finto HA: `timer_stanza`, `timer_comando`, `/__prova/timer-server` (il
+  server dimentica i timer senza eventi).
+- **Conferma scene** (`ConfermaScena` in `src/scene/attiva.ts`,
+  `sceneConferma` in `pagine/preferenze`): primo tocco → «Tocca ancora»
+  per 4 s; un tocco su un'altra scena sposta la richiesta. Stessa classe
+  per la Casa e la schermata Scene.
+
 ## 6. Decisioni di prodotto (log)
 
 Si aggiungono in fondo, con la data. Non si cancellano: se una decisione cambia,

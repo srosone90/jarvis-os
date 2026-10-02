@@ -181,43 +181,48 @@ export class JarvisVoce extends RiquadroSicuro {
     const [testo, sotto, etichetta, simbolo]: [TemplateResult | string, string, string, string] =
       fase === "apertura"
         ? ["Apro il microfono…", "", "Annulla", mdiClose]
-        : fase === "ascolto" && v.ascoltoAncora
-          ? [
-              // conversazione continua (v0.5.3): niente parte verso HA finché qualcuno non parla
-              html`<span data-test="ascolto-ancora">Ti ascolto ancora…</span>`,
-              "Continua pure senza dire «Jarvis». Se nessuno parla chiudo da solo.",
-              "Chiudi",
-              mdiClose,
-            ]
-          : fase === "ascolto"
+        : fase === "ascolto" && v.ascoltoBreve
+          ? // finestra breve dopo un'azione (v0.5.8): nessuna scritta, come a risposta finita
+            ["", "", "Chiudi", mdiClose]
+          : fase === "ascolto" && v.ascoltoAncora
             ? [
-                "Ti ascolto…",
-                "Parla pure. Mi fermo quando smetti, o tocca il pulsante.",
-                "Ferma l'ascolto",
-                mdiStop,
+                // conversazione continua (v0.5.3): niente parte verso HA finché qualcuno non parla
+                html`<span data-test="ascolto-ancora">Ti ascolto ancora…</span>`,
+                "Continua pure senza dire «Jarvis». Se nessuno parla chiudo da solo.",
+                "Chiudi",
+                mdiClose,
               ]
-            : fase === "pensa"
+            : fase === "ascolto"
               ? [
-                  // risposta già scritta, HA sta preparando l'audio (tra intent-end e tts-end)
-                  v.turno?.risposta
-                    ? "Preparo la risposta a voce…"
-                    : lenta
-                      ? "Ci sto mettendo più del solito…"
-                      : "Sto pensando…",
-                  "Tocca per annullare",
-                  "Annulla la domanda",
-                  mdiClose,
+                  "Ti ascolto…",
+                  "Parla pure. Mi fermo quando smetti, o tocca il pulsante.",
+                  "Ferma l'ascolto",
+                  mdiStop,
                 ]
-              : fase === "risponde"
+              : fase === "pensa"
                 ? [
-                    html`<span class="onde" aria-label="Sto rispondendo"><i></i><i></i><i></i><i></i></span>`,
-                    "Tocca per interrompere",
-                    "Interrompi la risposta",
-                    mdiStop,
+                    // risposta già scritta, HA sta preparando l'audio (tra intent-end e tts-end)
+                    v.turno?.risposta
+                      ? "Preparo la risposta a voce…"
+                      : lenta
+                        ? "Ci sto mettendo più del solito…"
+                        : "Sto pensando…",
+                    "Tocca per annullare",
+                    "Annulla la domanda",
+                    mdiClose,
                   ]
-                : mic
-                  ? [html`<b>${mic.titolo}</b>`, mic.spiegazione, "Chiudi", mdiClose]
-                  : ["", "", "Chiudi", mdiClose];
+                : fase === "risponde"
+                  ? [
+                      html`<span class="onde" aria-label="Sto rispondendo"
+                        ><i></i><i></i><i></i><i></i
+                      ></span>`,
+                      "Tocca per interrompere",
+                      "Interrompi la risposta",
+                      mdiStop,
+                    ]
+                  : mic
+                    ? [html`<b>${mic.titolo}</b>`, mic.spiegazione, "Chiudi", mdiClose]
+                    : ["", "", "Chiudi", mdiClose];
     return html`<div
         class="testo ${mic && fase === "errore" ? "errore" : ""} ${lenta ? "lenta" : ""}"
         role="status"
@@ -226,7 +231,7 @@ export class JarvisVoce extends RiquadroSicuro {
         ${testo}${sotto ? html`<small>${sotto}</small>` : ""}
       </div>
       <span class="pulsante">
-        ${fase === "ascolto" ? html`<span class="anello ${v.ascoltoAncora ? "ancora" : ""}"></span>` : ""}
+        ${fase === "ascolto" && !v.ascoltoBreve ? html`<span class="anello ${v.ascoltoAncora ? "ancora" : ""}"></span>` : ""}
         <button
           class="fase-${fase}"
           aria-label=${etichetta}

@@ -1,6 +1,6 @@
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione/connessione";
-import { attivaScena } from "../scene/attiva";
+import { attivaScena, ConfermaScena } from "../scene/attiva";
 import { sceneDa, type Scena } from "../scene/scene";
 import { schermate } from "../pagine/preferenze";
 import { icona, OsservaEntita, RiquadroSicuro, stileBase } from "./base";
@@ -9,7 +9,8 @@ import { stilePagina } from "./stile-pagina";
 /**
  * Schermata Scene (v0.5.7, mockup N2 "5 · Scene"): un tocco avvia la scena
  * (lo script di HA). Mentre lo script gira la scena è evidenziata col suo
- * colore. Quali scene e in che ordine: Impostazioni → Schermate. Le routine
+ * colore. Con «chiedi conferma» (v0.5.8, spento di serie) serve un secondo
+ * tocco. Quali scene e in che ordine: Impostazioni → Schermate. Le routine
  * non si creano dal pannello (decisione del mockup).
  */
 export class JarvisPaginaScene extends RiquadroSicuro {
@@ -78,6 +79,7 @@ export class JarvisPaginaScene extends RiquadroSicuro {
   }
 
   private smetti: (() => void)[] = [];
+  private readonly conferma = new ConfermaScena(() => this.requestUpdate());
   override connectedCallback(): void {
     super.connectedCallback();
     const ridisegna = () => this.requestUpdate();
@@ -87,9 +89,11 @@ export class JarvisPaginaScene extends RiquadroSicuro {
     super.disconnectedCallback();
     for (const f of this.smetti) f();
     this.smetti = [];
+    this.conferma.annulla();
   }
 
   private async attiva(s: Scena): Promise<void> {
+    if (!this.conferma.tocca(s.entita, schermate.valori.sceneConferma)) return;
     this.inCorso = s.entita;
     await attivaScena(s);
     this.inCorso = null;
@@ -110,11 +114,20 @@ export class JarvisPaginaScene extends RiquadroSicuro {
                     style="--c: ${s.colore}"
                     data-test="scena"
                     aria-pressed=${s.inCorso ? "true" : "false"}
+                    aria-label=${this.conferma.inAttesa(s.entita) ? `Conferma ${s.nome}` : s.nome}
+                    data-conferma=${this.conferma.inAttesa(s.entita) ? "si" : "no"}
                     ?disabled=${scollegato || this.inCorso !== null || (connessione.negozio.pronto && !s.esiste)}
                     @click=${() => void this.attiva(s)}
                   >
                     <b>${icona(s.icona)}${s.nome}</b>
                     ${s.descrizione ? html`<small>${s.descrizione}</small>` : nothing}
+                    ${
+                      this.conferma.inAttesa(s.entita)
+                        ? html`<small class="stato" data-test="scena-tocca-ancora"
+                            >Tocca ancora per avviarla</small
+                          >`
+                        : nothing
+                    }
                     ${
                       connessione.negozio.pronto && !s.esiste
                         ? html`<small data-test="scena-mancante"

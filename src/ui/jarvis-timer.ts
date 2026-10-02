@@ -25,8 +25,9 @@ export class JarvisTimer extends RiquadroSicuro {
       }
       .timer {
         display: inline-flex;
+        flex-wrap: wrap;
         align-items: center;
-        gap: 8px;
+        gap: 4px 8px;
         min-width: 0;
         max-width: 100%;
         padding: 8px 14px 8px 10px;
@@ -40,11 +41,17 @@ export class JarvisTimer extends RiquadroSicuro {
         height: 22px;
         color: var(--accento);
       }
-      /* nomi lunghi: vanno a capo, mai tagliati */
+      /* nomi lunghi: vanno a capo tra le parole, mai tagliati; se la colonna è stretta
+         il conto e «in pausa» scendono sotto (v0.5.8: «domeni-ca» spezzata a 915x412) */
       .nome {
+        flex: 1 1 auto;
         min-width: 0;
         overflow-wrap: break-word;
         color: var(--attenuato);
+      }
+      .rimasto,
+      .in-pausa {
+        white-space: nowrap;
       }
       .rimasto {
         font-variant-numeric: tabular-nums;

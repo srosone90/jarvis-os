@@ -163,9 +163,27 @@ export function titoloFinito(nome: string | null): string {
 
 /** jarvis_voce.<servizio> con la risposta (return_response). */
 export type ServiziTimer = (
-  servizio: "timer_attivi" | "timer_ferma",
+  servizio: "timer_attivi" | "timer_ferma" | "timer_stanza" | "timer_comando",
   dati: Record<string, unknown>,
 ) => Promise<unknown>;
+
+/** Comandi su un timer in corso (jarvis_voce 0.3.0, `timer_comando`). */
+export type AzioneTimer = "annulla" | "pausa" | "riprendi";
+
+/**
+ * Esito di `timer_stanza` / `timer_comando` (jarvis_voce 0.3.0): `{esito:
+ * "ok", …}` o `{esito: "errore", messaggio}` (es. "Timer non trovato (forse
+ * è già finito)."). null = andato bene, altrimenti il motivo in parole.
+ */
+export function esitoServizioTimer(risposta: unknown): string | null {
+  const r = (risposta ?? {}) as Record<string, unknown>;
+  if (r["esito"] === "ok") return null;
+  if (r["esito"] === "errore")
+    return typeof r["messaggio"] === "string" && r["messaggio"].trim()
+      ? r["messaggio"].trim()
+      : "il server ha detto di no";
+  return `risposta non riconosciuta (${JSON.stringify(risposta)})`;
+}
 
 /** Suoneria: la implementa l'audio del browser, qui solo quello che serve. */
 export interface Suona {
@@ -296,6 +314,41 @@ export class Timer {
       this.suona({ id: ev.id, nome: ev.nome ?? vecchio?.nome ?? null, alle: this.adesso() });
     this.pulisciPoi();
     this.notifica();
+  }
+
+  /**
+   * Timer nuovo dalla schermata Timer (jarvis_voce 0.3.0, `timer_stanza`):
+   * suona nella stanza di questo pannello (lo slug della stanza scelta, come
+   * nel device_id). Il timer arriva poi con l'evento `started`, come a voce.
+   * Ritorna null se il server l'ha creato, altrimenti il motivo in parole.
+   */
+  async avvia(stanza: string, durata: { minuti: number }, nome?: string): Promise<string | null> {
+    const dati: Record<string, unknown> = { stanza, minuti: durata.minuti, ...(nome ? { nome } : {}) };
+    return this.chiedi("timer_stanza", dati, `nuovo timer di ${durata.minuti} min in ${stanza}`);
+  }
+
+  /** Annulla, mette in pausa o riprende un timer in corso (jarvis_voce 0.3.0, `timer_comando`). */
+  async comando(id: string, azione: AzioneTimer): Promise<string | null> {
+    return this.chiedi("timer_comando", { id, azione }, `${azione} del timer ${id}`);
+  }
+
+  private async chiedi(
+    servizio: "timer_stanza" | "timer_comando",
+    dati: Record<string, unknown>,
+    cosa: string,
+  ): Promise<string | null> {
+    let errore: string | null;
+    try {
+      errore = esitoServizioTimer(await this.servizi(servizio, dati));
+    } catch (e) {
+      const d = descriviErrore(e);
+      // server senza la 0.3.0: lo si dice chiaro, non "Service not found"
+      errore =
+        /not found|non trovat/i.test(d) && /jarvis_voce/.test(d) ? "serve jarvis_voce 0.3.0 sul server" : d;
+    }
+    if (errore) log.avviso(`Timer: ${cosa} non riuscito (${errore})`);
+    else log.info(`Timer: ${cosa}`);
+    return errore;
   }
 
   /**

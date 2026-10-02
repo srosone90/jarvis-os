@@ -31,3 +31,43 @@ export async function attivaScena(s: Scena): Promise<boolean> {
     return false;
   }
 }
+
+/** Quanto resta valido il primo tocco quando le scene chiedono conferma (v0.5.8). */
+export const CONFERMA_SCENA_MS = 4000;
+
+/**
+ * Conferma prima delle scene (v0.5.8, Impostazioni → Schermate → Scene,
+ * spenta di serie): il primo tocco chiede «Tocca ancora», il secondo entro
+ * 4 s avvia. Toccare un'altra scena sposta la richiesta su quella. Uguale
+ * nella schermata Scene e nei pulsanti della Casa.
+ */
+export class ConfermaScena {
+  private attesa: string | null = null;
+  private scadenza: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(private readonly ridisegna: () => void) {}
+
+  /** true = avviala adesso; false = primo tocco, aspetta il secondo. */
+  tocca(entita: string, chiedi: boolean): boolean {
+    if (!chiedi || this.attesa === entita) {
+      this.annulla();
+      return true;
+    }
+    clearTimeout(this.scadenza);
+    this.attesa = entita;
+    this.scadenza = setTimeout(() => this.annulla(), CONFERMA_SCENA_MS);
+    this.ridisegna();
+    return false;
+  }
+
+  inAttesa(entita: string): boolean {
+    return this.attesa === entita;
+  }
+
+  annulla(): void {
+    clearTimeout(this.scadenza);
+    if (this.attesa === null) return;
+    this.attesa = null;
+    this.ridisegna();
+  }
+}

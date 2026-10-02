@@ -1,6 +1,5 @@
 import type { HassEntities } from "home-assistant-js-websocket";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chiediEAspetta } from "../../src/assistente/chiedi";
+import { describe, expect, it, vi } from "vitest";
 import { sensoriConsumo } from "../../src/clima/consumi";
 import {
   leggiInterruzioni,
@@ -20,6 +19,7 @@ import {
   Navigatore,
   PREFERENZE_NAVIGAZIONE_DI_SERIE,
 } from "../../src/navigazione/navigazione";
+import { CONFERMA_SCENA_MS, ConfermaScena } from "../../src/scene/attiva";
 import { nomeScena, sceneDa, servizioScena } from "../../src/scene/scene";
 import {
   durateDa,
@@ -30,7 +30,8 @@ import {
 } from "../../src/pagine/preferenze";
 import { ListaSpesa, ordinaSpesa, vociDa } from "../../src/spesa/spesa";
 import { linea, scalaComune } from "../../src/storico/storico";
-import { durataParlata, etichettaDurata, fraseAnnullaTimer, fraseNuovoTimer } from "../../src/timer/frasi";
+import { durataParlata, etichettaDurata } from "../../src/timer/frasi";
+import { esitoServizioTimer, Timer } from "../../src/timer/timer";
 
 /** v0.5.7: Timer, Clima, Scene, Spesa, Avvisi e Altro. */
 
@@ -372,78 +373,92 @@ describe("scene", () => {
   });
 });
 
-describe("timer dalla schermata", () => {
-  it("le frasi per Jarvis", () => {
-    expect(fraseNuovoTimer(1)).toBe("Imposta un timer di 1 minuto");
-    expect(fraseNuovoTimer(90)).toBe("Imposta un timer di 1 ora e 30 minuti");
+describe("conferma prima delle scene (v0.5.8)", () => {
+  it("spenta di serie; si legge solo se è un sì/no", () => {
+    expect(PREFERENZE_SCHERMATE_DI_SERIE.sceneConferma).toBe(false);
+    expect(leggiPreferenzeSchermate(JSON.stringify({ sceneConferma: true })).sceneConferma).toBe(true);
+    expect(leggiPreferenzeSchermate(JSON.stringify({ sceneConferma: "si" })).sceneConferma).toBe(false);
+  });
+  it("senza conferma il primo tocco avvia; con la conferma serve il secondo entro 4 s", () => {
+    vi.useFakeTimers();
+    try {
+      const ridisegna = vi.fn();
+      const c = new ConfermaScena(ridisegna);
+      expect(c.tocca("script.jarvis_esco", false)).toBe(true);
+      expect(c.tocca("script.jarvis_esco", true)).toBe(false);
+      expect(c.inAttesa("script.jarvis_esco")).toBe(true);
+      expect(c.tocca("script.jarvis_esco", true)).toBe(true);
+      expect(c.inAttesa("script.jarvis_esco")).toBe(false);
+      // controprova: oltre i 4 s il secondo tocco è di nuovo un primo tocco
+      expect(c.tocca("script.jarvis_esco", true)).toBe(false);
+      vi.advanceTimersByTime(CONFERMA_SCENA_MS + 1);
+      expect(c.inAttesa("script.jarvis_esco")).toBe(false);
+      expect(c.tocca("script.jarvis_esco", true)).toBe(false);
+      // controprova: un tocco su un'altra scena non avvia la prima, sposta la richiesta
+      expect(c.tocca("script.jarvis_rientro", true)).toBe(false);
+      expect(c.inAttesa("script.jarvis_esco")).toBe(false);
+      expect(c.tocca("script.jarvis_rientro", true)).toBe(true);
+      expect(ridisegna).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("timer dalla schermata (v0.5.8: servizi di jarvis_voce 0.3.0)", () => {
+  it("durate in parole e sui pulsanti", () => {
     expect(durataParlata(45)).toBe("45 secondi");
+    expect(durataParlata(5400)).toBe("1 ora e 30 minuti");
     expect(durataParlata(7200)).toBe("2 ore");
-    expect(fraseAnnullaTimer({ nome: " pasta ", secondiTotali: 600 })).toBe("Annulla il timer pasta");
-    expect(fraseAnnullaTimer({ nome: null, secondiTotali: 600 })).toBe("Annulla il timer di 10 minuti");
-    expect(fraseAnnullaTimer({ nome: null, secondiTotali: null })).toBeNull();
     expect(etichettaDurata(5)).toBe("5 min");
     expect(etichettaDurata(60)).toBe("1 h");
     expect(etichettaDurata(90)).toBe("1 h 30");
   });
-
-  let ascoltatori: Set<() => void>;
-  let turni: { id: number; concluso: boolean; errore: { tipo: "connessione"; dettaglio: string } | null }[];
-  const assistente = (parte = true, occupato = false) => ({
-    chiedi: () => {
-      if (!parte) return false;
-      turni.push({ id: turni.length + 1, concluso: false, errore: null });
-      return true;
-    },
-    occupato,
-    get turni() {
-      return turni as never;
-    },
-    turno: (id: number) => turni.find((t) => t.id === id) as never,
-    ascolta: (f: () => void) => {
-      ascoltatori.add(f);
-      return () => void ascoltatori.delete(f);
-    },
+  it("esito del servizio: ok = null, errore col messaggio del server, il resto non riconosciuto", () => {
+    expect(esitoServizioTimer({ esito: "ok", id: "t1", pannello: "jarvis_cucina" })).toBeNull();
+    expect(
+      esitoServizioTimer({ esito: "errore", messaggio: "Timer non trovato (forse è già finito)." }),
+    ).toBe("Timer non trovato (forse è già finito).");
+    expect(esitoServizioTimer({ esito: "errore" })).toBe("il server ha detto di no");
+    // controprova: senza esito non si dice mai "fatto"
+    expect(esitoServizioTimer({})).toContain("non riconosciuta");
+    expect(esitoServizioTimer(null)).toContain("non riconosciuta");
   });
-  const avvisa = () => {
-    for (const f of [...ascoltatori]) f();
-  };
-  beforeEach(() => {
-    ascoltatori = new Set();
-    turni = [];
+
+  const suoneria = { avvia: () => undefined, ferma: () => undefined };
+  it("avvia: timer_stanza con la stanza e i minuti; comando: timer_comando con id e azione", async () => {
+    const servizi = vi.fn((_s: string, _d: Record<string, unknown>) =>
+      Promise.resolve({ esito: "ok", id: "t9", pannello: "jarvis_cucina" }),
+    );
+    const t = new Timer(suoneria, servizi, () => "jarvis_cucina");
+    expect(await t.avvia("cucina", { minuti: 5 })).toBeNull();
+    expect(servizi).toHaveBeenLastCalledWith("timer_stanza", { stanza: "cucina", minuti: 5 });
+    expect(await t.avvia("cucina", { minuti: 10 }, "pasta")).toBeNull();
+    expect(servizi).toHaveBeenLastCalledWith("timer_stanza", { stanza: "cucina", minuti: 10, nome: "pasta" });
+    for (const azione of ["annulla", "pausa", "riprendi"] as const) {
+      expect(await t.comando("t9", azione)).toBeNull();
+      expect(servizi).toHaveBeenLastCalledWith("timer_comando", { id: "t9", azione });
+    }
   });
-  afterEach(() => vi.useRealTimers());
-
-  it("aspetta la fine del turno; errore in parole; non partita: perché", async () => {
-    const a = assistente();
-    const ok = chiediEAspetta(a, "Imposta un timer di 5 minuti");
-    const t = turni[0];
-    if (!t) throw new Error("turno mancante");
-    t.concluso = true;
-    avvisa();
-    expect(await ok).toBeNull();
-    expect(ascoltatori.size).toBe(0);
-
-    const ko = chiediEAspetta(a, "Imposta un timer di 5 minuti");
-    const t2 = turni[1];
-    if (!t2) throw new Error("turno mancante");
-    t2.concluso = true;
-    t2.errore = { tipo: "connessione", dettaglio: "socket chiuso" };
-    avvisa();
-    expect(await ko).toEqual(expect.any(String));
-
-    expect(await chiediEAspetta(assistente(false, true), "x")).toContain("già rispondendo");
-    expect(await chiediEAspetta(assistente(false, false), "x")).toContain("non è collegato");
-  });
-  it("turno perso (conversazione ricominciata) o troppo lungo: si smette di aspettare", async () => {
-    vi.useFakeTimers();
-    const a = assistente();
-    const p = chiediEAspetta(a, "x", 1000);
-    await vi.advanceTimersByTimeAsync(1001);
-    expect(await p).toBeNull();
-    const q = chiediEAspetta(a, "y");
-    turni.length = 0;
-    avvisa();
-    expect(await q).toBeNull();
+  it("controprove: timer già finito, server senza la 0.3.0, connessione caduta", async () => {
+    const finito = new Timer(
+      suoneria,
+      () => Promise.resolve({ esito: "errore", messaggio: "Timer non trovato (forse è già finito)." }),
+      () => "x",
+    );
+    expect(await finito.comando("t1", "annulla")).toBe("Timer non trovato (forse è già finito).");
+    const vecchio = new Timer(
+      suoneria,
+      () => Promise.reject(new Error("Service jarvis_voce.timer_stanza not found")),
+      () => "x",
+    );
+    expect(await vecchio.avvia("cucina", { minuti: 1 })).toBe("serve jarvis_voce 0.3.0 sul server");
+    const caduta = new Timer(
+      suoneria,
+      () => Promise.reject(new Error("socket chiuso")),
+      () => "x",
+    );
+    expect(await caduta.comando("t1", "pausa")).toContain("socket chiuso");
   });
 });
 

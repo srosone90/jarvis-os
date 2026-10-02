@@ -13,7 +13,7 @@ import {
   nuovoTurno,
   type EventoPipeline,
 } from "../../src/assistente/eventi";
-import { causaDaDettaglio, messaggioErrore } from "../../src/assistente/messaggi";
+import { causaDaDettaglio, erroreDiGoogle, messaggioErrore } from "../../src/assistente/messaggi";
 import type { Bip, Riproduttore } from "../../src/voce/audio";
 import type { Microfono } from "../../src/voce/microfono";
 import { APERTURA_MASSIMA_MS, PENSA_MASSIMO_MS, Voce } from "../../src/voce/voce";
@@ -341,7 +341,8 @@ describe("messaggi d'errore per le persone", () => {
   it("429 della quota (testo vero di HA durante la risposta)", () => {
     const m = agente(`unknown: ${GEMINI}: Resource has been exhausted (e.g. check quota).`);
     expect(m.causa).toBe("quota");
-    expect(m.titolo).toBe("Gemini ha raggiunto il limite di richieste.");
+    expect(m.titolo).toBe("Google non risponde, riprova tra poco.");
+    expect(m.spiegazione).toContain("limite di richieste");
   });
 
   it("503 sovraccarico", () => {
@@ -442,15 +443,31 @@ describe("voce: eventi della pipeline stt→tts", () => {
     expect(messaggioErrore(t.errore ?? { tipo: "agente", dettaglio: "" }, true).azione).toBe("parla");
   });
 
-  it("stream audio caduto (stt-stream-failed) → 'Non ho capito, puoi ripetere?', non un errore tecnico", () => {
+  it("v0.5.8 — trascrizione fallita (stt-stream-failed) → 'Google non risponde', non 'non ho capito'", () => {
     const t = applicaEvento(nuovoTurno(1, "", true), {
       type: "error",
       data: { code: "stt-stream-failed", message: "Speech-to-text failed" },
     });
-    expect(t.errore?.tipo).toBe("nonSentito");
+    expect(t.errore?.tipo).toBe("servizio");
     const m = messaggioErrore(t.errore ?? { tipo: "agente", dettaglio: "" }, true);
-    expect(m.titolo).toBe("Non ho capito, puoi ripetere?");
+    expect(m.titolo).toBe("Google non risponde, riprova tra poco.");
     expect(m.azione).toBe("parla");
+    expect(erroreDiGoogle(t.errore)).toBe(true);
+  });
+
+  it("v0.5.8 — quali errori sono di Google (suono breve) e quali no", () => {
+    const GEMINI = "Sorry, I had a problem getting a response from Google Generative AI.";
+    expect(erroreDiGoogle({ tipo: "agente", dettaglio: `unknown: ${GEMINI}` })).toBe(true);
+    expect(erroreDiGoogle({ tipo: "agente", dettaglio: "unknown: 503 The model is overloaded." })).toBe(true);
+    expect(erroreDiGoogle({ tipo: "agente", dettaglio: "unknown: 429 quota" })).toBe(true);
+    // controprove: non sentito, errore di HA, tempo, connessione → nessun suono
+    expect(erroreDiGoogle({ tipo: "nonSentito", dettaglio: "stt-no-text-recognized: " })).toBe(false);
+    expect(erroreDiGoogle({ tipo: "agente", dettaglio: "La pipeline si è chiusa senza risposta" })).toBe(
+      false,
+    );
+    expect(erroreDiGoogle({ tipo: "tempo", dettaglio: "" })).toBe(false);
+    expect(erroreDiGoogle({ tipo: "connessione", dettaglio: "" })).toBe(false);
+    expect(erroreDiGoogle(null)).toBe(false);
   });
 });
 

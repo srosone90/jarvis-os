@@ -99,7 +99,9 @@ test("riquadro piccolo: chat chiusa + microfono della barra; toccandolo si apre 
   expect((await info(request)).richiesteAssistente).toHaveLength(1);
 });
 
-test("riquadro piccolo: sparisce da solo qualche secondo dopo la risposta", async ({ page }) => {
+test("riquadro piccolo: sparisce da solo qualche secondo dopo la risposta", async ({ page, request }) => {
+  // risposta che è una domanda (v0.5.8): il riascolto lungo, il caso con più attesa
+  await comando(request, "assistente?continua=1");
   await accedi(page);
   await page.getByRole("button", { name: "Parla con Jarvis" }).click();
   const riquadro = page.getByTestId("riquadro-voce");
@@ -111,7 +113,7 @@ test("riquadro piccolo: sparisce da solo qualche secondo dopo la risposta", asyn
   await expect(page.getByRole("button", { name: "Parla con Jarvis" })).toBeEnabled();
 });
 
-test("seguito quando HA chiede di continuare: come sempre dalla v0.5.3, si riascolta; nessuno parla, nessuna richiesta", async ({
+test("seguito quando HA chiede di continuare: «Ti ascolto ancora» (v0.5.8: solo in questo caso); nessuno parla, nessuna richiesta", async ({
   page,
   request,
 }) => {
@@ -198,6 +200,7 @@ test("Gemini al limite (429) a voce: messaggio umano in italiano", async ({ page
   await accedi(page);
   await apriChat(page);
   await page.getByRole("button", { name: "Parla", exact: true }).click();
+  await expect(page.getByTestId("errore-assistente")).toContainText("Google non risponde, riprova tra poco.");
   await expect(page.getByTestId("errore-assistente")).toContainText(
     "Gemini ha raggiunto il limite di richieste.",
   );
@@ -216,7 +219,7 @@ test("non ho sentito niente: messaggio e 'Parla di nuovo' riapre il microfono", 
   await expect(page.getByTestId("risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
 });
 
-test("stream audio caduto (stt-stream-failed): 'Non ho capito, puoi ripetere?' e si riparla", async ({
+test("v0.5.8 — trascrizione fallita (stt-stream-failed): 'Google non risponde', non 'non ho capito'; si riparla", async ({
   page,
   request,
 }) => {
@@ -225,7 +228,8 @@ test("stream audio caduto (stt-stream-failed): 'Non ho capito, puoi ripetere?' e
   await apriChat(page);
   await page.getByRole("button", { name: "Parla", exact: true }).click();
   const errore = page.getByTestId("errore-assistente");
-  await expect(errore).toContainText("Non ho capito, puoi ripetere?");
+  await expect(errore).toContainText("Google non risponde, riprova tra poco.");
+  await expect(errore).not.toContainText("Non ho capito");
   await expect(page.getByText(/stt-stream|failed/)).toHaveCount(0);
   await comando(request, "assistente?stt=normale");
   await errore.getByRole("button", { name: "Parla di nuovo" }).click();

@@ -24,6 +24,7 @@ export type CausaErrore =
   | "connessione"
   | "offline"
   | "nonSentito"
+  | "servizio" // la trascrizione di Google è fallita (stt-stream-failed, v0.5.8)
   | "annullata"
   | "doppione";
 
@@ -92,6 +93,19 @@ export function causaDaDettaglio(dettaglio: string): "quota" | "occupato" | "gem
 }
 
 const ANCORA_QUI = "La domanda è ancora qui.";
+/** Il titolo degli errori di Google (v0.5.8): trascrizione o Gemini, dopo i tentativi del server. */
+export const GOOGLE_NON_RISPONDE = "Google non risponde, riprova tra poco.";
+
+/**
+ * Errore di Google (v0.5.8): la trascrizione (stt-stream-failed) o Gemini
+ * (quota, sovraccarico, errore senza causa). La voce lo segnala con un suono
+ * breve; "non ho capito" (stt-no-text-recognized) resta silenzioso.
+ */
+export function erroreDiGoogle(errore: Turno["errore"]): boolean {
+  if (!errore) return false;
+  if (errore.tipo === "servizio") return true;
+  return errore.tipo === "agente" && causaDaDettaglio(errore.dettaglio) !== "altro";
+}
 
 /**
  * `senzaFrase`: turno a voce finito prima che HA riconoscesse le parole. Non
@@ -117,6 +131,14 @@ function messaggioBase(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
         causa: "doppione",
         titolo: "Ha risposto un altro pannello.",
         spiegazione: "«Jarvis» l'ha sentito anche un pannello vicino, e ha risposto lui.",
+        pulsante: "Parla di nuovo",
+        azione: "parla",
+      };
+    case "servizio":
+      return {
+        causa: "servizio",
+        titolo: GOOGLE_NON_RISPONDE,
+        spiegazione: "La trascrizione della voce non è arrivata, anche dopo i tentativi del server.",
         pulsante: "Parla di nuovo",
         azione: "parla",
       };
@@ -158,11 +180,12 @@ function messaggioBase(errore: NonNullable<Turno["errore"]>): MessaggioErrore {
   }
   const causa = causaDaDettaglio(errore.dettaglio);
   const testi: Record<typeof causa, [string, string]> = {
-    quota: ["Gemini ha raggiunto il limite di richieste.", `Riprova tra un minuto. ${ANCORA_QUI}`],
-    occupato: ["Gemini è occupato in questo momento.", `Riprova tra un minuto. ${ANCORA_QUI}`],
+    // v0.5.8: un titolo solo per Google, la causa nella spiegazione
+    quota: [GOOGLE_NON_RISPONDE, `Gemini ha raggiunto il limite di richieste. ${ANCORA_QUI}`],
+    occupato: [GOOGLE_NON_RISPONDE, `Gemini è sovraccarico in questo momento. ${ANCORA_QUI}`],
     gemini: [
-      "Gemini non ha risposto.",
-      `Può essere occupato o aver raggiunto il limite di richieste: riprova tra un minuto. ${ANCORA_QUI}`,
+      GOOGLE_NON_RISPONDE,
+      `Gemini non ha risposto: può essere occupato o aver raggiunto il limite di richieste. ${ANCORA_QUI}`,
     ],
     altro: ["Jarvis non è riuscito a rispondere.", `Home Assistant ha dato un errore. ${ANCORA_QUI}`],
   };

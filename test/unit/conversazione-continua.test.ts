@@ -9,7 +9,7 @@ import type { Bip, Riproduttore } from "../../src/voce/audio";
 import type { Ascoltatori } from "../../src/voce/microfono";
 import type { MicrofonoCondiviso } from "../../src/voce/microfono-condiviso";
 import { RilevaParlato } from "../../src/voce/parlato";
-import { SEGUITO_MS, Voce } from "../../src/voce/voce";
+import { SEGUITO_BREVE_MS, SEGUITO_MS, Voce } from "../../src/voce/voce";
 
 /**
  * v0.5.3, "persona sempre presente": il minuto prima di «Jarvis» va a HA come
@@ -229,7 +229,7 @@ describe("ascolto: allo scatto il contesto parte PRIMA della richiesta", () => {
   });
 });
 
-describe("conversazione continua: 8 s di riascolto dopo la risposta", () => {
+describe("conversazione continua: 8 s di riascolto dopo una domanda di Jarvis", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
@@ -266,8 +266,12 @@ describe("conversazione continua: 8 s di riascolto dopo la risposta", () => {
     return { f, v, pezzo, bip, aperto: () => aperto };
   }
 
-  /** Domanda «Jarvis» con risposta completa; ritorna quando la voce è nel riascolto. */
-  async function domandaERisposta(p: ReturnType<typeof prepara>) {
+  /**
+   * Domanda «Jarvis» con risposta completa; ritorna quando la voce è nel
+   * riascolto. `continua` = intent_output.continue_conversation (v0.5.8: true
+   * = Jarvis ha fatto una domanda, riascolto lungo; false = azione, breve).
+   */
+  async function domandaERisposta(p: ReturnType<typeof prepara>, continua = true) {
     await p.v.parla("hub", false, { parola: "Jarvis", suono: true });
     const s = p.f.sottoscrizioni.at(-1);
     s?.callback({
@@ -284,6 +288,7 @@ describe("conversazione continua: 8 s di riascolto dopo la risposta", () => {
       data: {
         intent_output: {
           conversation_id: "conv-1",
+          continue_conversation: continua,
           response: { speech: { plain: { speech: "Le dieci." } }, response_type: "action_done" },
         },
       },
@@ -377,6 +382,112 @@ describe("conversazione continua: 8 s di riascolto dopo la risposta", () => {
     } finally {
       p.v.cambiaPreferenze({ riascoltoSecondi: null });
     }
+  });
+
+  it("v0.5.8 — dopo un'azione (continue_conversation false): finestra breve di 2 s, senza «Ti ascolto ancora»", async () => {
+    const p = prepara();
+    await domandaERisposta(p, false);
+    expect(p.v.fase).toBe("ascolto");
+    expect(p.v.ascoltoAncora).toBe(false);
+    expect(p.v.ascoltoBreve).toBe(true);
+    const prima = p.f.sottoscrizioni.length;
+    const turni = p.f.assistente.turni.length;
+    p.bip.suona.mockClear();
+    for (let i = 0; i < 10; i++) p.pezzo(silenzio(0.064));
+    vi.advanceTimersByTime(SEGUITO_BREVE_MS - 1);
+    expect(p.v.fase).toBe("ascolto");
+    vi.advanceTimersByTime(1);
+    // nessuno ha parlato: chiusa subito, in silenzio, senza errori e senza niente verso HA
+    expect(p.v.fase).toBe("spenta");
+    expect(p.v.ascoltoBreve).toBe(false);
+    expect(p.v.erroreMicrofono).toBeNull();
+    expect(p.aperto()).toBe(false);
+    expect(p.f.sottoscrizioni.length).toBe(prima);
+    expect(p.f.assistente.turni.length).toBe(turni);
+    expect(p.bip.suona).not.toHaveBeenCalled();
+  });
+
+  it("v0.5.8 — dopo un'azione, se nella finestra breve qualcuno continua a parlare la conversazione prosegue", async () => {
+    const p = prepara();
+    await domandaERisposta(p, false);
+    p.pezzo(voce(0.064));
+    p.pezzo(voce(0.064));
+    expect(p.v.ascoltoBreve).toBe(false);
+    expect(p.f.sottoscrizioni.at(-1)?.messaggio).toMatchObject({
+      start_stage: "stt",
+      conversation_id: "conv-1",
+    });
+    vi.advanceTimersByTime(SEGUITO_BREVE_MS * 2);
+    expect(p.v.fase).toBe("ascolto");
+  });
+
+  it("v0.5.8 — controprova: con continue_conversation true la finestra breve non chiude, valgono gli 8 s", async () => {
+    const p = prepara();
+    await domandaERisposta(p, true);
+    expect(p.v.ascoltoBreve).toBe(false);
+    vi.advanceTimersByTime(SEGUITO_BREVE_MS + 100);
+    expect(p.v.ascoltoAncora).toBe(true);
+  });
+
+  it("v0.5.8 — dopo un'azione a 0 secondi: chiude subito; il riascolto dopo una domanda resta", async () => {
+    const p = prepara();
+    p.v.cambiaPreferenze({ riascoltoAzioneSecondi: 0 });
+    try {
+      await domandaERisposta(p, false);
+      expect(p.v.fase).toBe("spenta");
+      expect(p.aperto()).toBe(false);
+      await domandaERisposta(p, true);
+      expect(p.v.ascoltoAncora).toBe(true);
+    } finally {
+      p.v.cambiaPreferenze({ riascoltoAzioneSecondi: null });
+    }
+    expect(p.v.preferenze.riascoltoAzioneSecondi).toBe(2);
+  });
+
+  it("v0.5.8 — sensibilità bassa: due pezzi di voce non bastano più, ne servono tre", async () => {
+    const p = prepara();
+    p.v.cambiaPreferenze({ sensibilitaParlato: "bassa" });
+    try {
+      await domandaERisposta(p, false);
+      for (let i = 0; i < 10; i++) p.pezzo(silenzio(0.064));
+      p.pezzo(voce(0.064));
+      p.pezzo(voce(0.064));
+      expect(p.v.ascoltoBreve).toBe(true);
+      p.pezzo(voce(0.064));
+      expect(p.v.ascoltoBreve).toBe(false);
+    } finally {
+      p.v.cambiaPreferenze({ sensibilitaParlato: null });
+    }
+    expect(p.v.preferenze.sensibilitaParlato).toBe("normale");
+  });
+
+  for (const [codice, messaggio] of [
+    ["stt-stream-failed", "Speech-to-text failed"],
+    ["unknown", "Sorry, I had a problem getting a response from Google Generative AI."],
+  ] as const)
+    it(`v0.5.8 — «Jarvis» e poi errore di Google (${codice}): niente chiusura in silenzio, errore e suono breve`, async () => {
+      const p = prepara();
+      await p.v.parla("hub", false, { parola: "Jarvis" });
+      p.bip.suona.mockClear();
+      const s = p.f.sottoscrizioni.at(-1);
+      s?.callback({ type: "run-start", data: { runner_data: { stt_binary_handler_id: 3 } } });
+      if (codice === "unknown")
+        s?.callback({ type: "stt-end", data: { stt_output: { text: "che ore sono" } } });
+      s?.callback({ type: "error", data: { code: codice, message: messaggio } });
+      expect(p.v.fase).toBe("errore");
+      expect(p.bip.suona).toHaveBeenCalledWith("errore");
+    });
+
+  it("v0.5.8 — controprova: «Jarvis» e nessuna parola (stt-no-text-recognized): chiude in silenzio, nessun suono d'errore", async () => {
+    const p = prepara();
+    await p.v.parla("hub", false, { parola: "Jarvis" });
+    p.bip.suona.mockClear();
+    const s = p.f.sottoscrizioni.at(-1);
+    s?.callback({ type: "run-start", data: { runner_data: { stt_binary_handler_id: 3 } } });
+    s?.callback({ type: "error", data: { code: "stt-no-text-recognized", message: "No text recognized" } });
+    expect(p.v.fase).toBe("spenta");
+    // il bip di chiusura del microfono c'era già; il suono d'errore no
+    expect(p.bip.suona).not.toHaveBeenCalledWith("errore");
   });
 
   it("tocco sul pulsante durante il riascolto: chiude e basta", async () => {

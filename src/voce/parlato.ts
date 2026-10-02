@@ -1,4 +1,5 @@
 import { RMS_MINIMO_VOCE, VOLTE_IL_FONDO } from "../parola/inizio-frase";
+import type { SensibilitaParlato } from "./preferenze-voce";
 
 /**
  * C'è qualcuno che parla? (v0.5.3, conversazione continua). Dopo la risposta
@@ -22,16 +23,38 @@ export function rms(pcm: Int16Array): number {
   return Math.sqrt(somma / pcm.length);
 }
 
+/**
+ * Sensibilità (v0.5.8, Impostazioni → Voce): "normale" è la misura della
+ * v0.5.3; "alta" prende anche una voce più bassa o lontana (soglie × 0,6),
+ * "bassa" vuole una voce più forte e più lunga (soglie × 1,6, tre pezzi di
+ * fila: ~200 ms), per una stanza con la TV accesa.
+ */
+export const SENSIBILITA: Record<SensibilitaParlato, { fattore: number; pezzi: number }> = {
+  alta: { fattore: 0.6, pezzi: PEZZI_DI_FILA },
+  normale: { fattore: 1, pezzi: PEZZI_DI_FILA },
+  bassa: { fattore: 1.6, pezzi: 3 },
+};
+
 export class RilevaParlato {
   private fondo = Infinity;
   private diFila = 0;
+  private readonly fattore: number;
+  private readonly pezzi: number;
+
+  constructor(sensibilita: SensibilitaParlato = "normale") {
+    ({ fattore: this.fattore, pezzi: this.pezzi } = SENSIBILITA[sensibilita]);
+  }
 
   /** Un pezzo di microfono (16 kHz). True quando il parlato è appena cominciato. */
   pezzo(pcm: Int16Array): boolean {
     const e = rms(pcm);
     this.fondo = Math.min(this.fondo, e);
-    const soglia = Math.max(RMS_MINIMO_VOCE, Math.min(this.fondo * VOLTE_IL_FONDO, RMS_CERTAMENTE_VOCE));
+    const f = this.fattore;
+    const soglia = Math.max(
+      RMS_MINIMO_VOCE * f,
+      Math.min(this.fondo * VOLTE_IL_FONDO * f, RMS_CERTAMENTE_VOCE * f),
+    );
     this.diFila = e >= soglia ? this.diFila + 1 : 0;
-    return this.diFila >= PEZZI_DI_FILA;
+    return this.diFila >= this.pezzi;
   }
 }

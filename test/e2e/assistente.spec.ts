@@ -94,8 +94,9 @@ test("errore di Gemini: messaggio chiaro, la domanda resta e si riprova con un t
   await chiedi(page, "Che tempo fa?");
   const errore = page.getByTestId("errore-assistente");
   // all'invio HA non dice la causa: messaggio onesto che copre entrambe
-  await expect(errore).toContainText("Gemini non ha risposto.");
-  await expect(errore).toContainText("riprova tra un minuto");
+  // v0.5.8: il titolo per tutti gli errori di Google, la causa nella spiegazione
+  await expect(errore).toContainText("Google non risponde, riprova tra poco.");
+  await expect(errore).toContainText("Gemini non ha risposto");
   // mai il testo tecnico in inglese davanti all'utente
   await expect(page.getByText(/Sorry|Google Generative AI/)).toHaveCount(0);
   await expect(page.getByTestId("domanda")).toHaveText("Che tempo fa?");
@@ -109,7 +110,7 @@ test("errore di Gemini: messaggio chiaro, la domanda resta e si riprova con un t
 
 for (const [modo, titolo] of [
   ["quota", "Gemini ha raggiunto il limite di richieste."],
-  ["occupato", "Gemini è occupato in questo momento."],
+  ["occupato", "Gemini è sovraccarico in questo momento."],
 ] as const) {
   test(`errore di Gemini "${modo}": messaggio umano in italiano, niente inglese`, async ({
     page,
@@ -120,8 +121,8 @@ for (const [modo, titolo] of [
     await apriChat(page);
     await chiedi(page, "Che tempo fa domani?");
     const errore = page.getByTestId("errore-assistente");
+    await expect(errore).toContainText("Google non risponde, riprova tra poco.");
     await expect(errore).toContainText(titolo);
-    await expect(errore).toContainText("Riprova tra un minuto.");
     await expect(page.getByText(/Sorry|exhausted|overloaded/)).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Riprova" })).toBeEnabled();
   });

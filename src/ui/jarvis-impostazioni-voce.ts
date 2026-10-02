@@ -5,7 +5,7 @@ import type { RiepilogoEsempi } from "../parola/motore";
 import { LIMITI_PAROLA, PREFERENZE_PAROLA_DI_SERIE } from "../parola/preferenze";
 import { LIMITI_VOCE, PREFERENZE_VOCE_DI_SERIE } from "../voce/preferenze-voce";
 import { RiquadroSicuro, stileBase } from "./base";
-import { campoInterruttore, campoNumero, campoNumeroAuto, stileCampi } from "./campi";
+import { campoInterruttore, campoNumero, campoNumeroAuto, campoScelta, stileCampi } from "./campi";
 import { OsservaParola } from "./jarvis-indicatore-parola";
 import "./jarvis-parola-dal-vivo";
 import type { Elaborazione } from "../voce/microfono";
@@ -313,15 +313,16 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
       </div>`;
   }
 
-  /** Riascolto dopo la risposta e il minuto prima (v0.5.3), personalizzabili dalla v0.5.4. */
+  /** Riascolto dopo la risposta e il minuto prima (v0.5.3), personalizzabili dalla v0.5.4; v0.5.8 domanda/azione. */
   private conversazione(): TemplateResult {
     const p = connessione.parola;
     const v = p.preferenze;
     const voce = connessione.voce;
     return html`${campoNumero({
       id: "riascolto",
-      titolo: "Ti ascolto ancora",
-      spiegazione: "Dopo la risposta Jarvis ascolta ancora, senza «Jarvis», per questi secondi. 0 = spento.",
+      titolo: "Dopo una domanda di Jarvis",
+      spiegazione:
+        "Se Jarvis ti chiede qualcosa, «Ti ascolto ancora…» per questi secondi: rispondi senza dire «Jarvis». 0 = spento.",
       valore: voce.preferenze.riascoltoSecondi,
       diSerie: PREFERENZE_VOCE_DI_SERIE.riascoltoSecondi,
       min: LIMITI_VOCE.riascoltoSecondi[0],
@@ -330,6 +331,39 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
       unita: "secondi",
       cambia: (x) => {
         voce.cambiaPreferenze({ riascoltoSecondi: x });
+        this.requestUpdate();
+      },
+    })}
+    ${campoNumero({
+      id: "riascolto-azione",
+      titolo: "Dopo un'azione",
+      spiegazione:
+        "Dopo un comando eseguito o una risposta chiusa, ascolta ancora in silenzio per questi secondi: se continui a parlare la conversazione va avanti, se no si chiude. 0 = chiude subito.",
+      valore: voce.preferenze.riascoltoAzioneSecondi,
+      diSerie: PREFERENZE_VOCE_DI_SERIE.riascoltoAzioneSecondi,
+      min: LIMITI_VOCE.riascoltoAzioneSecondi[0],
+      max: LIMITI_VOCE.riascoltoAzioneSecondi[1],
+      passo: 1,
+      unita: "secondi",
+      cambia: (x) => {
+        voce.cambiaPreferenze({ riascoltoAzioneSecondi: x });
+        this.requestUpdate();
+      },
+    })}
+    ${campoScelta({
+      id: "sensibilita-parlato",
+      titolo: "Quanto basta per «stai parlando»",
+      spiegazione:
+        "Nel riascolto, quando il pannello capisce che qualcuno parla. Bassa se la TV o la musica lo fanno partire da solo, alta se parli piano o da lontano.",
+      valore: voce.preferenze.sensibilitaParlato,
+      diSerie: PREFERENZE_VOCE_DI_SERIE.sensibilitaParlato,
+      opzioni: [
+        ["bassa", "Bassa: solo una voce chiara"],
+        ["normale", "Normale"],
+        ["alta", "Alta: anche una voce bassa"],
+      ],
+      cambia: (x) => {
+        voce.cambiaPreferenze({ sensibilitaParlato: x });
         this.requestUpdate();
       },
     })}

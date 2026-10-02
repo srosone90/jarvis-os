@@ -202,8 +202,10 @@ export class JarvisHub extends RiquadroSicuro {
     if (v.dove !== "hub") return "fioca";
     switch (v.fase) {
       case "apertura":
-      case "ascolto":
         return "ascolto";
+      case "ascolto":
+        // finestra breve dopo un'azione (v0.5.8): la sfera resta quieta
+        return v.ascoltoBreve ? "fioca" : "ascolto";
       case "pensa":
         return "pensa";
       case "risponde":

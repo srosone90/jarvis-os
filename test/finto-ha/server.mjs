@@ -44,6 +44,8 @@
  *                                evento jarvis_timer, e l'elenco di jarvis_voce.timer_attivi si
  *                                aggiorna (come jarvis_voce 0.1.8 lato server)
  *   /__prova/jarvis-voce?installato=0  servizi jarvis_voce assenti (server vecchio)
+ *   /__prova/timer-server        il server dimentica i suoi timer senza eventi (v0.5.8: il
+ *                                pannello ne vede uno che per timer_comando non c'è più)
  *   /__prova/annuncio            {pannello, testo, ascolta}: evento jarvis_annuncio (v0.5.4, come
  *                                jarvis_voce.annuncia del server 0.2.8)
  *   /__prova/spesa               {items: [{uid, summary, status}]}: la lista todo.shopping_list
@@ -401,6 +403,46 @@ function timerDaAssistente(deviceId, stanza) {
   }, 2000);
 }
 let contatoreTimer = 0;
+
+/**
+ * jarvis_voce.timer_stanza {stanza, ore?, minuti?, secondi?, nome?} → {esito, id, pannello}:
+ * il timer va al pannello `jarvis_<stanza>` (per "cucina": jarvis_cucina), con l'evento started.
+ */
+function timerStanza(dati) {
+  const secondi =
+    (Number(dati.ore) || 0) * 3600 + (Number(dati.minuti) || 0) * 60 + (Number(dati.secondi) || 0);
+  if (!dati.stanza || secondi <= 0) return { esito: "errore", messaggio: "Stanza o durata mancante." };
+  const id = `t-${++contatoreTimer}`;
+  const pannello = `jarvis_${dati.stanza}`;
+  eventoTimerServer({
+    tipo: "started",
+    id,
+    nome: dati.nome ?? null,
+    secondi_totali: secondi,
+    secondi_rimasti: secondi,
+    pannello,
+  });
+  return { esito: "ok", id, pannello };
+}
+
+/** jarvis_voce.timer_comando {id, azione: annulla|pausa|riprendi} → {esito, …}. */
+function timerComando({ id, azione }) {
+  const t = stato.timerServer.get(id);
+  if (!t) return { esito: "errore", messaggio: "Timer non trovato (forse è già finito)." };
+  const rimasti = t.in_pausa ? t.fermo : Math.max(0, Math.round((t.scadenza - Date.now()) / 1000));
+  const ev = {
+    id,
+    nome: t.nome,
+    secondi_totali: t.secondi_totali,
+    secondi_rimasti: rimasti,
+    pannello: t.pannello,
+  };
+  if (azione === "annulla") eventoTimerServer({ tipo: "cancelled", ...ev, secondi_rimasti: 0 });
+  else if (azione === "pausa" || azione === "riprendi")
+    eventoTimerServer({ tipo: "updated", ...ev, in_pausa: azione === "pausa" });
+  else return { esito: "errore", messaggio: `Azione sconosciuta: ${azione}` };
+  return { esito: "ok", id, azione };
+}
 
 /** La lista come la manda HA (todo/__init__.py, _serialize_todo_item). */
 const voceTodo = (v) => ({
@@ -1040,6 +1082,8 @@ const server = createServer(async (req, res) => {
     } else if (comando === "musica") stato.musica = JSON.parse((await leggiCorpo(req)) || "null");
     // evento jarvis_timer di jarvis_voce: {tipo, id, nome, secondi_totali, secondi_rimasti}
     else if (comando === "timer") eventoTimerServer(JSON.parse(await leggiCorpo(req)));
+    // il server dimentica i suoi timer (finiti nel frattempo) senza mandare eventi: v0.5.8
+    else if (comando === "timer-server") stato.timerServer.clear();
     else if (comando === "jarvis-voce") stato.jarvisVoce = url.searchParams.get("installato") !== "0";
     else if (comando === "reset") {
       for (const c of clienti) c.ws.terminate();
@@ -1315,6 +1359,9 @@ function gestisci(ws, veloce) {
           if (msg.service === "timer_attivi") response = { timer: elencoTimerServer() };
           if (msg.service === "timer_ferma")
             trasmettiEvento("jarvis_timer", { tipo: "fermato", id: dati.id });
+          // jarvis_voce 0.3.0 (v0.5.8): timer dalla schermata, senza passare da Gemini
+          if (msg.service === "timer_stanza") response = timerStanza(dati);
+          if (msg.service === "timer_comando") response = timerComando(dati);
           return invia(cliente, {
             id,
             type: "result",

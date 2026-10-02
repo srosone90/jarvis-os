@@ -78,21 +78,31 @@ export class Riproduttore {
 export class Bip {
   private contesto: AudioContext | null = null;
 
-  suona(tipo: "apri" | "chiudi"): void {
+  /** "errore" (v0.5.8): due note che scendono, per Google che non risponde. Niente voce. */
+  suona(tipo: "apri" | "chiudi" | "errore"): void {
     try {
       this.contesto ??= new AudioContext();
       const c = this.contesto;
       void c.resume();
-      const t = c.currentTime;
-      const osc = c.createOscillator();
-      const vol = c.createGain();
-      osc.frequency.value = tipo === "apri" ? 880 : 620;
-      vol.gain.setValueAtTime(0.0001, t);
-      vol.gain.exponentialRampToValueAtTime(0.12, t + 0.015);
-      vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-      osc.connect(vol).connect(c.destination);
-      osc.start(t);
-      osc.stop(t + 0.13);
+      const note: [number, number][] =
+        tipo === "errore"
+          ? [
+              [520, 0],
+              [390, 0.16],
+            ]
+          : [[tipo === "apri" ? 880 : 620, 0]];
+      for (const [frequenza, dopo] of note) {
+        const t = c.currentTime + dopo;
+        const osc = c.createOscillator();
+        const vol = c.createGain();
+        osc.frequency.value = frequenza;
+        vol.gain.setValueAtTime(0.0001, t);
+        vol.gain.exponentialRampToValueAtTime(0.12, t + 0.015);
+        vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+        osc.connect(vol).connect(c.destination);
+        osc.start(t);
+        osc.stop(t + 0.13);
+      }
     } catch (errore) {
       // il bip è un aiuto, non una funzione: se manca, la voce va avanti
       log.avviso(`Voce: bip non riprodotto: ${descriviErrore(errore)}`);
