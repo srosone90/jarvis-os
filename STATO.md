@@ -529,10 +529,10 @@ faccio io.
 
 | | |
 |---|---|
-| Versione | **v0.6.0**: fotocamera — presenza, «Jarvis» più facile da vicino, guarda e parla (+ `script.jarvis_presenza` nel pacchetto) |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.0 |
-| sha256 dello zip | `196ba4e9d8b827f93b31247a18f2eb6f5f9d581658d721ae6a4135a9843e5e2f` (7,9 MB, service worker 0.6.0, `parola/` con 8 file compreso il modello del volto, nessun file delle prove; verificati, uguale al digest di GitHub) |
-| Precedente | v0.5.10, sha256 `08afdd1a33babcfd195539e2027dff12b16f42fe5ffd5b6e06e80ed4ec9973ad` (6,9 MB, service worker 0.5.10, `parola/` con 5 file, nessun file delle prove; verificati) |
+| Versione | **v0.6.1**: riordino del codice, blocco 1 (nessun cambiamento di comportamento) |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.1 |
+| sha256 dello zip | `a3f383df630f53a67ba17a1aba10930dbd2723af1927d8d4c3729e13b9889970` (7,9 MB, service worker 0.6.1, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
+| Precedente | v0.6.0, sha256 `196ba4e9d8b827f93b31247a18f2eb6f5f9d581658d721ae6a4135a9843e5e2f` (7,9 MB, service worker 0.6.0, `parola/` con 8 file, nessun file delle prove; verificati) |
 
 ## Da installare lato server: v0.6.0
 
