@@ -1,4 +1,5 @@
 import { descriviErrore, log } from "../diagnostica/log";
+import { chiamaControllato, dispositiviDa, messaggioDi, type ElencoDispositivi } from "./dispositivi";
 
 /**
  * Musica (v0.5.6, mockup M1 approvato il 30/09): lo stato VERO di Spotify letto
@@ -10,6 +11,12 @@ import { descriviErrore, log } from "../diagnostica/log";
  * si rilegge ogni `intervallo` secondi solo finché qualcuno guarda, e subito
  * dopo ogni comando. La barra di avanzamento scorre in locale tra una lettura
  * e l'altra (`posizioneAdesso`), mai oltre la durata del brano.
+ *
+ * v0.5.9 (jarvis_musica 0.5.0): ogni `riproduci` e `controllo` dice chi chiede
+ * (`pannello`, il device_id di questo pannello) e su quale `dispositivo`
+ * Spotify suona questo pannello: la musica parte da qui, non dall'Echo che
+ * suonava già. Un errore di jarvis_musica (`{esito: "errore"}`, con la
+ * risposta non è un'eccezione) si dice in chiaro.
  */
 export type StatoMusica = "in_riproduzione" | "in_pausa" | "niente";
 
@@ -152,6 +159,8 @@ export interface DipendenzeMusica {
   /** jarvis_musica.<servizio> con la risposta. */
   chiama: (servizio: string, dati: Record<string, unknown>) => Promise<Record<string, unknown>>;
   collegato: () => boolean;
+  /** device_id di questo pannello ("jarvis_cucina"); null senza stanza (v0.5.9). */
+  pannello?: () => string | null;
   adesso?: () => number;
   archivio?: Pick<Storage, "getItem" | "setItem"> | null;
 }
@@ -167,6 +176,9 @@ export class Musica {
   private avvisato = false;
   private playlistChieste = false;
   private inCorso: AzioneMusica | "playlist" | null = null;
+  private elencoDispositivi: ElencoDispositivi | null = null;
+  private erroreDispositivi: string | null = null;
+  private dispositiviChiesti = false;
   private readonly adesso: () => number;
   private readonly ascoltatori = new Set<() => void>();
 
@@ -203,6 +215,22 @@ export class Musica {
   get occupata(): AzioneMusica | "playlist" | null {
     return this.inCorso;
   }
+  /** I dispositivi di Spotify e quello di questo pannello (null = non ancora letti). */
+  get dispositivi(): ElencoDispositivi | null {
+    return this.elencoDispositivi;
+  }
+  /** Perché l'elenco dei dispositivi non si legge, in parole. */
+  get problemaDispositivi(): string | null {
+    return this.erroreDispositivi;
+  }
+  /** Il dispositivo Spotify di questo pannello; null = chiede ogni volta (o non ancora letto). */
+  get dispositivoScelto(): string | null {
+    return this.elencoDispositivi?.scelto ?? null;
+  }
+  get pannello(): string | null {
+    return this.dip.pannello?.() ?? null;
+  }
+
   /** Suona qualcosa adesso. */
   get suona(): boolean {
     return this.attuale?.stato === "in_riproduzione";
@@ -242,6 +270,8 @@ export class Musica {
   alCollegamento(): void {
     if (this.osservatori > 0) void this.leggi();
     if (this.playlistChieste && !this.elencoPlaylist?.length) void this.leggiPlaylist();
+    // v0.5.9: anche i dispositivi, se qualcuno li ha chiesti da scollegato (pannello aperto sulla Musica)
+    if (this.dispositiviChiesti) void this.leggiDispositivi();
   }
 
   private riarma(): void {
@@ -274,6 +304,40 @@ export class Musica {
     return this.lettura;
   }
 
+  /** jarvis_musica.dispositivi con il pannello: l'elenco di Spotify e la scelta salvata (v0.5.9). */
+  async leggiDispositivi(): Promise<ElencoDispositivi | null> {
+    this.dispositiviChiesti = true;
+    if (!this.dip.collegato()) return this.elencoDispositivi;
+    const pannello = this.pannello;
+    try {
+      this.elencoDispositivi = dispositiviDa(
+        await chiamaControllato(this.dip.chiama, "dispositivi", pannello ? { pannello } : {}),
+      );
+      this.erroreDispositivi = null;
+    } catch (errore) {
+      this.erroreDispositivi = messaggioDi(errore);
+      log.avviso(`Musica: dispositivi non letti (${this.erroreDispositivi})`);
+    }
+    this.notifica();
+    return this.elencoDispositivi;
+  }
+
+  /** Su quale dispositivo suona questo pannello (null = chiede ogni volta). Errore in parole, o null. */
+  async impostaDispositivo(nome: string | null): Promise<string | null> {
+    const pannello = this.pannello;
+    if (!pannello) return "Scegli prima la stanza di questo pannello (Impostazioni → Stanza e nome).";
+    try {
+      await chiamaControllato(this.dip.chiama, "imposta_pannello", { pannello, dispositivo: nome ?? "" });
+      log.info(`Musica: questo pannello (${pannello}) suona su ${nome ?? "(chiede ogni volta)"}`);
+    } catch (errore) {
+      const m = messaggioDi(errore);
+      log.avviso(`Musica: dispositivo del pannello non salvato (${m})`);
+      return m;
+    }
+    await this.leggiDispositivi();
+    return null;
+  }
+
   async leggiPlaylist(): Promise<void> {
     this.playlistChieste = true;
     if (!this.dip.collegato()) return;
@@ -286,17 +350,28 @@ export class Musica {
     this.notifica();
   }
 
+  /** Chi chiede e su quale dispositivo (v0.5.9): `dispositivo` passato > quello scelto per il pannello. */
+  private daDove(dispositivo?: string): Record<string, string> {
+    const pannello = this.pannello;
+    const nome = dispositivo ?? this.dispositivoScelto;
+    return { ...(pannello ? { pannello } : {}), ...(nome ? { dispositivo: nome } : {}) };
+  }
+
   /** Un comando: Spotify lo conferma (jarvis_musica aspetta), poi si rilegge lo stato. */
   async comanda(
     azione: AzioneMusica,
     dati: { dove?: string; livello?: number } = {},
   ): Promise<string | null> {
-    return this.esegui(azione, "controllo", { azione, ...dati });
+    return this.esegui(azione, "controllo", { azione, ...dati, ...this.daDove() });
   }
 
-  /** Una playlist con un tocco (riproduci con l'uri), nella stanza scelta o dove suona già. */
-  async riproduci(uri: string, dove?: string): Promise<string | null> {
-    return this.esegui("playlist", "riproduci", { cosa: uri, ...(dove ? { dove } : {}) });
+  /**
+   * Una playlist con un tocco (riproduci con l'uri) sul dispositivo di questo
+   * pannello (v0.5.9: prima "dove suona già", ed era partita dall'Echo della
+   * cucina), o su `dispositivo` scelto in «Dove la suono?».
+   */
+  async riproduci(uri: string, dispositivo?: string): Promise<string | null> {
+    return this.esegui("playlist", "riproduci", { cosa: uri, ...this.daDove(dispositivo) });
   }
 
   private async esegui(
@@ -309,12 +384,13 @@ export class Musica {
     this.notifica();
     let errore: string | null = null;
     try {
-      const r = await this.dip.chiama(servizio, dati);
+      // {esito: "errore"} (es. dispositivo_assente) diventa un errore vero, col messaggio del server
+      const r = await chiamaControllato(this.dip.chiama, servizio, dati);
       log.info(
         `Musica: ${servizio} ${JSON.stringify(dati)} → ${typeof r["esito"] === "string" ? r["esito"] : "ok"}`,
       );
     } catch (e) {
-      errore = descriviErrore(e);
+      errore = messaggioDi(e);
       log.avviso(`Musica: ${servizio} ${JSON.stringify(dati)} non riuscito (${errore})`);
     } finally {
       this.inCorso = null;

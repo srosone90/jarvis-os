@@ -28,9 +28,21 @@ riproduci:
             - genere
     dove:
       name: Dove
-      description: Stanza di casa; vuoto = dove suona già o la stanza predefinita.
+      description: Stanza di casa; vuoto = il dispositivo del pannello, poi dove suona già, poi la stanza predefinita.
       required: false
       example: cucina
+      selector:
+        text:
+    pannello:
+      name: Pannello
+      description: Chi chiede (device_id del pannello, es. jarvis_cucina). Vuoto = dalla pipeline vocale.
+      required: false
+      selector:
+        text:
+    dispositivo:
+      name: Dispositivo
+      description: Nome del dispositivo Spotify su cui suonare. Senza, quello scelto per il pannello.
+      required: false
       selector:
         text:
 controllo:
@@ -68,9 +80,49 @@ controllo:
         number:
           min: 0
           max: 100
+    pannello:
+      name: Pannello
+      description: Chi chiede (device_id del pannello, es. jarvis_cucina). Vuoto = dalla pipeline vocale.
+      required: false
+      selector:
+        text:
+    dispositivo:
+      name: Dispositivo
+      description: Nome del dispositivo Spotify su cui suonare. Senza, quello scelto per il pannello.
+      required: false
+      selector:
+        text:
 stato:
   name: Cosa suona
   description: Cosa sta suonando adesso su Spotify, letto dallo stato vero.
 playlist:
   name: Playlist
   description: Le playlist dell'account Spotify (nome, uri, copertina). Per farne partire una, riproduci con cosa uguale al suo uri.
+dispositivi:
+  name: Dispositivi
+  description: >-
+    I dispositivi Spotify Connect visibili adesso (nome, tipo, attivo, volume) e,
+    con pannello, quello scelto per quel pannello.
+  fields:
+    pannello:
+      name: Pannello
+      description: device_id del pannello (es. jarvis_cucina).
+      required: false
+      selector:
+        text:
+imposta_pannello:
+  name: Dispositivo del pannello
+  description: Su quale dispositivo Spotify suona un pannello (salvato). Dispositivo vuoto = chiede ogni volta.
+  fields:
+    pannello:
+      name: Pannello
+      description: device_id del pannello (es. jarvis_cucina).
+      required: true
+      selector:
+        text:
+    dispositivo:
+      name: Dispositivo
+      description: Nome del dispositivo Spotify; vuoto = cancella.
+      required: false
+      selector:
+        text:

@@ -1,4 +1,7 @@
 import {
+  mdiCellphone,
+  mdiCellphoneSound,
+  mdiLaptop,
   mdiMusic,
   mdiPause,
   mdiPlay,
@@ -15,6 +18,13 @@ import { avvisi } from "../comandi/avvisi";
 import { connessione } from "../connessione/connessione";
 import { minuti, posizioneAdesso, type AzioneMusica } from "../musica/musica";
 import { icona, RiquadroSicuro, stileBase } from "./base";
+import "./jarvis-collega-spotify";
+
+/** L'icona di un dispositivo Spotify: telefono, tablet, computer o altoparlante. */
+function iconaDispositivo(tipo: string): string {
+  const t = tipo.toLowerCase();
+  return t === "smartphone" || t === "tablet" ? mdiCellphone : t === "computer" ? mdiLaptop : mdiSpeaker;
+}
 
 /** Stanze per spostare la musica: quelle scelte, o le aree di Home Assistant. */
 export function stanzeMusica(): string[] {
@@ -29,8 +39,24 @@ export function stanzeMusica(): string[] {
  * playlist (un tocco la fa partire). Tutto dallo stato vero di Spotify
  * (`jarvis_musica`); la barra di avanzamento scorre in locale e si riallinea a
  * ogni lettura. Un comando spegne i pulsanti finché Spotify non lo conferma.
+ *
+ * v0.5.9: la musica parte dal dispositivo di QUESTO pannello (Impostazioni →
+ * Musica). Se non è stato scelto, alla prima playlist il riquadro «Dove la
+ * suono?» con i dispositivi di Spotify, «ricorda per questo pannello» e
+ * «Collega questo dispositivo».
  */
 export class JarvisPaginaMusica extends RiquadroSicuro {
+  static override properties = { dove: { state: true }, ricorda: { state: true } };
+  /** «Dove la suono?» aperto per questa playlist (uri). */
+  declare dove: string | null;
+  declare ricorda: boolean;
+
+  constructor() {
+    super();
+    this.dove = null;
+    this.ricorda = true;
+  }
+
   static override styles = [
     stileBase,
     css`
@@ -46,6 +72,97 @@ export class JarvisPaginaMusica extends RiquadroSicuro {
         margin: 0;
         font-size: 26px;
         font-weight: 600;
+      }
+      /* v0.5.9: su quale dispositivo suona questo pannello, e «Dove la suono?» */
+      .suona-su {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--attenuato);
+        font-size: 15px;
+        overflow-wrap: break-word;
+        min-width: 0;
+      }
+      .suona-su b {
+        color: var(--testo);
+        font-weight: 500;
+      }
+      .velo {
+        position: fixed;
+        inset: 0;
+        z-index: 20;
+        background: rgb(0 0 0 / 60%);
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        box-sizing: border-box;
+      }
+      .dove {
+        width: min(480px, 100%);
+        max-height: 100%;
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 20px;
+        border-radius: var(--raggio);
+        background: var(--superficie);
+        border: 1px solid #2b303a;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .dove h2 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 600;
+        text-transform: none;
+        letter-spacing: normal;
+        color: var(--testo);
+      }
+      .dove .scelte {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .dove button {
+        min-height: 52px;
+        padding: 8px 14px;
+        border-radius: 14px;
+        border: 1px solid #343a46;
+        background: none;
+        color: var(--testo);
+        font: inherit;
+        font-size: 17px;
+        text-align: left;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        touch-action: manipulation;
+      }
+      .dove button small {
+        display: block;
+        color: var(--attenuato);
+        font-size: 13px;
+      }
+      .dove .annulla {
+        justify-content: center;
+        color: var(--attenuato);
+      }
+      .dove .ricorda {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: 44px;
+        font-size: 16px;
+      }
+      .dove .ricorda input {
+        width: 22px;
+        height: 22px;
+      }
+      .dove .nota {
+        color: var(--attenuato);
+        font-size: 15px;
+        overflow-wrap: break-word;
       }
       .lettore {
         display: grid;
@@ -263,6 +380,7 @@ export class JarvisPaginaMusica extends RiquadroSicuro {
     const m = connessione.musica;
     this.smetti = [m.osserva(), m.ascolta(() => this.requestUpdate())];
     void m.leggiPlaylist();
+    void m.leggiDispositivi();
     // la barra di avanzamento: un secondo alla volta, in locale
     this.battito = setInterval(() => this.requestUpdate(), 1000);
   }
@@ -279,12 +397,119 @@ export class JarvisPaginaMusica extends RiquadroSicuro {
     if (errore) avvisi.mostra(`Musica: ${errore}`, "errore");
   }
 
+  /**
+   * Una playlist (v0.5.9): sul dispositivo di questo pannello. Prima partiva
+   * "dove suona già", e dal Redmi era partita dall'Echo della cucina. Senza
+   * una scelta salvata: «Dove la suono?». Se i dispositivi non si leggono
+   * (jarvis_musica prima della 0.5.0) decide il server, come prima.
+   */
   private async playlist(uri: string): Promise<void> {
-    const b = connessione.musica.brano;
-    // dove suona già (anche in pausa); se non suona niente, decide jarvis_musica (la sua stanza predefinita)
-    const dove = b && b.stato !== "niente" && b.stanza ? b.stanza : undefined;
-    const errore = await connessione.musica.riproduci(uri, dove);
+    const m = connessione.musica;
+    const d = m.dispositivi ?? (await m.leggiDispositivi());
+    if (d && !d.scelto) {
+      this.ricorda = m.pannello !== null;
+      this.dove = uri;
+      return;
+    }
+    await this.suona(uri);
+  }
+
+  private async suona(uri: string, dispositivo?: string): Promise<void> {
+    const errore = await connessione.musica.riproduci(uri, dispositivo);
     if (errore) avvisi.mostra(`Musica: ${errore}`, "errore");
+  }
+
+  /**
+   * Scelto in «Dove la suono?»: se «ricorda», si salva per il pannello. Da
+   * «Collega» (`giaSalvato`) l'ha già salvato il collegamento: una volta sola.
+   */
+  private async scelto(nome: string, giaSalvato = false): Promise<void> {
+    const uri = this.dove;
+    this.dove = null;
+    if (!uri) return;
+    if (this.ricorda && !giaSalvato) {
+      const errore = await connessione.musica.impostaDispositivo(nome);
+      if (errore) avvisi.mostra(`Musica: ${errore}`, "errore");
+    }
+    await this.suona(uri, nome);
+  }
+
+  private chiudiDove(): void {
+    this.dove = null;
+    if (connessione.collegaSpotify.stato.fase !== "collegato") connessione.collegaSpotify.ferma();
+  }
+
+  /** Su quale dispositivo suona questo pannello, sopra le playlist. */
+  private suonaSu(): TemplateResult | typeof nothing {
+    const d = connessione.musica.dispositivi;
+    if (!d) return nothing;
+    return html`<div class="suona-su" data-test="musica-dispositivo">
+      ${icona(mdiCellphoneSound)}
+      <span
+        >${
+          d.scelto
+            ? d.sceltoVisibile
+              ? html`Questo pannello suona su <b>${d.scelto}</b>`
+              : html`Su Spotify non vedo <b>${d.scelto}</b>: apri l'app Spotify, o ricollegalo in Impostazioni
+                  → Musica`
+            : "Ogni volta ti chiedo dove suonare (Impostazioni → Musica)"
+        }</span
+      >
+    </div>`;
+  }
+
+  private riquadroDove(): TemplateResult | typeof nothing {
+    if (!this.dove) return nothing;
+    const m = connessione.musica;
+    const d = m.dispositivi;
+    const usabili = d?.elenco.filter((x) => x.comandabile) ?? [];
+    const pannello = m.pannello;
+    return html`<div class="velo" @click=${(e: Event) => e.target === e.currentTarget && this.chiudiDove()}>
+      <div
+        class="dove"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titolo-dove"
+        data-test="dove-la-suono"
+      >
+        <h2 id="titolo-dove">Dove la suono?</h2>
+        ${
+          usabili.length
+            ? html`<div class="scelte">
+                ${usabili.map(
+                  (x) =>
+                    html`<button data-test="dove-dispositivo" @click=${() => void this.scelto(x.nome)}>
+                      ${icona(iconaDispositivo(x.tipo))}<span
+                        >${x.nome}${x.tipo ? html`<small>${x.tipo}</small>` : nothing}</span
+                      >
+                    </button>`,
+                )}
+              </div>`
+            : html`<div class="nota">Spotify non vede nessun dispositivo acceso.</div>`
+        }
+        <label class="ricorda">
+          <input
+            type="checkbox"
+            data-test="dove-ricorda"
+            .checked=${this.ricorda && pannello !== null}
+            ?disabled=${pannello === null}
+            @change=${(e: Event) => (this.ricorda = (e.target as HTMLInputElement).checked)}
+          />
+          Ricorda per questo pannello
+        </label>
+        ${
+          pannello === null
+            ? html`<div class="nota">
+                Per ricordarlo serve la stanza del pannello (Impostazioni → Stanza e nome).
+              </div>`
+            : nothing
+        }
+        <jarvis-collega-spotify
+          @collegato=${(e: CustomEvent<string>) => void this.scelto(e.detail, true)}
+        ></jarvis-collega-spotify>
+        <button class="annulla" data-test="dove-annulla" @click=${() => this.chiudiDove()}>Annulla</button>
+      </div>
+    </div>`;
   }
 
   private lettore(): TemplateResult {
@@ -455,7 +680,7 @@ export class JarvisPaginaMusica extends RiquadroSicuro {
 
   protected disegna(): TemplateResult {
     return html`<h1>Musica</h1>
-      ${this.lettore()} ${this.stanze()} ${this.elencoPlaylist()}`;
+      ${this.lettore()} ${this.suonaSu()} ${this.stanze()} ${this.elencoPlaylist()} ${this.riquadroDove()}`;
   }
 }
 customElements.define("jarvis-pagina-musica", JarvisPaginaMusica);

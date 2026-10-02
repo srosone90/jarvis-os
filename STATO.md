@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 02/10/2026 — v0.5.8 (riascolto breve, errori di Google, timer coi servizi, conferma scene). Piano autonomo in corso._
+_Ultimo aggiornamento: 02/10/2026 — v0.5.9 (la musica parte dal dispositivo da cui la chiedi, jarvis_musica 0.5.0). Piano autonomo in corso._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -15,7 +15,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.5.8 (riascolto breve, errori di Google,
 | 4. Musica | v0.5.6 | **fatto** |
 | 5. Timer, Clima, Scene, Spesa, Avvisi | v0.5.7 | **fatto** |
 | B. Riascolto breve, errori di Google, timer coi servizi, conferma scene (messaggio del 02/10) | v0.5.8 | **fatto** |
-| M. Musica dal dispositivo del pannello + «Collega questo dispositivo» (priorità alta, 02/10) | v0.5.9 | in corso |
+| M. Musica dal dispositivo del pannello + «Collega questo dispositivo» (priorità alta, 02/10) | v0.5.9 | **fatto** |
 | 6. Giro della personalizzazione + esporta/importa | v0.5.10 | da fare |
 | 7. Fotocamera | v0.6.0 | da fare |
 | 8. Modello su misura | — | da fare |
@@ -97,6 +97,22 @@ Ogni riga: cosa, perché, dove si cambia.
   di Jarvis 8 s con «Ti ascolto ancora»; sensibilità del parlato «normale»
   (quella della v0.5.3). Impostazioni → Voce.
 - **v0.5.8 — conferma delle scene: secondo tocco entro 4 s**. Fisso.
+
+- **v0.5.9 — la scelta del dispositivo si salva per stanza del pannello**
+  (il device_id `jarvis_<stanza>`): senza stanza non si ricorda niente,
+  «Dove la suono?» chiede ogni volta. Due pannelli nella stessa stanza
+  condividono la scelta.
+- **v0.5.9 — «Dove la suono?» solo per le playlist** toccate nella
+  schermata Musica; pausa, volume e gli altri comandi agiscono sulla musica
+  in corso, dovunque sia.
+- **v0.5.9 — «Collega» salva il dispositivo anche se in «Dove la suono?»
+  «Ricorda» è tolto**: collegare è già una scelta esplicita per questo
+  pannello.
+- **v0.5.9 — sul computer** si apre il sito di Spotify in una nuova scheda
+  e si comincia a cercare dopo 5 s anche se il pannello resta in primo
+  piano.
+- **v0.5.9 — il dispositivo si salva per nome**, non per id: l'app
+  Spotify su un telefono cambia id quando si riapre.
 - **v0.5.8 — errori di Google: un titolo solo** («Google non risponde,
   riprova tra poco.»), la causa (limite, sovraccarico) nella spiegazione;
   suono di due note che scendono. Il suono segue il bip della voce, non ha
@@ -147,6 +163,8 @@ Ogni riga: cosa, perché, dove si cambia.
   Scene: quali e in che ordine (le prime 3 anche in Casa), conferma prima
   delle scene (v0.5.8); Spesa: quale
   lista, cose prese; Avvisi: ore, soglia della batteria.
+- **Musica** (v0.5.9, per stanza del pannello, sul server): su quale
+  dispositivo Spotify suona, o «Chiedi ogni volta».
 - **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
   rilettura ogni N secondi, stanze per spostarla, playlist preferite (la
   stella; «Togli le preferite»).
@@ -154,6 +172,26 @@ Ogni riga: cosa, perché, dove si cambia.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.5.9, la musica parte dal dispositivo da cui la chiedi**
+  (problema del Redmi del 02/10):
+  1. **jarvis_musica 0.5.0** (`home-assistant/custom_components/jarvis_musica`):
+     `dispositivi`, `imposta_pannello` (salvato su disco), `pannello` e
+     `dispositivo` in `riproduci` e `controllo`; a voce il pannello da
+     `jarvis_voce.pannello_corrente()` (con try/except); dispositivo chiesto
+     o salvato non visibile → `dispositivo_assente`, mai un altro
+     altoparlante. Prova su HA 2026.9.3: **87/87** (erano 65);
+  2. **pannello**: Impostazioni → Musica («Questo pannello suona su:»),
+     «Dove la suono?» alla prima playlist, «Collega questo dispositivo» /
+     «Ricollega», ogni comando con `pannello` e `dispositivo`, errori della
+     musica finalmente visibili (prima un `{esito: "errore"}` spariva).
+  Controprove: ripiego sugli altri altoparlanti reintrodotto apposta → 4
+  verifiche della prova del server cadono; «Ricorda» tolto → niente
+  salvataggio; componente vecchio (0.4) → la playlist parte come prima;
+  dispositivo che non compare in 60 s; due nuovi insieme; Ricollega per
+  nome. Trovati strada facendo: i dispositivi non si rileggevano se il
+  pannello si apriva già sulla Musica; un salvataggio doppio da «Collega»
+  dentro «Dove la suono?».
 
 - **Finito: v0.5.8** (messaggio del 02/10):
   1. **B1 ascolto dopo la risposta**: «Ti ascolto ancora» 8 s solo se
@@ -172,8 +210,6 @@ Ogni riga: cosa, perché, dove si cambia.
   e scade dopo 4 s. Trovati col layout e corretti: nome lungo del timer
   spezzato a metà parola nella Casa (915x412) e «Annulla» fuori schermo a
   320 px.
-- **In corso: v0.5.9**, la musica dal dispositivo del pannello
-  (`jarvis_musica` 0.5.0 + «Collega questo dispositivo»).
 
 - **Finito: v0.5.7, le altre schermate del mockup N2**:
   1. colonna di serie Casa, Musica, Meteo, Timer, Altro (+ Hub); ogni
@@ -264,7 +300,45 @@ Ogni riga: cosa, perché, dove si cambia.
 | sha256 dello zip | `e2ade89e0716d42466c477be7e5c8c7059071d9233e8d2452ab82102cbdc6917` (6,9 MB, service worker 0.5.8, `parola/` con 5 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
 | Precedente | v0.5.7, sha256 `a11b13a3deb66f5e3362d92dbc2142e04a79c6aec1e11eafbea8591f5c36f046` (6,9 MB, service worker 0.5.7, `parola/` con 5 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.5.8
+## Da installare lato server: v0.5.9
+
+1. Lo zip sopra `/config/www/jarvis/`.
+2. **jarvis_musica 0.5.0**: sovrascrivi
+   `/config/custom_components/jarvis_musica/` con
+   `home-assistant/custom_components/jarvis_musica/` del repo (quattro
+   file) e riavvia HA. `packages/jarvis_musica.yaml` e il file delle stanze
+   non cambiano. Senza la 0.5.0 il pannello funziona come prima e in
+   Impostazioni → Musica dice «Serve jarvis_musica 0.5.0».
+3. **jarvis_voce 0.3.1** con `pannello_corrente()`: serve perché anche
+   «Jarvis, metti la musica» detto da un pannello suoni sul SUO
+   dispositivo. Senza, a voce si fa come prima (dove suona già, poi la
+   stanza predefinita).
+4. Prova del componente: `prove/prova_musica.py` → 87/87.
+
+**Per Salvatore — far suonare la musica sul Redmi (o sul tablet):**
+
+1. Installa **Spotify** dal Play Store sul Redmi e aprila una volta: fai
+   il login con **lo stesso account** della casa (lo fai tu, nell'app: il
+   pannello non vede né password né token).
+2. Sul Redmi, nel pannello: **Impostazioni → Stanza e nome**: scegli la
+   stanza (serve per ricordare la scelta).
+3. **Impostazioni → Musica → «Collega questo dispositivo»**: si apre
+   Spotify; torna al pannello e in pochi secondi compare «Collegato: Redmi
+   … ✓». In alternativa scegli il Redmi dall'elenco «Questo pannello suona
+   su:» (compare solo se Spotify è aperta).
+4. Da lì in poi una playlist toccata sul Redmi suona sul Redmi, e «Jarvis,
+   metti …» detto al Redmi anche (con jarvis_voce 0.3.1). «… in cucina»
+   suona in cucina.
+5. Se Android chiude Spotify, il pannello lo dice («Su Spotify non vedo
+   …») e il tasto diventa **«Ricollega»**: toccalo, si riapre Spotify, e
+   torna tutto.
+
+**Come provare la v0.5.9**: dal Redmi tocca una playlist → «Dove la
+suono?» (se non hai ancora scelto) → scegli; la volta dopo non chiede più
+e parte lì. Chiudi Spotify sul Redmi e ritocca una playlist: deve dire
+«Su Spotify non vedo …», e NON partire dall'Echo.
+
+## Prima: v0.5.8
 
 Lo zip sopra `/config/www/jarvis/`. Serve **jarvis_voce 0.3.0** (già
 installato dalla sessione server) per i pulsanti dei timer: senza, il

@@ -77,6 +77,58 @@ def _utilizzabile(dispositivo: Any) -> bool:
     return bool(dispositivo.device_id) and not dispositivo.is_restricted
 
 
+def dispositivo_per_nome(nome: str, dispositivi: list[Any]) -> Any:
+    """Il dispositivo Spotify Connect chiamato `nome` (0.5.0: scelto dal pannello o salvato).
+
+    Niente ripiego su altri altoparlanti: se Spotify non lo vede la musica NON
+    parte altrove (02/10: dal Redmi era partita dall'Echo della cucina).
+    """
+    trovato = next((d for d in dispositivi if normalizza(d.name) == normalizza(nome)), None)
+    if trovato is None or not trovato.device_id:
+        raise ErroreMusica(
+            "dispositivo_assente",
+            f"Su Spotify non vedo «{nome}»: apri l'app Spotify su quel dispositivo e riprova.",
+            dispositivo=nome,
+            dispositivi_disponibili=sorted(d.name for d in dispositivi),
+        )
+    if not _utilizzabile(trovato):
+        raise ErroreMusica(
+            "dispositivo_non_comandabile",
+            f"{trovato.name} non accetta comandi da remoto da Spotify.",
+            dispositivo=trovato.name,
+        )
+    return trovato
+
+
+def scegli_per_richiesta(
+    dove: str | None,
+    richiesto: str | None,
+    salvato: str | None,
+    dispositivi: list[Any],
+    stanze: dict[str, list[str]],
+    predefinita: str | None,
+    attivo: Any | None,
+) -> tuple[Any, str | None]:
+    """Dove suonare (0.5.0), in quest'ordine:
+
+    1. `dove` detto (una stanza, «in cucina»): gli altoparlanti di altre stanze
+       solo se nominati;
+    2. `dispositivo` passato dal pannello;
+    3. il dispositivo salvato per il pannello che chiede (`imposta_pannello`);
+    4. dove sta già suonando;
+    5. la stanza predefinita.
+    Nei casi 2 e 3, se Spotify non vede quel dispositivo: errore
+    `dispositivo_assente`, mai un altro altoparlante.
+    """
+    if dove and dove.strip():
+        return scegli_dispositivo(dove, dispositivi, stanze, predefinita, attivo)
+    nome = (richiesto or "").strip() or (salvato or "").strip()
+    if nome:
+        trovato = dispositivo_per_nome(nome, dispositivi)
+        return trovato, stanza_di(trovato.name, stanze)
+    return scegli_dispositivo(None, dispositivi, stanze, predefinita, attivo)
+
+
 def scegli_dispositivo(
     dove: str | None,
     dispositivi: list[Any],

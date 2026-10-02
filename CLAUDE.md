@@ -132,7 +132,7 @@ In casa **non ci sono luci smart**.
 | `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
 | `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
 | `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
-| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (60 casi) |
+| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (87 casi; dalla 0.5.0 con un `jarvis_voce` finto per `pannello_corrente`) |
 | `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
 | `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
 | `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
@@ -1434,6 +1434,50 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `script.jarvis_*` (stato "on" per 1,2 s), batterie con `device_class`.
   Entità: 35.
 
+### Musica dal dispositivo del pannello (v0.5.9 + jarvis_musica 0.5.0, 02/10)
+
+- **Il problema vero**: dal Redmi una playlist era partita dall'Echo della
+  cucina. Il pannello passava `dove` = "dove suona già", e senza musica il
+  server usava la stanza predefinita. Regola di Salvatore: la musica parte
+  dal dispositivo da cui la chiedi, le altre stanze solo se nominate.
+- **Server** (`jarvis_musica` 0.5.0, `scegli_per_richiesta` in
+  `scelta.py`): `dispositivi`, `imposta_pannello` (Store
+  `jarvis_musica.pannelli`, per NOME: l'id dell'app Spotify su un telefono
+  cambia), `pannello`/`dispositivo` in `riproduci` e `controllo`, il
+  pannello dalla pipeline vocale con `from custom_components.jarvis_voce
+  import pannello_corrente` (try/except). Dispositivo chiesto o salvato non
+  visibile → `dispositivo_assente`, mai un altro altoparlante. C'era già una
+  `stanza_di(nome)` in `scelta.py`: una seconda con un altro argomento
+  l'aveva sovrascritta in silenzio (TypeError solo a runtime). Prima di
+  aggiungere una funzione: `grep -n "def <nome>"`.
+- **Con `return_response` jarvis_musica NON solleva errori**: risponde
+  `{esito: "errore", codice, messaggio}`. Fino alla v0.5.8 il pannello lo
+  prendeva per buono e l'errore spariva. Ora `chiamaControllato`
+  (`src/musica/dispositivi.ts`) lo trasforma in errore col messaggio del
+  server; `messaggioDi()` toglie "Error:" davanti.
+- **Pannello** (`Musica.daDove`): ogni `riproduci`/`controllo` passa
+  `pannello` (`dispositivoPannello()`) e `dispositivo` (quello scelto). Senza
+  scelta, «Dove la suono?» (`jarvis-pagina-musica`), con «ricorda per questo
+  pannello» (spento senza stanza). Impostazioni → Musica
+  (`jarvis-impostazioni-musica`): «Questo pannello suona su:». I dispositivi
+  si rileggono anche in `alCollegamento` (pannello aperto sulla Musica
+  prima che HA risponda: trovato dal layout).
+- **«Collega questo dispositivo»** (`CollegaDispositivo`,
+  `jarvis-collega-spotify`): elenco PRIMA di aprire; Android → intent
+  `intent://open#Intent;scheme=spotify;package=com.spotify.music;S.browser_fallback_url=<Play Store>;end`,
+  altrove `https://open.spotify.com` in una nuova scheda; al ritorno
+  (`visibilitychange`, o comunque dopo 5 s) rilegge ogni 2 s per 60 s:
+  nuovo (o diventato attivo, tipo telefono/tablet/computer) = questo
+  pannello → `imposta_pannello`; più nuovi → si sceglie; Ricollega cerca
+  per nome. Mai credenziali nel pannello.
+- **Prove nel browser**: i dispositivi devono comparire DOPO il tocco su
+  «Collega» (`collega()` in `musica-dispositivo.spec.ts` aspetta «Apro
+  Spotify»), se no sono già nell'elenco di partenza e non risultano nuovi.
+  Il sito di Spotify si serve finto con `context.route` (senza rete la
+  scheda finisce in `chrome-error://`). I 60 s si saltano con
+  `page.clock.fastForward`. Finto HA: `/__prova/spotify-compare`,
+  `/__prova/musica-pannello`, `versione: "0.4.0"` per il componente vecchio.
+
 ### Riascolto breve, errori di Google, timer coi servizi, conferma scene (v0.5.8, 02/10)
 
 - **Riascolto** (`src/voce/voce.ts`, `src/voce/preferenze-voce.ts`):
@@ -1753,7 +1797,7 @@ node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/
 # conosceva solo 3.14.0rc2: `pip install -U uv` in un venv a parte)
 uv python install 3.14.7 && uv venv -p 3.14.7 .venv-ha-2026-9
 VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
-.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 60/60
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py   # atteso: 87/87
 
 # Prova del pacchetto HA (serve Python 3.13)
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant

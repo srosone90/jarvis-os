@@ -91,7 +91,8 @@ export async function aspettaServiceWorker(page: Page): Promise<void> {
 /** Impostazioni (fase G): orologio tenuto premuto 3 s, poi la sezione chiesta. */
 export async function apriImpostazioni(
   page: Page,
-  sezione: "stanza" | "schermate" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica" = "stanza",
+  sezione:
+    "stanza" | "schermate" | "musica" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica" = "stanza",
 ): Promise<void> {
   const ora = page.getByTestId("ora");
   const box = await ora.boundingBox();

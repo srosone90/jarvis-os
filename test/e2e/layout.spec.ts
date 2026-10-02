@@ -863,3 +863,72 @@ for (const v of MISURE) {
     ).toEqual([]);
   });
 }
+
+// --- v0.5.9: musica dal dispositivo del pannello ---
+for (const v of MISURE) {
+  test(`layout ${v.nome} v0.5.9: «Dove la suono?», «suona su», Impostazioni → Musica`, async ({
+    page,
+    request,
+  }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await page.addInitScript(() => localStorage.setItem("jarvis-stanza-pannello", "Camera da letto"));
+    await comando(request, "musica", {
+      stato: "niente",
+      titolo: "",
+      stanza: "",
+      volume: null,
+      playlist: [
+        { nome: "Musica per cucinare la domenica mattina", uri: "spotify:playlist:x", copertina: null },
+      ],
+    });
+    await comando(request, "spotify-compare", {
+      dispositivi: [{ nome: "Redmi Note 13 Pro+ di Salvatore Rosone", tipo: "Smartphone" }],
+      dopoMs: 0,
+    });
+    await accedi(page);
+    await page.getByTestId("colonna-musica").click();
+    await expect(page.getByTestId("musica-dispositivo")).toBeVisible();
+    await page.getByTestId("playlist-riproduci").first().click();
+    await expect(page.getByTestId("dove-la-suono")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/dove-la-suono-${v.nome}.png` });
+    const colonna = ["jarvis-app", "jarvis-colonna"];
+    const parti = v.unica ? [colonna, ["jarvis-app", ".pagina"]] : [colonna];
+    expect([...(await problemiTesto(page, v.width))], "dove la suono").toEqual([]);
+    const riquadro = await page.getByTestId("dove-la-suono").boundingBox();
+    expect(
+      riquadro && riquadro.x >= 0 && riquadro.x + riquadro.width <= v.width,
+      "riquadro nello schermo",
+    ).toBe(true);
+    await page.getByTestId("dove-annulla").click();
+    // dispositivo salvato che Spotify non vede: le scritte più lunghe
+    await comando(request, "musica-pannello", {
+      pannello: "jarvis_camera_da_letto",
+      dispositivo: "Tablet della cucina vicino al frigorifero",
+    });
+    await page.reload();
+    await expect(page.getByTestId("musica-dispositivo")).toContainText("Su Spotify non vedo");
+    // il ricaricamento ripristina lo scorrimento di prima: si misura dalla cima
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: `schermate/layout/musica-suona-su-${v.nome}.png`, fullPage: true });
+    expect(
+      [...(await controllaParti(page, v, parti)), ...(await problemiTesto(page, v.width))],
+      "musica",
+    ).toEqual([]);
+    await page.getByTestId("colonna-casa").click();
+    await apriImpostazioni(page);
+    await page.getByTestId("sezione-musica").click();
+    await expect(page.getByTestId("musica-dispositivo-sparito")).toBeVisible();
+    await page.screenshot({ path: `schermate/layout/impostazioni-musica-${v.nome}.png`, fullPage: true });
+    expect(
+      [
+        ...(await controllaParti(page, v, [
+          ["jarvis-app", "jarvis-impostazioni", "header"],
+          ["jarvis-app", "jarvis-impostazioni", "nav"],
+          ["jarvis-app", "jarvis-impostazioni", "main"],
+        ])),
+        ...(await problemiTesto(page, v.width)),
+      ],
+      "impostazioni musica",
+    ).toEqual([]);
+  });
+}

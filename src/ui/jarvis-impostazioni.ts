@@ -5,6 +5,7 @@ import {
   mdiHome,
   mdiInformationOutline,
   mdiMicrophone,
+  mdiMusic,
   mdiVolumeHigh,
   mdiWeatherNight,
 } from "@mdi/js";
@@ -22,12 +23,16 @@ import "./jarvis-diagnostica";
 import "./jarvis-impostazioni-voce";
 import "./jarvis-impostazioni-annunci";
 import "./jarvis-impostazioni-schermate";
+import "./jarvis-impostazioni-musica";
 
-export type Sezione = "stanza" | "schermate" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica";
+export type Sezione =
+  "stanza" | "schermate" | "musica" | "voce" | "annunci" | "riposo" | "audio" | "diagnostica";
 
 const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   { id: "stanza", titolo: "Stanza e nome", icona: mdiHome },
   { id: "schermate", titolo: "Schermate", icona: mdiViewDashboardOutline },
+  // v0.5.9: su quale dispositivo Spotify suona questo pannello
+  { id: "musica", titolo: "Musica", icona: mdiMusic },
   { id: "voce", titolo: "Voce", icona: mdiMicrophone },
   { id: "annunci", titolo: "Jarvis parla per primo", icona: mdiBullhorn },
   { id: "riposo", titolo: "Schermo a riposo", icona: mdiWeatherNight },
@@ -421,13 +426,15 @@ export class JarvisImpostazioni extends RiquadroSicuro {
           ? html`<jarvis-impostazioni-voce></jarvis-impostazioni-voce>`
           : s === "schermate"
             ? html`<jarvis-impostazioni-schermate></jarvis-impostazioni-schermate>`
-            : s === "annunci"
-              ? html`<jarvis-impostazioni-annunci></jarvis-impostazioni-annunci>`
-              : s === "riposo"
-                ? this.riposo()
-                : s === "audio"
-                  ? this.audio()
-                  : html`<jarvis-diagnostica></jarvis-diagnostica>`;
+            : s === "musica"
+              ? html`<jarvis-impostazioni-musica></jarvis-impostazioni-musica>`
+              : s === "annunci"
+                ? html`<jarvis-impostazioni-annunci></jarvis-impostazioni-annunci>`
+                : s === "riposo"
+                  ? this.riposo()
+                  : s === "audio"
+                    ? this.audio()
+                    : html`<jarvis-diagnostica></jarvis-diagnostica>`;
     return html`<header>
         <h1>Impostazioni</h1>
         <button

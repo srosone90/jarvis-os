@@ -209,10 +209,26 @@ media_player di HA (`async_refresh`, come fa HA stesso).
 
 | Servizio | Script per Gemini | Cosa fa |
 |---|---|---|
-| `jarvis_musica.riproduci` (`cosa`, `dove`, `tipo`) | `script.jarvis_musica` | Con un uri Spotify in `cosa` (`spotify:playlist:…`, `album`, `artist`, `show`, `track`, `episode`; è quello che manda il pannello toccando una playlist) avvia quello, senza ricerca. Altrimenti cerca e avvia sul dispositivo Spotify Connect della stanza, anche da fermo. Nella scelta vince il nome identico ("Queen" → Queen, non Freddie Mercury). Se il nome esatto non è tra i 10 risultati, fa una seconda ricerca col filtro di Spotify (`artist:"Queen"`); poi vale l'ordine di Spotify. Se un risultato non parte davvero prova il successivo (al massimo 3). Nella risposta, `considerati` elenca i nomi tra cui ha scelto |
-| `jarvis_musica.controllo` (`azione`, `dove`, `livello`) | `script.jarvis_musica_controllo` | pausa, riprendi, successivo, precedente, volume (0-100), alza e abbassa (10 punti), sposta (in un'altra stanza). "Riprendi" funziona anche quando Spotify è tornato "a riposo" dopo una pausa lunga: riparte dall'ultima cosa ricordata, stesso dispositivo e stesso punto, e il ricordo resta anche dopo un riavvio di HA |
+| `jarvis_musica.riproduci` (`cosa`, `dove`, `tipo`, `pannello`, `dispositivo`) | `script.jarvis_musica` | Con un uri Spotify in `cosa` (`spotify:playlist:…`, `album`, `artist`, `show`, `track`, `episode`; è quello che manda il pannello toccando una playlist) avvia quello, senza ricerca. Altrimenti cerca e avvia sul dispositivo Spotify Connect della stanza, anche da fermo. Nella scelta vince il nome identico ("Queen" → Queen, non Freddie Mercury). Se il nome esatto non è tra i 10 risultati, fa una seconda ricerca col filtro di Spotify (`artist:"Queen"`); poi vale l'ordine di Spotify. Se un risultato non parte davvero prova il successivo (al massimo 3). Nella risposta, `considerati` elenca i nomi tra cui ha scelto |
+| `jarvis_musica.controllo` (`azione`, `dove`, `livello`, `pannello`, `dispositivo`) | `script.jarvis_musica_controllo` | pausa, riprendi, successivo, precedente, volume (0-100), alza e abbassa (10 punti), sposta (in un'altra stanza). "Riprendi" funziona anche quando Spotify è tornato "a riposo" dopo una pausa lunga: riparte dall'ultima cosa ricordata, stesso dispositivo e stesso punto, e il ricordo resta anche dopo un riavvio di HA |
 | `jarvis_musica.stato` | `script.jarvis_musica_stato` | "Cosa sta suonando": titolo, artisti, dispositivo, stanza, volume, oppure "in pausa" o "niente". Dalla 0.4 anche `copertina` (URL, la più piccola sopra i 300 px, null se manca), `posizione_ms` e `durata_ms`, per la schermata Musica del pannello |
 | `jarvis_musica.playlist` | — | Le playlist dell'account (sue e seguite, al massimo 48): `nome`, `uri`, `copertina`, `proprietario`. Per il pannello |
+| `jarvis_musica.dispositivi` (`pannello`) — 0.5.0 | — | I dispositivi Spotify Connect visibili adesso: `nome`, `tipo`, `attivo`, `volume`, `comandabile`; con `pannello` anche `scelto` (il dispositivo salvato per quel pannello) e `scelto_visibile`. Per il pannello |
+| `jarvis_musica.imposta_pannello` (`pannello`, `dispositivo`) — 0.5.0 | — | Su quale dispositivo Spotify suona un pannello (`jarvis_cucina`, `jarvis_camera_da_letto`…), salvato su disco (`.storage/jarvis_musica.pannelli`). `dispositivo` vuoto = cancella (il pannello chiede ogni volta) |
+
+**Da dove parte la musica (0.5.0, regola di Salvatore del 02/10).** La musica
+parte dal dispositivo da cui la chiedi; gli altoparlanti di altre stanze solo
+se li nomini. Ordine: `dove` detto («in cucina») > `dispositivo` passato >
+dispositivo salvato per il `pannello` > dove sta già suonando > stanza
+predefinita. Senza `pannello` nei dati (le richieste a voce passano da
+Gemini) il pannello lo dà `jarvis_voce` con `pannello_corrente()` (0.3.1, un
+ContextVar col device_id della pipeline); se `jarvis_voce` non c'è o è più
+vecchio, si fa come prima. Se il dispositivo chiesto o salvato non è tra
+quelli che Spotify vede, **niente ripiego su altri altoparlanti**: errore
+`dispositivo_assente`, «Su Spotify non vedo «<nome>»: apri l'app Spotify su
+quel dispositivo e riprova.». `pausa`, `volume` e gli altri comandi agiscono
+sulla musica in corso, dovunque sia; `sposta` senza `dove` va sul dispositivo
+del pannello.
 
 Tutti rispondono con `esito` ok o errore e un `messaggio` breve in italiano.
 `riproduci` e `controllo` aggiungono `tempi_ms`, che servono a capire dove se
@@ -336,6 +352,6 @@ Controprove:
 ```bash
 uv python install 3.14.7   # HA 2026.9.3 vuole Python ≥ 3.14.2
 uv venv -p 3.14.7 .venv-ha-2026-9 && VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2.0.2
-.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 60/60
+.venv-ha-2026-9/bin/python home-assistant/prove/prova_musica.py            # atteso: 87/87
 .venv-ha-2026-9/bin/hass --script check_config -c <cartella con configuration.yaml, packages/, custom_components/>
 ```

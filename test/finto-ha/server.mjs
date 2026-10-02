@@ -40,6 +40,11 @@
  *                                posizione_ms?, durata_ms?, playlist?: [{nome, uri, copertina,
  *                                proprietario}]} | null: jarvis_musica (lo stato vero di Spotify);
  *                                null = componente non installato
+ *   /__prova/spotify-compare     {dispositivi: [{nome, tipo}], dopoMs}: dispositivi Spotify che
+ *                                compaiono dopo dopoMs (come aprendo l'app Spotify; v0.5.9)
+ *   /__prova/musica-pannello     {pannello, dispositivo}: scelta già salvata (imposta_pannello)
+ *                                jarvis_musica con `versione: "0.4.0"`: niente dispositivi /
+ *                                imposta_pannello (componente vecchio)
  *   /__prova/timer               {tipo, id, nome, secondi_totali, secondi_rimasti, pannello}:
  *                                evento jarvis_timer, e l'elenco di jarvis_voce.timer_attivi si
  *                                aggiorna (come jarvis_voce 0.1.8 lato server)
@@ -296,6 +301,14 @@ function reset() {
     fileVirtuali: new Map(), // nome → {contenuto, tipo}
     versioneServer: null, // nuova-versione?versione=x.y.z: VERSIONE diversa in sw.js
     musica: null, // jarvis_musica: {stato, stanza, volume, titolo}; null = non installato
+    // v0.5.9 (jarvis_musica 0.5.0): i dispositivi di Spotify e la scelta di ogni pannello
+    spotify: [
+      { nome: "Echo Pop cucina", tipo: "Speaker", attivo: false, volume: 40, comandabile: true },
+      { nome: "echo Pop camera da letto", tipo: "Speaker", attivo: false, volume: 40, comandabile: true },
+      { nome: "Tutta la casa", tipo: "Speaker", attivo: false, volume: 40, comandabile: true },
+      { nome: "Ovunque", tipo: "Speaker", attivo: false, volume: 40, comandabile: true },
+    ],
+    pannelliMusica: {},
     // v0.5.7: todo.shopping_list (come l'integrazione shopping_list: uid, summary, status)
     spesa: [
       { uid: "s1", summary: "latte", status: "needs_action" },
@@ -1080,6 +1093,16 @@ const server = createServer(async (req, res) => {
       stato.nuovaVersione = true;
       stato.versioneServer = url.searchParams.get("versione");
     } else if (comando === "musica") stato.musica = JSON.parse((await leggiCorpo(req)) || "null");
+    else if (comando === "spotify-compare") {
+      const { dispositivi, dopoMs } = JSON.parse(await leggiCorpo(req));
+      setTimeout(() => {
+        for (const d of dispositivi)
+          stato.spotify.push({ attivo: false, volume: 50, comandabile: true, tipo: "Smartphone", ...d });
+      }, dopoMs ?? 0);
+    } else if (comando === "musica-pannello") {
+      const { pannello, dispositivo } = JSON.parse(await leggiCorpo(req));
+      stato.pannelliMusica[pannello] = dispositivo;
+    }
     // evento jarvis_timer di jarvis_voce: {tipo, id, nome, secondi_totali, secondi_rimasti}
     else if (comando === "timer") eventoTimerServer(JSON.parse(await leggiCorpo(req)));
     // il server dimentica i suoi timer (finiti nel frattempo) senza mandare eventi: v0.5.8
@@ -1420,6 +1443,59 @@ function gestisci(ws, veloce) {
               success: false,
               error: { code: "service_not_found", message: `Service ${chiave} not found.` },
             });
+          // v0.5.9 (jarvis_musica 0.5.0): dispositivi, imposta_pannello, pannello/dispositivo
+          const nuovo = m.versione === undefined || m.versione >= "0.5";
+          const rispondi = (response) =>
+            invia(cliente, {
+              id,
+              type: "result",
+              success: true,
+              result: { context: { id: "ctx" }, response },
+            });
+          if (!nuovo && (msg.service === "dispositivi" || msg.service === "imposta_pannello"))
+            return invia(cliente, {
+              id,
+              type: "result",
+              success: false,
+              error: { code: "service_not_found", message: `Service ${chiave} not found.` },
+            });
+          const uguali = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+          if (msg.service === "dispositivi") {
+            const scelto = dati.pannello ? (stato.pannelliMusica[dati.pannello] ?? null) : undefined;
+            return rispondi({
+              esito: "ok",
+              dispositivi: stato.spotify,
+              ...(dati.pannello
+                ? {
+                    pannello: dati.pannello,
+                    scelto,
+                    scelto_visibile: scelto !== null && stato.spotify.some((d) => uguali(d.nome, scelto)),
+                  }
+                : {}),
+            });
+          }
+          if (msg.service === "imposta_pannello") {
+            if (dati.dispositivo) stato.pannelliMusica[dati.pannello] = dati.dispositivo;
+            else delete stato.pannelliMusica[dati.pannello];
+            return rispondi({ esito: "ok", pannello: dati.pannello, dispositivo: dati.dispositivo || null });
+          }
+          // dove detto > dispositivo > salvato per il pannello; assente → errore, niente ripiego
+          const richiesto =
+            nuovo && !dati.dove ? dati.dispositivo || stato.pannelliMusica[dati.pannello] || null : null;
+          const conDispositivo =
+            msg.service === "riproduci" || (msg.service === "controllo" && dati.azione === "sposta");
+          if (richiesto && conDispositivo) {
+            const visto = stato.spotify.find((d) => uguali(d.nome, richiesto));
+            if (!visto)
+              return rispondi({
+                esito: "errore",
+                codice: "dispositivo_assente",
+                messaggio: `Su Spotify non vedo «${richiesto}»: apri l'app Spotify su quel dispositivo e riprova.`,
+                dispositivo: richiesto,
+              });
+            m.dispositivo = visto.nome;
+            m.stanza = visto.nome;
+          }
           if (msg.service === "controllo") {
             if (dati.azione === "pausa") m.stato = "in_pausa";
             if (dati.azione === "riprendi") {
@@ -1437,7 +1513,7 @@ function gestisci(ws, veloce) {
               m.posizione_ms = 0;
               m.stato = "in_riproduzione";
             }
-            if (dati.azione === "sposta") {
+            if (dati.azione === "sposta" && !richiesto) {
               if (!dati.dove)
                 return invia(cliente, {
                   id,

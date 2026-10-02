@@ -11,6 +11,7 @@ import {
 import { Annunci } from "../annunci/annunci";
 import { Assistente } from "../assistente/assistente";
 import { Musica } from "../musica/musica";
+import { CollegaDispositivo } from "../musica/dispositivi";
 import { RegistroInterruzioni } from "./interruzioni";
 import { PausaMusica } from "../voce/pausa-musica";
 import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
@@ -143,6 +144,25 @@ export class Connessione {
   readonly musica = new Musica({
     chiama: (servizio, dati) => this.chiamaServizio("jarvis_musica", servizio, dati),
     collegato: () => this.info.stato === "connesso" && this.conn?.connected === true,
+    // v0.5.9: chi chiede la musica (jarvis_musica 0.5.0 la fa partire dal suo dispositivo)
+    pannello: dispositivoPannello,
+  });
+
+  /** «Collega questo dispositivo» (v0.5.9): apre Spotify e riconosce questo pannello al ritorno. */
+  readonly collegaSpotify = new CollegaDispositivo({
+    chiama: (servizio, dati) => this.chiamaServizio("jarvis_musica", servizio, dati),
+    pannello: dispositivoPannello,
+    apri: (url, nuovaScheda) => {
+      if (nuovaScheda) window.open(url, "_blank", "noopener");
+      else location.href = url;
+    },
+    userAgent: () => navigator.userAgent,
+    visibile: () => document.visibilityState === "visible",
+    ascoltaVisibilita: (f) => {
+      document.addEventListener("visibilitychange", f);
+      return () => document.removeEventListener("visibilitychange", f);
+    },
+    collegato: () => void this.musica.leggiDispositivi(),
   });
 
   /** Le volte che HA non era raggiungibile da qui (v0.5.7, Avvisi → Connessione). */

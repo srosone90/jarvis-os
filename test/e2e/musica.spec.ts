@@ -123,18 +123,23 @@ test("stanze scelte nelle impostazioni al posto delle aree di HA; Ripristina tor
   await expect(page.getByTestId("musica-stanza")).toHaveCount(4);
 });
 
-test("playlist: un tocco la fa partire dove suona già; la preferita va in cima e ci resta", async ({
+test("playlist: un tocco la fa partire sul dispositivo del pannello (v0.5.9); la preferita va in cima e ci resta", async ({
   page,
   request,
 }) => {
   await musica(request, suonaInCucina);
+  // v0.5.9: il Redmi in camera ha scelto il suo dispositivo; prima partiva "dove suona già" (la cucina)
+  await page.addInitScript(() => localStorage.setItem("jarvis-stanza-pannello", "Camera da letto"));
+  await comando(request, "musica-pannello", { pannello: "jarvis_camera_da_letto", dispositivo: "Ovunque" });
   await accedi(page);
   await page.goto("./index.html#musica");
   const nomi = page.getByTestId("playlist-nome");
   await expect(nomi).toHaveText(["Rock", "Jazz", "Lo-fi"]);
   await nomi.filter({ hasText: "Jazz" }).click();
   await expect(page.getByTestId("musica-titolo")).toHaveText("Primo brano di Jazz");
-  expect(await comandi(request)).toEqual(['riproduci {"cosa":"spotify:playlist:jazz","dove":"Cucina"}']);
+  expect(await comandi(request)).toEqual([
+    'riproduci {"cosa":"spotify:playlist:jazz","pannello":"jarvis_camera_da_letto","dispositivo":"Ovunque"}',
+  ]);
 
   await page.getByRole("button", { name: "Preferita: Lo-fi" }).click();
   await expect(nomi).toHaveText(["Lo-fi", "Rock", "Jazz"]);
@@ -156,9 +161,13 @@ test("se non suona niente si sceglie una playlist; senza jarvis_musica lo si dic
   await expect(page.getByTestId("musica-niente")).toContainText("Non suona niente");
   await expect(page.getByTestId("musica-stanze")).toHaveCount(0);
   await page.getByTestId("playlist-riproduci").filter({ hasText: "Rock" }).click();
+  // v0.5.9: nessuna scelta (e pannello senza stanza: niente «ricorda») → «Dove la suono?»
+  await expect(page.getByTestId("dove-ricorda")).toBeDisabled();
+  await page.getByTestId("dove-dispositivo").filter({ hasText: "Echo Pop cucina" }).click();
   await expect(page.getByTestId("musica-titolo")).toHaveText("Primo brano di Rock");
-  // senza stanza: decide jarvis_musica (la sua stanza predefinita)
-  expect(await comandi(request)).toEqual(['riproduci {"cosa":"spotify:playlist:rock"}']);
+  expect(await comandi(request)).toEqual([
+    'riproduci {"cosa":"spotify:playlist:rock","dispositivo":"Echo Pop cucina"}',
+  ]);
 
   await musica(request, null);
   await page.reload();

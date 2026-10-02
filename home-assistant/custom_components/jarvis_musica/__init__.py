@@ -8,12 +8,23 @@ avvia niente. Questo componente riusa il client spotifyaio GIÀ autenticato
 dall'integrazione Spotify (nessuna credenziale nuova, niente scraping né
 cookie) e chiama direttamente l'API di Spotify.
 
-Tre servizi:
-- `riproduci(cosa, dove, tipo)`: ricerca e avvio sul dispositivo Spotify
-  Connect della stanza;
-- `controllo(azione, dove, livello)`: pausa, riprendi, successivo, precedente,
-  volume, alza, abbassa, sposta;
-- `stato()`: cosa suona adesso.
+Servizi:
+- `riproduci(cosa, dove, tipo, pannello, dispositivo)`: ricerca e avvio sul
+  dispositivo Spotify Connect giusto (vedi sotto);
+- `controllo(azione, dove, livello, pannello, dispositivo)`: pausa, riprendi,
+  successivo, precedente, volume, alza, abbassa, sposta;
+- `stato()`: cosa suona adesso; `playlist()`: le playlist dell'account;
+- (0.5.0) `dispositivi(pannello?)`: i dispositivi che Spotify vede adesso, e
+  quello scelto per il pannello; `imposta_pannello(pannello, dispositivo)`:
+  su quale dispositivo suona ogni pannello (salvato su disco).
+
+La musica parte dal dispositivo da cui la chiedi (0.5.0, 02/10: dal Redmi era
+partita dall'Echo della cucina). Ordine di scelta: `dove` detto (una stanza) >
+`dispositivo` > dispositivo salvato per `pannello` > dove suona già > stanza
+predefinita. Senza `pannello` (richieste a voce da Gemini) lo si ricava da
+jarvis_voce (`pannello_corrente`, 0.3.1). Un dispositivo chiesto o salvato
+che Spotify non vede dà `dispositivo_assente`: niente ripiego su altri
+altoparlanti.
 Controllo e stato leggono lo stato VERO da Spotify: il media_player di HA si
 aggiorna ogni 30 s, e subito dopo un avvio Gemini lo vedeva ancora fermo
 ("non sta suonando nulla", provato sull'Echo il 30/09).
@@ -70,7 +81,7 @@ from .scelta import (
     ha_identico,
     normalizza,
     query_filtrata,
-    scegli_dispositivo,
+    scegli_per_richiesta,
     tipi_di_ricerca,
     volume_nuovo,
 )
@@ -121,11 +132,17 @@ CONFIG_SCHEMA = vol.Schema(
     extra=vol.ALLOW_EXTRA,
 )
 
+# 0.5.0: chi chiede (il device_id del pannello, "jarvis_<area>") e su quale dispositivo
+_DA_DOVE = {
+    vol.Optional("pannello"): cv.string,
+    vol.Optional("dispositivo"): cv.string,
+}
 SCHEMA_RIPRODUCI = vol.Schema(
     {
         vol.Required("cosa"): vol.All(cv.string, vol.Length(min=1)),
         vol.Optional("dove"): cv.string,
         vol.Optional("tipo", default="auto"): vol.In(TIPI),
+        **_DA_DOVE,
     }
 )
 SCHEMA_CONTROLLO = vol.Schema(
@@ -133,8 +150,34 @@ SCHEMA_CONTROLLO = vol.Schema(
         vol.Required("azione"): vol.In(AZIONI),
         vol.Optional("dove"): cv.string,
         vol.Optional("livello"): vol.All(vol.Coerce(int), vol.Range(min=0, max=100)),
+        **_DA_DOVE,
     }
 )
+SCHEMA_DISPOSITIVI = vol.Schema({vol.Optional("pannello"): cv.string})
+SCHEMA_IMPOSTA_PANNELLO = vol.Schema(
+    {
+        vol.Required("pannello"): vol.All(cv.string, vol.Length(min=1)),
+        # vuoto = cancella (il pannello chiede ogni volta)
+        vol.Optional("dispositivo", default=""): vol.Any(None, cv.string),
+    }
+)
+
+
+def _pannello_corrente() -> str | None:
+    """Il pannello della pipeline vocale in corso (jarvis_voce 0.3.1), se c'è.
+
+    jarvis_voce imposta un ContextVar col device_id della pipeline; senza
+    jarvis_voce (o con una versione vecchia) la musica fa come prima.
+    """
+    try:
+        from custom_components.jarvis_voce import pannello_corrente  # noqa: PLC0415
+    except ImportError:
+        return None
+    try:
+        return pannello_corrente()
+    except Exception:  # noqa: BLE001 - un problema di jarvis_voce non deve fermare la musica
+        _LOGGER.exception("jarvis_musica: pannello_corrente di jarvis_voce in errore")
+        return None
 
 
 class _Impostazioni:
@@ -143,12 +186,17 @@ class _Impostazioni:
     # Salvata su disco, così vale anche dopo un riavvio di HA.
     ultimo: dict[str, Any] | None = None
     archivio: Store[dict[str, Any]] | None = None
+    # 0.5.0: pannello ("jarvis_cucina") → nome del dispositivo Spotify. Il nome e non
+    # l'id: l'app Spotify su un telefono cambia id quando si riapre.
+    pannelli: dict[str, str]
+    archivio_pannelli: Store[dict[str, str]] | None = None
 
     def __init__(self, config: ConfigType) -> None:
         dati = config.get(DOMAIN, {"stanze": {}})
         self.stanze: dict[str, list[str]] = dati.get("stanze", {})
         self.predefinita: str | None = dati.get("predefinita")
         self.account: str | None = dati.get("account")
+        self.pannelli = {}
         if self.predefinita and self.predefinita not in self.stanze:
             _LOGGER.error(
                 "jarvis_musica: la stanza predefinita «%s» non è tra le stanze configurate", self.predefinita
@@ -161,6 +209,9 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     imp = _Impostazioni(config)
     imp.archivio = Store(hass, 1, f"{DOMAIN}.ultimo")
     imp.ultimo = await imp.archivio.async_load()
+    imp.archivio_pannelli = Store(hass, 1, f"{DOMAIN}.pannelli")
+    caricati = await imp.archivio_pannelli.async_load()
+    imp.pannelli = {str(k): str(v) for k, v in caricati.items()} if isinstance(caricati, dict) else {}
 
     def servizio(
         lavoro: Callable[[HomeAssistant, _Impostazioni, dict[str, Any]], Awaitable[dict[str, Any]]],
@@ -184,6 +235,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         ("controllo", _controllo, SCHEMA_CONTROLLO),
         ("stato", _stato, vol.Schema({})),
         ("playlist", _playlist, vol.Schema({})),
+        ("dispositivi", _dispositivi, SCHEMA_DISPOSITIVI),
+        ("imposta_pannello", _imposta_pannello, SCHEMA_IMPOSTA_PANNELLO),
     ):
         hass.services.async_register(
             DOMAIN, nome, servizio(lavoro), schema=schema, supports_response=SupportsResponse.OPTIONAL
@@ -299,8 +352,11 @@ async def _riproduci(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
         altri = await client.search(filtrata, tipi_di_ricerca(tipo), limit=RISULTATI_PER_TIPO)
         if ha_identico(cosa, tipo, altri):
             risultati = altri
-    dispositivo, stanza = scegli_dispositivo(
+    pannello = _chi_chiede(dati)
+    dispositivo, stanza = scegli_per_richiesta(
         dati.get("dove"),
+        dati.get("dispositivo"),
+        imp.pannelli.get(pannello) if pannello else None,
         dispositivi,
         imp.stanze,
         imp.predefinita,
@@ -451,9 +507,18 @@ async def _controllo(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, An
         obiettivo = volume_nuovo(dispositivo.volume_percent, azione, dati.get("livello"))
         await client.set_volume(obiettivo, device_id)
         fatto = lambda s: s is not None and abs(s.device.volume_percent - obiettivo) <= 1  # noqa: E731
-    else:  # sposta
+    else:  # sposta: stanza detta > dispositivo > quello salvato per il pannello (0.5.0)
         dispositivi = await client.get_devices()
-        destinazione, _stanza = scegli_dispositivo(dati.get("dove"), dispositivi, imp.stanze, None, None)
+        pannello = _chi_chiede(dati)
+        destinazione, _stanza = scegli_per_richiesta(
+            dati.get("dove"),
+            dati.get("dispositivo"),
+            imp.pannelli.get(pannello) if pannello else None,
+            dispositivi,
+            imp.stanze,
+            None,
+            None,
+        )
         if destinazione.device_id == device_id:
             return {"esito": "ok", **descrivi(stato, imp.stanze), "messaggio": f"Suona già su {destinazione.name}."}
         await client.transfer_playback(destinazione.device_id)
@@ -481,6 +546,60 @@ async def _stato(hass: HomeAssistant, imp: _Impostazioni, _dati: dict[str, Any])
     _ricorda(imp, stato)
     return {"esito": "ok", **descrivi(stato, imp.stanze)}
 
+
+
+def _chi_chiede(dati: dict[str, Any]) -> str | None:
+    """Il pannello passato, o quello della pipeline vocale in corso."""
+    pannello = (dati.get("pannello") or "").strip()
+    return pannello or _pannello_corrente()
+
+
+async def _dispositivi(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, Any]) -> dict[str, Any]:
+    """I dispositivi Spotify Connect visibili adesso (0.5.0), e quello scelto per `pannello`."""
+    voce = _spotify(hass, imp.account)
+    elenco = await voce.runtime_data.coordinator.client.get_devices()
+    risposta: dict[str, Any] = {
+        "esito": "ok",
+        "dispositivi": [
+            {
+                "nome": d.name,
+                "tipo": str(d.device_type),
+                "attivo": bool(d.is_active),
+                "volume": d.volume_percent,
+                "comandabile": bool(d.device_id) and not d.is_restricted,
+            }
+            for d in elenco
+        ],
+    }
+    pannello = (dati.get("pannello") or "").strip()
+    if pannello:
+        scelto = imp.pannelli.get(pannello)
+        risposta["pannello"] = pannello
+        risposta["scelto"] = scelto
+        risposta["scelto_visibile"] = scelto is not None and any(
+            normalizza(d.name) == normalizza(scelto) for d in elenco
+        )
+    return risposta
+
+
+async def _imposta_pannello(hass: HomeAssistant, imp: _Impostazioni, dati: dict[str, Any]) -> dict[str, Any]:
+    """Su quale dispositivo Spotify suona `pannello` (0.5.0); `dispositivo` vuoto = cancella."""
+    pannello = dati["pannello"].strip()
+    dispositivo = (dati.get("dispositivo") or "").strip()
+    if dispositivo:
+        imp.pannelli[pannello] = dispositivo
+    else:
+        imp.pannelli.pop(pannello, None)
+    if imp.archivio_pannelli is not None:
+        copia = dict(imp.pannelli)
+        await imp.archivio_pannelli.async_save(copia)
+    _LOGGER.info("jarvis_musica: %s suona su %s", pannello, dispositivo or "(chiede ogni volta)")
+    return {
+        "esito": "ok",
+        "pannello": pannello,
+        "dispositivo": dispositivo or None,
+        "messaggio": f"{pannello} suona su {dispositivo}." if dispositivo else f"{pannello} chiede ogni volta.",
+    }
 
 
 async def _playlist(hass: HomeAssistant, imp: _Impostazioni, _dati: dict[str, Any]) -> dict[str, Any]:

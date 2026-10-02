@@ -39,7 +39,7 @@ from homeassistant.exceptions import HomeAssistantError, OAuth2TokenRequestReaut
 from homeassistant.helpers.service import _SERVICES_SCHEMA  # noqa: PLC2701 - lo stesso usato da HA
 from homeassistant.util.yaml import load_yaml_dict
 
-SCHEMA_CONTROLLO_CAMPI = ("azione", "dove", "livello")
+SCHEMA_CONTROLLO_CAMPI = ("azione", "dove", "livello", "pannello", "dispositivo")
 from aiohttp import RequestInfo
 from multidict import CIMultiDict, CIMultiDictProxy
 
@@ -278,6 +278,20 @@ def prepara_cartella() -> Path:
     # il pacchetto degli script così com'è, più il file delle stanze di questa "casa"
     shutil.copy(PACCHETTO, cartella / "packages" / "jarvis_musica.yaml")
     (cartella / "packages" / "jarvis_musica_stanze.yaml").write_text(STANZE_PROVA)
+    # 0.5.0: un jarvis_voce finto con pannello_corrente() (quello vero è della sessione
+    # server, 0.3.1): un ContextVar col device_id della pipeline vocale in corso
+    voce = cartella / "custom_components" / "jarvis_voce"
+    voce.mkdir()
+    (voce / "manifest.json").write_text(
+        '{"domain": "jarvis_voce", "name": "Jarvis voce (finto)", "codeowners": [], "documentation": "",'
+        ' "integration_type": "service", "iot_class": "local_push", "requirements": [], "version": "0.3.1"}'
+    )
+    (voce / "__init__.py").write_text(
+        "from contextvars import ContextVar\n"
+        "PANNELLO: ContextVar[str | None] = ContextVar('pannello', default=None)\n"
+        "def pannello_corrente() -> str | None:\n"
+        "    return PANNELLO.get()\n"
+    )
     (cartella / "configuration.yaml").write_text(
         "homeassistant:\n  name: Prova musica\n  time_zone: Europe/Rome\n"
         "  packages: !include_dir_named packages\n"
@@ -362,10 +376,11 @@ async def prova() -> int:
             descrizioni = _SERVICES_SCHEMA(load_yaml_dict(str(COMPONENTE / "services.yaml")))
         except Exception as errore:  # noqa: BLE001 - la prova lo riporta
             descrizioni = {"errore": str(errore)}
-        verifica(set(descrizioni) == {"riproduci", "controllo", "stato", "playlist"}
+        verifica(set(descrizioni) == {"riproduci", "controllo", "stato", "playlist", "dispositivi", "imposta_pannello"}
                  and descrizioni["riproduci"].get("name") == "Riproduci"
-                 and set(descrizioni["controllo"]["fields"]) == set(SCHEMA_CONTROLLO_CAMPI),
-                 "services.yaml valido per HA: i quattro servizi con nomi e campi", descrizioni)
+                 and set(descrizioni["controllo"]["fields"]) == set(SCHEMA_CONTROLLO_CAMPI)
+                 and set(descrizioni["imposta_pannello"]["fields"]) == {"pannello", "dispositivo"},
+                 "services.yaml valido per HA: i sei servizi con nomi e campi", descrizioni)
         verifica(hass.services.has_service("jarvis_musica", "riproduci"), "servizio jarvis_musica.riproduci")
         verifica(hass.services.has_service("script", "jarvis_musica"), "script.jarvis_musica dal pacchetto")
         verifica(all(hass.services.has_service("jarvis_musica", n) for n in ("controllo", "stato"))
@@ -590,6 +605,95 @@ async def prova() -> int:
                                            {"azione": "sposta", "dove": "soggiorno"},
                                            blocking=True, return_response=True)
         verifica(r.get("dispositivo") == "TV Samsung", "script dei comandi: sposta con dove", r)
+
+        print("\n11. 0.5.0: la musica parte dal dispositivo da cui la chiedi")
+        import custom_components.jarvis_voce as voce_finta  # noqa: PLC0415
+
+        async def servizio(nome: str, **dati: Any) -> dict[str, Any]:
+            return await hass.services.async_call("jarvis_musica", nome, dati, blocking=True, return_response=True)
+
+        r = await servizio("dispositivi")
+        verifica(r.get("esito") == "ok" and r.get("dispositivi", [None])[0] == {
+            "nome": "Echo Pop Camera", "tipo": "Speaker", "attivo": False, "volume": 40, "comandabile": True,
+        } and len(r["dispositivi"]) == 3 and r["dispositivi"][2]["comandabile"] is False,
+                 "dispositivi: nome, tipo, attivo, volume, comandabile (il telefono ristretto no)", r)
+        verifica("scelto" not in r, "senza pannello nessuna scelta nella risposta", r)
+        r = await servizio("imposta_pannello", pannello="jarvis_cucina", dispositivo="TV Samsung")
+        verifica(r.get("esito") == "ok" and r.get("dispositivo") == "TV Samsung", "imposta_pannello", r)
+        r = await servizio("dispositivi", pannello="jarvis_cucina")
+        verifica(r.get("scelto") == "TV Samsung" and r.get("scelto_visibile") is True,
+                 "dispositivi col pannello: la scelta e se Spotify la vede", r)
+        await hass.async_block_till_done()
+        salvato = cartella / ".storage" / "jarvis_musica.pannelli"
+        verifica(salvato.exists() and "TV Samsung" in salvato.read_text(),
+                 "la scelta è salvata su disco (vale dopo un riavvio di HA)", salvato)
+
+        # suona sull'Echo della camera: il pannello della cucina chiede senza dire dove
+        client.stato = None
+        await riproduci(cosa="So What", tipo="brano", dove="camera da letto")
+        r = await riproduci(cosa="Bohemian Rhapsody", tipo="brano", pannello="jarvis_cucina")
+        verifica(r.get("dispositivo") == "TV Samsung" and client.avvii[-1]["device_id"] == "dev-tv",
+                 "il dispositivo salvato per il pannello vince su dove suona già", r)
+        r = await riproduci(cosa="So What", tipo="brano", pannello="jarvis_cucina", dispositivo="Echo Pop Camera")
+        verifica(r.get("dispositivo") == "Echo Pop Camera", "dispositivo passato > salvato", r)
+        r = await riproduci(cosa="So What", tipo="brano", pannello="jarvis_cucina", dove="soggiorno",
+                            dispositivo="Echo Pop Camera")
+        verifica(r.get("dispositivo") == "TV Samsung" and r.get("stanza") == "Soggiorno",
+                 "stanza detta («in soggiorno») > dispositivo", r)
+
+        # il Redmi: scelto ma con l'app Spotify chiusa → NON parte altrove
+        await servizio("imposta_pannello", pannello="jarvis_redmi", dispositivo="Redmi Note 13")
+        prima = len(client.avvii)
+        r = await riproduci(cosa="Miles Davis", tipo="artista", pannello="jarvis_redmi")
+        verifica(r.get("codice") == "dispositivo_assente" and r.get("messaggio")
+                 == "Su Spotify non vedo «Redmi Note 13»: apri l'app Spotify su quel dispositivo e riprova.",
+                 "dispositivo salvato non visibile: errore chiaro col nome", r)
+        verifica(len(client.avvii) == prima, "…e nessun avvio su altri altoparlanti", client.avvii[prima:])
+        r = await riproduci(cosa="Miles Davis", tipo="artista", dispositivo="Tablet cucina")
+        verifica(r.get("codice") == "dispositivo_assente" and "Tablet cucina" in r.get("messaggio", ""),
+                 "dispositivo passato non visibile: stesso errore", r)
+        r = await servizio("dispositivi", pannello="jarvis_redmi")
+        verifica(r.get("scelto") == "Redmi Note 13" and r.get("scelto_visibile") is False,
+                 "dispositivi: la scelta c'è ma Spotify non la vede (il pannello mostra «Ricollega»)", r)
+        client.dispositivi.append(dispositivo("dev-redmi", "Redmi Note 13", "Smartphone"))
+        r = await riproduci(cosa="Miles Davis", tipo="artista", pannello="jarvis_redmi")
+        verifica(r.get("dispositivo") == "Redmi Note 13" and client.avvii[-1]["device_id"] == "dev-redmi",
+                 "app Spotify aperta sul Redmi: parte lì", r)
+
+        # a voce: niente pannello nei dati, lo dice jarvis_voce (ContextVar della pipeline)
+        segno = voce_finta.PANNELLO.set("jarvis_redmi")
+        try:
+            r = await riproduci(cosa="So What", tipo="brano")
+            verifica(r.get("dispositivo") == "Redmi Note 13",
+                     "a voce dal Redmi (pannello_corrente di jarvis_voce): parte sul Redmi", r)
+            r = await riproduci(cosa="So What", tipo="brano", dove="camera da letto")
+            verifica(r.get("dispositivo") == "Echo Pop Camera", "a voce «in camera»: la stanza nominata", r)
+        finally:
+            voce_finta.PANNELLO.reset(segno)
+
+        # sposta senza stanza: sul dispositivo del pannello; assente → errore, niente trasferimento
+        r = await controllo(azione="sposta", pannello="jarvis_cucina")
+        verifica(r.get("dispositivo") == "TV Samsung" and client.comandi[-1] == ("transfer_playback", "dev-tv"),
+                 "sposta col pannello: sul suo dispositivo", r)
+        client.dispositivi = [d for d in client.dispositivi if d["id"] != "dev-redmi"]
+        comandi = len(client.comandi)
+        r = await controllo(azione="sposta", pannello="jarvis_redmi")
+        verifica(r.get("codice") == "dispositivo_assente" and len(client.comandi) == comandi,
+                 "sposta su un dispositivo sparito: errore, nessun trasferimento", r)
+        r = await controllo(azione="pausa", pannello="jarvis_redmi")
+        verifica(r.get("esito") == "ok", "pausa col pannello: comanda la musica in corso, dovunque sia", r)
+
+        # controprove: «chiedi ogni volta» e pannelli senza scelta fanno come prima
+        r = await servizio("imposta_pannello", pannello="jarvis_cucina", dispositivo="")
+        verifica(r.get("dispositivo") is None, "dispositivo vuoto = cancella", r)
+        r = await servizio("dispositivi", pannello="jarvis_cucina")
+        verifica(r.get("scelto") is None and r.get("scelto_visibile") is False, "…e la scelta non c'è più", r)
+        client.stato = None
+        r = await riproduci(cosa="So What", tipo="brano", pannello="jarvis_cucina")
+        verifica(r.get("stanza") == "Camera da letto", "pannello senza scelta: stanza predefinita, come prima", r)
+        r = await riproduci(cosa="So What", tipo="brano", pannello="jarvis_sconosciuto")
+        verifica(r.get("dispositivo") == "Echo Pop Camera", "pannello mai visto: dove suona già, come prima", r)
+        client.stato = None
 
         print("\n9. Spotify non collegato")
         del hass.config_entries._entries[voce.entry_id]  # noqa: SLF001

@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.5.9
+
+La musica parte dal dispositivo da cui la chiedi (problema reale del 02/10:
+dal Redmi una playlist era partita dall'Echo della cucina). Serve
+**jarvis_musica 0.5.0** sul server.
+
+- **Impostazioni → Musica** (sezione nuova): «Questo pannello suona su:» con
+  i dispositivi che Spotify vede, più «Chiedi ogni volta». La scelta si
+  salva sul server, così vale anche a voce detto da qui.
+- **«Dove la suono?»**: alla prima playlist senza una scelta, l'elenco dei
+  dispositivi e «Ricorda per questo pannello».
+- **«Collega questo dispositivo»**: su Android apre l'app Spotify (o il Play
+  Store se non c'è), su un computer il sito; tornando al pannello riconosce
+  da solo il dispositivo nuovo e lo salva («Collegato: … ✓»). Se ne
+  compaiono due, si sceglie; se in 60 s non compare niente lo dice. Se il
+  dispositivo salvato sparisce, il tasto diventa «Ricollega». Il login lo fai
+  tu nell'app o sul sito: il pannello non vede né password né token.
+- Ogni comando della schermata Musica dice al server chi chiede e su quale
+  dispositivo; una playlist non parte più «dove suona già».
+- Gli errori della musica si vedono: prima un `{esito: "errore"}` del server
+  spariva (es. «Su Spotify non vedo «Redmi Note 13»: apri l'app Spotify su
+  quel dispositivo e riprova.»).
+- **jarvis_musica 0.5.0** (nel repo, da installare): servizi `dispositivi` e
+  `imposta_pannello`; `pannello` e `dispositivo` in `riproduci` e
+  `controllo`; a voce il pannello lo dà `jarvis_voce` 0.3.1
+  (`pannello_corrente`); niente ripiego su altri altoparlanti
+  (`dispositivo_assente`). Prova su HA 2026.9.3: 87/87.
+
 ## v0.5.8
 
 Due correzioni dall'uso reale, i timer coi servizi nuovi del server, la

@@ -226,14 +226,66 @@ describe("Musica", () => {
     const m = crea();
     await m.comanda("sposta", { dove: "Camera da letto" });
     await m.comanda("volume", { livello: 40 });
-    await m.riproduci("spotify:playlist:1", "Cucina");
+    // v0.5.9: il secondo argomento è il dispositivo scelto in «Dove la suono?», non più la stanza
+    await m.riproduci("spotify:playlist:1", "Echo Pop cucina");
     await m.riproduci("spotify:playlist:2");
     expect(chiamate.filter((c) => c.servizio !== "stato").map((c) => c.dati)).toEqual([
       { azione: "sposta", dove: "Camera da letto" },
       { azione: "volume", livello: 40 },
-      { cosa: "spotify:playlist:1", dove: "Cucina" },
+      { cosa: "spotify:playlist:1", dispositivo: "Echo Pop cucina" },
       { cosa: "spotify:playlist:2" },
     ]);
+  });
+  it("v0.5.9: ogni comando dice chi chiede (pannello) e il dispositivo scelto per il pannello", async () => {
+    const m = new Musica({
+      chiama: (servizio, dati) => {
+        chiamate.push({ servizio, dati });
+        if (servizio === "dispositivi")
+          return Promise.resolve({
+            esito: "ok",
+            dispositivi: [{ nome: "Redmi Note 13", tipo: "Smartphone", attivo: false, volume: 50 }],
+            scelto: "Redmi Note 13",
+          });
+        return Promise.resolve(stato);
+      },
+      collegato: () => true,
+      pannello: () => "jarvis_camera_da_letto",
+      archivio: null,
+    });
+    await m.leggiDispositivi();
+    expect(chiamate[0]).toEqual({ servizio: "dispositivi", dati: { pannello: "jarvis_camera_da_letto" } });
+    expect(m.dispositivoScelto).toBe("Redmi Note 13");
+    expect(m.dispositivi?.sceltoVisibile).toBe(true);
+    await m.riproduci("spotify:playlist:1");
+    await m.comanda("pausa");
+    await m.riproduci("spotify:playlist:2", "Ovunque");
+    expect(
+      chiamate.filter((c) => c.servizio === "riproduci" || c.servizio === "controllo").map((c) => c.dati),
+    ).toEqual([
+      { cosa: "spotify:playlist:1", pannello: "jarvis_camera_da_letto", dispositivo: "Redmi Note 13" },
+      { azione: "pausa", pannello: "jarvis_camera_da_letto", dispositivo: "Redmi Note 13" },
+      { cosa: "spotify:playlist:2", pannello: "jarvis_camera_da_letto", dispositivo: "Ovunque" },
+    ]);
+    expect(await m.impostaDispositivo(null)).toBeNull();
+    expect(chiamate.find((c) => c.servizio === "imposta_pannello")?.dati).toEqual({
+      pannello: "jarvis_camera_da_letto",
+      dispositivo: "",
+    });
+  });
+  it("v0.5.9: {esito: errore} di jarvis_musica (con la risposta non è un'eccezione) diventa l'errore detto", async () => {
+    const messaggio =
+      "Su Spotify non vedo «Redmi Note 13»: apri l'app Spotify su quel dispositivo e riprova.";
+    const m = new Musica({
+      chiama: (servizio) =>
+        Promise.resolve(
+          servizio === "stato" ? stato : { esito: "errore", codice: "dispositivo_assente", messaggio },
+        ),
+      collegato: () => true,
+      archivio: null,
+    });
+    expect(await m.riproduci("spotify:playlist:1")).toBe(messaggio);
+    // controprova: senza stanza non si salva niente, e lo si dice
+    expect(await m.impostaDispositivo("Redmi Note 13")).toContain("stanza");
   });
   it("componente assente: niente brano, il problema in parole", async () => {
     const m = new Musica({
