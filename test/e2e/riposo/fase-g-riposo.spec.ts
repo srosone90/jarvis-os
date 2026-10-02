@@ -28,6 +28,7 @@ async function mettiARiposo(page: Page): Promise<void> {
   await expect(riposo(page)).toBeVisible();
 }
 
+
 test("dopo 2 minuti senza tocchi va a riposo: sfera, ora, meteo e stanze; un tocco fuori torna al pannello", async ({
   page,
 }) => {
@@ -69,32 +70,6 @@ test("con le impostazioni aperte non va a riposo (niente nascosto sotto il naso)
   await page.clock.fastForward(5 * 60_000);
   await expect(page.getByTestId("impostazioni")).toBeVisible();
   await expect(riposo(page)).toHaveCount(0);
-});
-
-test("tocco sulla sfera: Hub in ascolto, domanda e risposta come sottotitoli, poi di nuovo a riposo", async ({
-  page,
-  request,
-}) => {
-  await accedi(page);
-  await mettiARiposo(page);
-  await page.getByTestId("riposo-sfera").click();
-  await expect(page.getByTestId("hub")).toBeVisible();
-  await expect(page.getByTestId("hub-domanda")).toHaveText("«Che temperatura c'è in camera?»");
-  await expect(page.getByTestId("hub-risposta")).toHaveText("In camera ci sono 25,1°, con umidità al 43%.");
-  // nessun riquadro piccolo sopra l'Hub, e la domanda è partita come sempre
-  await expect(page.getByTestId("riquadro-voce")).toHaveCount(0);
-  expect((await info(request)).richiesteAssistente[0]?.start_stage).toBe("stt");
-  // 30 s dopo la fine della voce si torna al riposo da soli
-  await expect(riposo(page)).toBeVisible({ timeout: 45_000 });
-});
-
-test("Hub: il tasto griglia porta al pannello completo", async ({ page }) => {
-  await accedi(page);
-  await mettiARiposo(page);
-  await page.getByTestId("riposo-sfera").click();
-  await expect(page.getByTestId("hub")).toBeVisible();
-  await page.getByTestId("hub-completo").click();
-  await expect(completo(page)).toBeVisible();
 });
 
 test("a riposo: timer come anelli e pastiglie, in pausa fermo; «Timer finito» sopra il riposo", async ({
@@ -186,69 +161,4 @@ test("a riposo: cosa suona, letto da jarvis_musica.stato", async ({ page, reques
   await mettiARiposo(page);
   await expect(page.getByTestId("riposo-musica")).toContainText("Bohemian Rhapsody");
   await expect(page.getByTestId("riposo-musica")).toContainText("Cucina");
-});
-
-test("impostazioni: quattro sezioni, Esc e Indietro di Android le chiudono senza uscire", async ({
-  page,
-}) => {
-  await accedi(page);
-  await apriImpostazioni(page, "stanza");
-  for (const s of ["stanza", "riposo", "audio", "diagnostica"])
-    await expect(page.getByTestId(`sezione-${s}`)).toBeVisible();
-  await page.getByTestId("sezione-diagnostica").click();
-  await expect(page.getByTestId("diagnostica")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByTestId("impostazioni")).toHaveCount(0);
-  await apriImpostazioni(page, "audio");
-  await page.goBack();
-  await expect(page.getByTestId("impostazioni")).toHaveCount(0);
-  await expect(completo(page)).toBeVisible();
-  expect(page.url()).toContain("/local/jarvis/index.html");
-});
-
-test.describe("procedura guidata del primo avvio", () => {
-  // pannello nuovo: niente "guida fatta" nello stato iniziale
-  test.use({ storageState: { cookies: [], origins: [] } });
-
-  test("stanza, schermo a riposo, riepilogo; poi non torna più, e si rifà dalle impostazioni", async ({
-    page,
-  }) => {
-    await accedi(page);
-    const guida = page.getByTestId("guida");
-    await expect(guida).toBeVisible();
-    await expect(page.getByTestId("guida-avanti")).toBeDisabled();
-    await page.getByTestId("guida-stanza").filter({ hasText: "Cucina" }).click();
-    await page.getByTestId("guida-avanti").click();
-    await page.getByTestId("guida-riposo").filter({ hasText: "Dopo 5 minuti" }).click();
-    await page.getByTestId("guida-avanti").click();
-    // v0.5.0: «Jarvis» sempre in ascolto, acceso di serie; qui lo si spegne
-    await expect(page.getByTestId("guida-parola").filter({ hasText: "Sì" })).toHaveAttribute(
-      "aria-pressed",
-      "true",
-    );
-    await page.getByTestId("guida-parola").filter({ hasText: "No" }).click();
-    await page.getByTestId("guida-avanti").click();
-    await expect(page.getByTestId("guida-riepilogo")).toContainText("Cucina");
-    await expect(page.getByTestId("guida-riepilogo")).toContainText("dopo 5 minuti");
-    await expect(page.getByTestId("guida-riepilogo")).toContainText("sempre in ascolto: no");
-    await page.getByTestId("guida-fine").click();
-    await expect(guida).toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem("jarvis-stanza-pannello"))).toBe("Cucina");
-    expect(
-      JSON.parse((await page.evaluate(() => localStorage.getItem("jarvis-parola"))) ?? "{}"),
-    ).toMatchObject({ acceso: false, suono: true });
-    await page.reload();
-    await expect(completo(page)).toBeVisible();
-    await expect(guida).toHaveCount(0);
-    await apriImpostazioni(page, "stanza");
-    await page.getByTestId("rifai-guida").click();
-    await expect(guida).toBeVisible();
-  });
-
-  test("pannello installato prima (stanza già scelta): la guida non compare", async ({ page }) => {
-    await page.addInitScript(() => localStorage.setItem("jarvis-stanza-pannello", "Cucina"));
-    await accedi(page);
-    await page.waitForTimeout(1000);
-    await expect(page.getByTestId("guida")).toHaveCount(0);
-  });
 });

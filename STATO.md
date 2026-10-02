@@ -556,10 +556,10 @@ faccio io.
 
 | | |
 |---|---|
-| Versione | **v0.6.1**: riordino del codice, blocco 1 (nessun cambiamento di comportamento) |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.1 |
-| sha256 dello zip | `a3f383df630f53a67ba17a1aba10930dbd2723af1927d8d4c3729e13b9889970` (7,9 MB, service worker 0.6.1, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
-| Precedente | v0.6.0, sha256 `196ba4e9d8b827f93b31247a18f2eb6f5f9d581658d721ae6a4135a9843e5e2f` (7,9 MB, service worker 0.6.0, `parola/` con 8 file, nessun file delle prove; verificati) |
+| Versione | **v0.6.2**: timer a tutto schermo |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.2 |
+| sha256 dello zip | `b27b87d9257d31280b24f84da75d6a2935c02702597cafea8339482e1e26520d` (7,9 MB, service worker 0.6.2, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub). Il primo giro della release era caduto su una prova scritta male (chiedeva 3 s, il minimo è 5): corretta la prova, il pannello era già giusto |
+| Precedente | v0.6.1, sha256 `a3f383df630f53a67ba17a1aba10930dbd2723af1927d8d4c3729e13b9889970` (7,9 MB, service worker 0.6.1, `parola/` con 8 file, nessun file delle prove; verificati) |
 
 ## Da installare lato server: v0.6.0
 
