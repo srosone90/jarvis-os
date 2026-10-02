@@ -1905,7 +1905,8 @@ npm run verifica        # lint + typecheck + test + build + e2e: è il comando c
 npm run build           # dist/ (7 file) + controllo dei limiti
 npm test                # Vitest
 npm run e2e             # Playwright contro il finto HA (serve dist/ già compilata)
-npx playwright test test/e2e/layout.spec.ts   # solo la prova di layout (serve dist/)
+npx playwright test test/e2e/trasversali/layout.spec.ts   # solo la prova di layout (serve dist/)
+npm run test:<modulo>   # le prove di un modulo (unitarie, poi build e browser); elenco nella mappa
 bash scripts/crea-zip.sh
 node test/finto-ha/server.mjs   # finto HA a mano: http://localhost:18123/local/jarvis/index.html
 
@@ -1924,9 +1925,19 @@ VIRTUAL_ENV=.venv-ha-2026-9 uv pip install homeassistant==2026.9.3 spotifyaio==2
 uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 .venv-ha/bin/python home-assistant/prove/prova_pacchetto.py   # atteso: 117/117
 .venv-ha/bin/hass --script check_config -c <cartella con configuration.yaml + packages/>
+scripts/segui-release.sh <sha> [minuti]   # segue la release di un commit fino a un esito qualunque
 ```
 
 ## 9. Lezioni imparate
+
+- **Aspettare una release: `scripts/segui-release.sh <sha>`, mai un ciclo che
+  aspetta solo il successo.** Il 02/10 tre attese si sono bloccate (una
+  guardava solo l'intestazione del file, una non vedeva il fallimento, una
+  aspettava una release fallita prima di un'altra): il lavoro si è fermato
+  finché Salvatore non se n'è accorto. Lo script segue il workflow del commit
+  esatto e si ferma su qualunque esito (0 pubblicata, 1 fallita/annullata, 2
+  già esistente, 3 tempo scaduto). Non si chiude mai un turno su un'attesa che
+  non copra anche il fallimento.
 
 - **Committare un file solo: `git commit -- <file>`, mai `git add <file> &&
   git commit`** quando nell'indice c'è altro. `git mv` registra subito lo

@@ -575,12 +575,26 @@ faccio io.
 
 | | |
 |---|---|
-| Versione | **v0.6.2**: timer a tutto schermo |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.2 |
+| Versione | **v0.6.4**: riordino completo (23 moduli) — **quella da installare**; contiene anche il timer a tutto schermo (v0.6.2) e il blocco 2 del riordino (v0.6.3) |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.4 |
+| sha256 dello zip | `ffeee604973ee42ef384d86ff1951b33d5b92704b210c6911a0042a465f36c8c` (7,9 MB, service worker 0.6.4, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
+| v0.6.3 | **Non pubblicata**: la sua release è caduta su una prova della chat che dipende dai tempi (`assistente.spec.ts`, «la chat si chiude da sola dopo 60 s»: se la risposta di HA non ha ancora chiuso la conversazione quando la prova fa scorrere l'orologio finto, la chat rimanda la chiusura, come deve). La stessa prova è passata in locale e nella release v0.6.4, che contiene tutto il codice della v0.6.3. Non ripubblicata perché uscirebbe dopo la v0.6.4 e diventerebbe la «più recente» su GitHub. La prova va resa robusta (lavoro a parte, nessun bug del pannello) |
+| Prima | **v0.6.2**: timer a tutto schermo |
+| Link v0.6.2 | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.2 |
 | sha256 dello zip | `b27b87d9257d31280b24f84da75d6a2935c02702597cafea8339482e1e26520d` (7,9 MB, service worker 0.6.2, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub). Il primo giro della release era caduto su una prova scritta male (chiedeva 3 s, il minimo è 5): corretta la prova, il pannello era già giusto |
 | Precedente | v0.6.1, sha256 `a3f383df630f53a67ba17a1aba10930dbd2723af1927d8d4c3729e13b9889970` (7,9 MB, service worker 0.6.1, `parola/` con 8 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.6.0
+## Da installare lato server: v0.6.4
+
+1. Lo zip della **v0.6.4** sopra `/config/www/jarvis/` (comprende v0.6.1,
+   v0.6.2 e il blocco 2 del riordino).
+2. Se non è già fatto: `packages/jarvis.yaml` con `script.jarvis_presenza`
+   (v0.6.0, sotto) e **jarvis_musica 0.5.0** (v0.5.9, sotto).
+3. **`docs/ISTRUZIONI-JARVIS.md`**: il testo ufficiale di carattere e regole
+   di Jarvis, da applicare al prompt di Gemini e alle descrizioni degli
+   script (istruzioni d'uso in cima al file).
+
+## Prima: v0.6.0
 
 1. Lo zip sopra `/config/www/jarvis/`.
 2. **`packages/jarvis.yaml` aggiornato**: c'è lo script nuovo
