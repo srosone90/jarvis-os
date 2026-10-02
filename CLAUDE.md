@@ -671,6 +671,11 @@ licenze dei negativi da scegliere compatibili con l'uso commerciale).
 
 ### Profili di voce: tono per tipo di voce (deciso il 29/09, dopo "Ehi Jarvis")
 
+> **Dal 02/10 il testo ufficiale di carattere e regole di Jarvis è
+> `docs/ISTRUZIONI-JARVIS.md`** (carattere «in stile Tony Stark», richiesto da
+> Salvatore). Lo cura il repo, lo applica la sessione server; ogni modifica
+> va motivata nel suo «Registro modifiche». Quanto sotto resta come storia.
+
 - Tono della risposta in base al tipo di voce: **uomo adulto / donna adulta /
   bambino-a**. Riconoscimento preferito: classificatore leggero **nel browser**
   (WASM, stesso tipo di modello di "Ehi Jarvis", nessun audio in più inviato),

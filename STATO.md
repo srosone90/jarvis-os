@@ -20,6 +20,16 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 | 7. Fotocamera | v0.6.0 | **fatto** |
 | 8. Modello su misura | — | da fare |
 
+**Piano finale del 02/10** (un solo task, in ordine):
+
+| Parte | Stato |
+|---|---|
+| 1. Instradamento musica | **già fatta con la v0.5.9** (jarvis_musica 0.5.0 + pannello): ricontrollata punto per punto, 1a-f e pannello ci sono tutti, comprese le prove (87/87 sul finto Spotify). Il server ha ancora jarvis_musica 0.4.0: va installata la 0.5.0 (sezione «Prima: v0.5.9» sotto) |
+| 2. Ascolto dopo la risposta + errori di Google | **già fatta con la v0.5.8**: 8 s dopo una domanda, 2 s dopo un'azione (0 = chiude subito), sensibilità del parlato, suono breve e «Google non risponde» distinto dal silenzio di stt-no-text-recognized |
+| Carattere di Jarvis «in stile Tony Stark» | **fatto**: `docs/ISTRUZIONI-JARVIS.md`, da applicare lato server |
+| 3. Modello su misura per «Jarvis» | in corso |
+| 4. Riordino in moduli | da fare |
+
 ## Valutazione della fotocamera (v0.6.0, punto 7.1, scritta prima del codice)
 
 - **Modello**: UltraFace RFB-320 (Linzaer, «Ultra-Light-Fast-Generic-Face-
@@ -59,6 +69,20 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 ## Scelte fatte da Code, da confermare
 
 Ogni riga: cosa, perché, dove si cambia.
+
+- **«In stile Tony Stark» letto come il maggiordomo digitale di Tony Stark**
+  (impeccabile, calmo, ironia asciutta, battuta dopo l'azione), con un po'
+  della prontezza di Stark stesso. L'altra lettura (Jarvis che parla *come*
+  Tony Stark: sfrontato, sarcastico a ogni frase) l'ho scartata perché su
+  errori, bambini e annunci stanca presto. Si cambia nella sezione 1 di
+  `docs/ISTRUZIONI-JARVIS.md`.
+- **Jarvis chiama Salvatore «signore»**, non a ogni frase; gli altri per nome o
+  senza appellativi. Si cambia nella sezione 1 dello stesso file.
+- **Mai ironia su errori, salute, sicurezza, soldi, persone in difficoltà e
+  bambini.** Sezione 1.
+- **I testi del pannello non cambiano tono** («Ti ascolto ancora…», messaggi
+  d'errore): restano neutri e chiari. Il carattere vale per ciò che Jarvis
+  dice. Se li vuoi anche loro «alla Stark», è un ritocco a parte.
 
 - **Conferma su 2 frame di fila** (160 ms) prima di scattare: con la "TV" di
   prova da sola porta i falsi da 24 a 6 all'ora, e la parola vera resta
