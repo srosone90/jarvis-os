@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.6.2
+
+**Timer a tutto schermo** (richiesta di Salvatore del 02/10).
+
+- Con un timer attivo, quando nessuno tocca il pannello per 15 secondi il
+  timer copre tutto lo schermo: dal pannello completo, dal riposo e
+  dall'Hub. Grande il timer che finisce prima, sotto gli altri; «in pausa»
+  se è fermo. Di notte, sopra il riposo, in rosso scuro.
+- Un tocco ovunque riporta al pannello (il tocco non arriva a ciò che c'è
+  sotto); dopo altri 15 secondi senza tocchi il timer torna.
+- Mai mentre Jarvis ascolta o parla, mai sopra impostazioni e guida; quando
+  un timer suona resta in primo piano «Timer finito» con lo Stop.
+- **Impostazioni → Schermate → Timer**: «Timer a tutto schermo» (di serie
+  acceso) e dopo quanti secondi senza tocchi (15, da 5 a 120).
+
 ## v0.6.1
 
 Riordino del codice, blocco 1 di 3 (Parte 4 del piano finale). **Il pannello

@@ -2,12 +2,16 @@ import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Cosa mostrano le schermate della v0.5.7 (Timer, Clima, Scene, Spesa,
- * Avvisi): preferenze di questo pannello, ognuna col suo valore di serie e
+ * Avvisi), più il timer a tutto schermo (v0.6.2): preferenze di questo pannello, ognuna col suo valore di serie e
  * «Ripristina» in Impostazioni → Schermate.
  */
 export interface PreferenzeSchermate {
   /** Minuti dei pulsanti «nuovo timer», in ordine. Vuoto = nessun pulsante. */
   timerDurate: number[];
+  /** v0.6.2: con un timer attivo, il timer copre tutto lo schermo quando nessuno tocca. */
+  timerPieno: boolean;
+  /** v0.6.2: dopo quanti secondi senza tocchi il timer torna a tutto schermo. */
+  timerPienoSecondi: number;
   /** Ore del grafico delle temperature. */
   climaOre: number;
   /** Consumi di corrente, se in casa c'è un sensore (potenza o energia). */
@@ -30,6 +34,8 @@ export interface PreferenzeSchermate {
 
 export const PREFERENZE_SCHERMATE_DI_SERIE: PreferenzeSchermate = {
   timerDurate: [1, 3, 5, 10, 15, 30],
+  timerPieno: true,
+  timerPienoSecondi: 15,
   climaOre: 24,
   climaConsumi: true,
   scene: ["script.jarvis_buonanotte", "script.jarvis_esco", "script.jarvis_rientro"],
@@ -44,6 +50,7 @@ export const PREFERENZE_SCHERMATE_DI_SERIE: PreferenzeSchermate = {
 export const LIMITI_SCHERMATE = {
   durata: [1, 720],
   quanteDurate: 8,
+  timerPienoSecondi: [5, 120],
   climaOre: [6, 72],
   avvisiOre: [1, 72],
   avvisiSogliaBatteria: [5, 50],
@@ -96,6 +103,9 @@ export function leggiPreferenzeSchermate(grezzo: string | null): PreferenzeScher
     return p;
   }
   if (Array.isArray(d["timerDurate"])) p.timerDurate = durateDa(d["timerDurate"]);
+  if (typeof d["timerPieno"] === "boolean") p.timerPieno = d["timerPieno"];
+  if (numeroValido(d["timerPienoSecondi"]))
+    p.timerPienoSecondi = limita(d["timerPienoSecondi"], LIMITI_SCHERMATE.timerPienoSecondi);
   if (numeroValido(d["climaOre"])) p.climaOre = limita(d["climaOre"], LIMITI_SCHERMATE.climaOre);
   if (typeof d["climaConsumi"] === "boolean") p.climaConsumi = d["climaConsumi"];
   if (Array.isArray(d["scene"])) p.scene = sceneDa(d["scene"]);

@@ -336,6 +336,27 @@ export class JarvisImpostazioniSchermate extends RiquadroSicuro {
         valore: v.timerDurate.join(", "),
         diSerie: PREFERENZE_SCHERMATE_DI_SERIE.timerDurate.join(", "),
         cambia: (t) => schermate.cambia({ timerDurate: t === null ? null : durateDa(t) }),
+      })}
+      ${campoInterruttore({
+        id: "timer-pieno",
+        titolo: "Timer a tutto schermo",
+        spiegazione:
+          "Con un timer attivo, quando nessuno tocca il pannello il timer copre tutto lo schermo (anche a riposo e nell'Hub). Un tocco riporta al pannello.",
+        valore: v.timerPieno,
+        diSerie: PREFERENZE_SCHERMATE_DI_SERIE.timerPieno,
+        cambia: (b) => schermate.cambia({ timerPieno: b }),
+      })}
+      ${campoNumero({
+        id: "timer-pieno-secondi",
+        titolo: "Dopo quanti secondi senza tocchi",
+        valore: v.timerPienoSecondi,
+        diSerie: PREFERENZE_SCHERMATE_DI_SERIE.timerPienoSecondi,
+        min: LIMITI_SCHERMATE.timerPienoSecondi[0],
+        max: LIMITI_SCHERMATE.timerPienoSecondi[1],
+        passo: 1,
+        unita: "secondi",
+        disattivo: !v.timerPieno,
+        cambia: (n) => schermate.cambia({ timerPienoSecondi: n }),
       })}`;
   }
 

@@ -32,6 +32,7 @@ import "./jarvis-pagina-spesa";
 import "./jarvis-pagina-timer";
 import "./jarvis-voce-riquadro";
 import "./jarvis-timer";
+import "../timer/jarvis-timer-pieno";
 
 /** Ridisegna quando i registri di HA cambiano (stanze o dispositivi aggiunti/tolti). */
 class OsservaRegistri implements ReactiveController {
@@ -680,6 +681,12 @@ export class JarvisApp extends LitElement {
       ${loginRichiesto ? html`<jarvis-accesso></jarvis-accesso>` : nothing}
       ${this.impostazioni ? html`<jarvis-impostazioni tabindex="-1"></jarvis-impostazioni>` : nothing}
       ${guida ? html`<jarvis-guida data-test="guida"></jarvis-guida>` : nothing}
+      ${
+        // v0.6.2: con un timer attivo, a tutto schermo quando nessuno tocca (decide lui quando)
+        !loginRichiesto && !this.impostazioni && !guida && connessione.timer.attivi.length > 0
+          ? html`<jarvis-timer-pieno ?notte=${aRiposo && vista.momento() === "notte"}></jarvis-timer-pieno>`
+          : nothing
+      }
       ${
         connessione.timer.suonano.length > 0
           ? html`<jarvis-timer-finito

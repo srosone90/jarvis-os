@@ -1032,3 +1032,90 @@ for (const v of MISURE) {
     await expect(page.getByTestId("serie-fotocamera-passo")).toHaveText("Di serie: 0,05 di soglia");
   });
 }
+
+// --- v0.6.2: timer a tutto schermo (tre timer, nomi lunghi), di giorno e di notte sopra il riposo ---
+const ora = (): number =>
+  Number(new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome", hour: "2-digit", hourCycle: "h23" }));
+
+for (const v of MISURE) {
+  for (const notte of [false, true]) {
+    if (notte && v !== MISURE[0] && v !== MISURE[4]) continue;
+    test(`layout ${v.nome} v0.6.2: timer a tutto schermo${notte ? ", di notte sopra il riposo" : ""}`, async ({
+      page,
+      request,
+    }) => {
+      await page.setViewportSize({ width: v.width, height: v.height });
+      const h = ora();
+      await page.addInitScript(
+        ([n, da, a]) => {
+          localStorage.setItem("jarvis-schermate", JSON.stringify({ timerPienoSecondi: 5 }));
+          localStorage.setItem(
+            "jarvis-riposo",
+            JSON.stringify(
+              n ? { attesaMin: 10, notteDa: da, notteA: a } : { attesaMin: 10, notteDa: 0, notteA: 0 },
+            ),
+          );
+        },
+        [notte, h, (h + 2) % 24] as const,
+      );
+      await accedi(page);
+      for (const [id, nome, rimasti] of [
+        ["a", "pasta al forno della domenica con la nonna", 754],
+        ["b", "uova", 190],
+        ["c", "lavatrice", 3540],
+      ] as const)
+        await comando(request, "timer", {
+          tipo: "started",
+          id,
+          nome,
+          secondi_totali: 3600,
+          secondi_rimasti: rimasti,
+        });
+      if (notte) {
+        await apriImpostazioni(page, "riposo");
+        await page.getByTestId("prova-riposo").click();
+        await expect(page.getByTestId("vista-riposo")).toBeVisible();
+      }
+      const pieno = page.getByTestId("timer-pieno");
+      await expect(pieno).toBeVisible({ timeout: 12_000 });
+      await expect(pieno).toContainText("uova");
+      await expect(page.getByTestId("timer-pieno-altri")).toContainText("lavatrice");
+      await page.screenshot({ path: `schermate/layout/timer-pieno${notte ? "-notte" : ""}-${v.nome}.png` });
+      const box = await pieno.boundingBox();
+      expect(
+        box && box.x >= 0 && box.y >= 0 && box.x + box.width <= v.width && box.y + box.height <= v.height,
+        "il timer sta tutto nello schermo",
+      ).toBe(true);
+      expect(await problemiTesto(page, v.width), "timer a tutto schermo").toEqual([]);
+    });
+  }
+}
+
+// v0.6.2: un timer oltre l'ora (7 caratteri) sugli schermi più stretti: le cifre restano dentro
+for (const v of MISURE.filter(
+  (m) => m.nome === "telefono-in-chrome-915x330" || m.nome === "minimo-320x640",
+)) {
+  test(`layout ${v.nome} v0.6.2: timer a tutto schermo oltre l'ora`, async ({ page, request }) => {
+    await page.setViewportSize({ width: v.width, height: v.height });
+    await page.addInitScript(() =>
+      localStorage.setItem("jarvis-schermate", JSON.stringify({ timerPienoSecondi: 5 })),
+    );
+    await accedi(page);
+    await comando(request, "timer", {
+      tipo: "started",
+      id: "lungo",
+      nome: "arrosto",
+      secondi_totali: 7200,
+      secondi_rimasti: 7136,
+    });
+    const cifre = page.getByTestId("timer-pieno-rimasto");
+    await expect(cifre).toHaveText(/^1:5\d:\d\d$/, { timeout: 12_000 });
+    await page.screenshot({ path: `schermate/layout/timer-pieno-ore-${v.nome}.png` });
+    const box = await cifre.boundingBox();
+    expect(
+      box && box.x >= 0 && box.x + box.width <= v.width && box.y + box.height <= v.height,
+      "cifre dentro",
+    ).toBe(true);
+    expect(await problemiTesto(page, v.width), "timer oltre l'ora").toEqual([]);
+  });
+}

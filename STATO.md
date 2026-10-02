@@ -80,6 +80,16 @@ Ogni riga: cosa, perché, dove si cambia.
   senza appellativi. Si cambia nella sezione 1 dello stesso file.
 - **Mai ironia su errori, salute, sicurezza, soldi, persone in difficoltà e
   bambini.** Sezione 1.
+- **Timer a tutto schermo: «sempre» letto come «ogni volta che nessuno
+  tocca il pannello da 15 s»**, non «subito e fisso»: fisso, il pannello
+  resterebbe inutilizzabile per tutta la durata del timer (10 minuti di
+  pasta = 10 minuti senza poter accendere la TV). Un tocco riporta al
+  pannello, poi il timer torna. Si cambia in Impostazioni → Schermate →
+  Timer (secondi da 5 a 120, o spento).
+- **Timer a tutto schermo anche sopra riposo e Hub**, e non mentre Jarvis
+  ascolta o parla (la voce deve restare in vista); in grande quello che
+  finisce prima tra quelli che scorrono, gli altri sotto (al massimo 3 più
+  «+N»). Di notte rosso scuro come «Timer finito».
 - **Riordino: due porte per modulo, `index.ts` e `componenti.ts`**, invece
   di un solo file indice: con uno solo, la logica (che `connessione` crea)
   e l'interfaccia (che usa `connessione`) si importerebbero a vicenda, e un
@@ -350,10 +360,18 @@ faccio io.
 - **Fotocamera** (v0.6.0, pannello): presenza, guarda e parla, «Jarvis»
   più facile da vicino e di quanto (0,05), distanza (1,5 m), sensibilità (normale), fotogrammi al secondo
   (3), spenta dalle 23 alle 7. Tutto acceso di serie; si esporta.
+- **Timer a tutto schermo** (v0.6.2, pannello): acceso/spento, dopo quanti
+  secondi senza tocchi (15). Impostazioni → Schermate → Timer.
 - **Schermo a riposo**: attesa, notte dalle/alle. **Audio**: audio sveglio.
   **Stanza** del pannello.
 
 ## Adesso
+
+- **Finito: v0.6.2, timer a tutto schermo** (tua richiesta del 02/10): con
+  un timer attivo, dopo 15 s senza tocchi copre tutto (pannello, riposo,
+  Hub); un tocco riporta al pannello, e dopo altri 15 s torna. Non compare
+  mentre Jarvis ascolta o parla; quando suona resta «Timer finito».
+  Impostazioni → Schermate → Timer: acceso/spento e i secondi.
 
 - **In corso: riordino (Parte 4), blocco 1 → v0.6.1.** Nessun cambiamento
   per chi usa il pannello: stesse schermate, stesse funzioni. Cosa è

@@ -1590,6 +1590,28 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `page.clock.fastForward`. Finto HA: `/__prova/spotify-compare`,
   `/__prova/musica-pannello`, `versione: "0.4.0"` per il componente vecchio.
 
+### Timer a tutto schermo (v0.6.2, 02/10)
+
+- `src/timer/jarvis-timer-pieno.ts`: montato da jarvis-app (tra i
+  sovrapposti, z-index 35, sotto «Timer finito» a 40) solo con un timer
+  attivo e senza login, impostazioni e guida aperti; **decide lui quando
+  aprirsi** con un battito di 1 s: `timerPienoSiApre` (acceso, timer attivi,
+  nessuno che suona, voce non attiva, `Date.now() - vista.ultimaAttivita ≥
+  secondi`) e, aperto, `timerPienoPuoRestare` (le stesse senza il conto dei
+  secondi: lo chiude il tocco). Il tocco sul timer fa `stopPropagation`: non
+  arriva a ciò che c'è sotto. `vista.ultimaAttivita` (nuovo getter) è il
+  conto del riposo: tocchi, tasti e ogni cambio della voce.
+- Preferenze in `jarvis-schermate` (`timerPieno`, `timerPienoSecondi`
+  5-120): si esportano già con le altre.
+- Cifre: `grandezzaCifre()` dal numero di caratteri (stima prudente, 80%
+  della larghezza), con tetto al 42% dell'altezza: «1:58:56» sta a 320 px.
+- Notte (sopra il riposo di notte): rosso scuro come «Timer finito».
+- Prove: `test/e2e/timer-pieno.spec.ts` (secondi a 3), unitarie in
+  `test/unit/timer-pieno.test.ts`; la regola «via mentre la voce è attiva»
+  la tengono le unitarie (nel browser ogni cambio della voce azzera già il
+  conto, la prova non la distinguerebbe). Layout alle 6 misure, di notte a
+  1024 e 360, e oltre l'ora a 915×330 e 320.
+
 ### Riascolto breve, errori di Google, timer coi servizi, conferma scene (v0.5.8, 02/10)
 
 - **Riascolto** (`src/voce/voce.ts`, `src/voce/preferenze-voce.ts`):

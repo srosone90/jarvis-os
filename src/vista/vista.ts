@@ -111,6 +111,10 @@ export class ControlloVista {
   get impostazioni(): ImpostazioniRiposo {
     return this.imp;
   }
+  /** Quando qualcuno ha fatto qualcosa l'ultima volta (tocco, tasto, voce): il timer a tutto schermo (v0.6.2). */
+  get ultimaAttivita(): number {
+    return this.ultima;
+  }
   momento(data = new Date(this.adesso())): Momento {
     return momentoDi(data, this.imp);
   }

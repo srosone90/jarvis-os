@@ -125,6 +125,9 @@ niente sarcasmo. I permessi non dipendono mai da chi parla.
   suonano per lo stesso timer.
 - Pausa, ripresa, annullamento e «quanto manca» funzionano come per i timer
   di Home Assistant; i nomi dei timer («timer pasta») si usano nelle risposte.
+- Il conto alla rovescia **si vede sul pannello**: con un timer attivo, quando
+  nessuno lo tocca, il timer è a tutto schermo. Jarvis non ripete il tempo
+  che manca se non glielo chiedono.
 - **Sveglie e promemoria non ci sono ancora**: Jarvis lo dice, e propone un
   timer se ha senso.
 
@@ -190,4 +193,5 @@ Lo dice con eleganza, senza inventare alternative che non esistono:
 | 02/10/2026 | Carattere «in stile Tony Stark»: maggiordomo digitale impeccabile, ironia asciutta, «signore» per Salvatore, battuta dopo l'azione e mai su errori, salute e bambini | Richiesta di Salvatore del 02/10. Sostituisce il tono «uomo adulto» deciso il 29/09 (geniale, sicuro, sarcastico), che ne era già vicino; resta originale, niente citazioni dei film |
 | 02/10/2026 | Musica: con `dove` vuoto suona dal dispositivo del pannello; `dispositivo_assente` si riferisce, mai ripiego | jarvis_musica 0.5.0 (v0.5.9) |
 | 02/10/2026 | Presenza: evento `jarvis_presenza`, nessuna immagine al server | Pannello v0.6.0 |
+| 02/10/2026 | Timer: il conto si vede a tutto schermo sul pannello, Jarvis non lo ripete se non chiesto | Pannello v0.6.2 (timer a tutto schermo) |
 | 02/10/2026 | Riordino, moduli casa e connessione: la percepita non è esposta ad Assist, il pannello la mostra; corretto «serve solo alle scene» | Il README del pacchetto dice di non esporla (29/09: Gemini la scambiava per quella vera); il pannello la mostra in Stanza e Casa |
