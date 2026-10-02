@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { accedi, apriChat, apriDiagnostica, apriImpostazioni, comando, HA, info } from "./aiuti";
+import { accedi, apriChat, apriDiagnostica, apriImpostazioni, comando, HA, info } from "../aiuti";
 
 /**
  * Pausa della musica durante la voce (v0.4.4). Il finto HA simula jarvis_musica

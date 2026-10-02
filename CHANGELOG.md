@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.6.4
+
+Riordino del codice, blocco 3 di 3: **fine del riordino** (Parte 4 del piano
+finale). Il pannello si comporta esattamente come prima.
+
+- Moduli `musica`, `meteo`, `clima`, `scene`, `spesa`, `avvisi`, `riposo`,
+  `hub`, `navigazione`, `impostazioni`, `app`: ogni parte del pannello ha la
+  sua cartella e il suo contratto; `src/ui/` non c'è più. In tutto 23
+  moduli, nessun import fuori contratto, nessun giro chiuso.
+- Prove per modulo per tutti (`npm run test:<modulo>`); i file di prove misti
+  rimasti (`fase-g`, `navigazione`) divisi per modulo senza cambiare le prove.
+- Controllo del codice: 28 export resi interni, l'ultima copia di `limita` e
+  di `virgola` sostituite da quelle di `comune`.
+- CLAUDE.md: mappa completa dei 23 moduli, tabella dei percorsi rifatta.
+- Istruzioni di Jarvis: lista della spesa, playlist, scene scelte sul
+  pannello, batterie.
+
 ## v0.6.3
 
 Riordino del codice, blocco 2 di 3. **Il pannello si comporta esattamente

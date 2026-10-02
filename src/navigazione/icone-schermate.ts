@@ -9,7 +9,7 @@ import {
   mdiViewGridOutline,
   mdiWeatherPartlyCloudy,
 } from "@mdi/js";
-import type { Principale } from "../navigazione/navigazione";
+import type { Principale } from "./navigazione";
 
 /** Un'icona per schermata: colonna, Altro e impostazioni usano le stesse. */
 export const ICONE_SCHERMATE: Record<Principale, string> = {

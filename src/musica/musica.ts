@@ -18,9 +18,9 @@ import { chiamaControllato, dispositiviDa, messaggioDi, type ElencoDispositivi }
  * suonava già. Un errore di jarvis_musica (`{esito: "errore"}`, con la
  * risposta non è un'eccezione) si dice in chiaro.
  */
-export type StatoMusica = "in_riproduzione" | "in_pausa" | "niente";
+type StatoMusica = "in_riproduzione" | "in_pausa" | "niente";
 
-export interface Brano {
+interface Brano {
   stato: StatoMusica;
   titolo: string;
   artisti: string;
@@ -104,7 +104,7 @@ export function ordinaPlaylist(elenco: readonly Playlist[], preferite: readonly 
 
 export type PosizioneMini = "orologio" | "barra";
 
-export interface PreferenzeMusica {
+interface PreferenzeMusica {
   /** Mini-lettore nella Casa quando suona qualcosa. */
   mini: boolean;
   posizioneMini: PosizioneMini;
@@ -155,7 +155,7 @@ export function leggiPreferenzeMusica(grezzo: string | null): PreferenzeMusica {
 
 // --- stato condiviso -----------------------------------------------------------
 
-export interface DipendenzeMusica {
+interface DipendenzeMusica {
   /** jarvis_musica.<servizio> con la risposta. */
   chiama: (servizio: string, dati: Record<string, unknown>) => Promise<Record<string, unknown>>;
   collegato: () => boolean;

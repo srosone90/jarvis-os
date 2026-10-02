@@ -38,7 +38,7 @@ export const CHIAVI_MAI = [
   "jarvis-guida",
 ] as const;
 
-export const FORMATO = "jarvis-impostazioni";
+const FORMATO = "jarvis-impostazioni";
 /** Un file di impostazioni vero è di pochi KB: oltre questo non è un file nostro. */
 export const DIMENSIONE_MASSIMA = 200_000;
 
@@ -67,8 +67,7 @@ export function esporta(archivio: Archivio, versione: string, adesso: Date = new
   return { formato: FORMATO, versione, data: adesso.toISOString(), impostazioni };
 }
 
-export type EsitoLettura =
-  { ok: true; file: FileImpostazioni; scartate: string[] } | { ok: false; errore: string };
+type EsitoLettura = { ok: true; file: FileImpostazioni; scartate: string[] } | { ok: false; errore: string };
 
 /** Legge un file scelto dalla persona: niente di quello che c'è dentro si fida. */
 export function leggiFile(testo: string): EsitoLettura {

@@ -2,10 +2,10 @@ import { mdiMusic, mdiPause, mdiThermometer, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE } from "../comune";
 import { connessione } from "../connessione";
-import { condizione, gradiInteri, numero } from "../meteo/testi";
+import { condizione, gradiInteri, numero } from "../meteo";
 import { formattaRimasto, rimastoMs, type TimerAttivo } from "../timer";
-import { vista } from "../vista/istanza";
-import type { Momento } from "../vista/vista";
+import { vista } from "./istanza";
+import type { Momento } from "./vista";
 import {
   OsservaConnessione,
   OsservaEntita,

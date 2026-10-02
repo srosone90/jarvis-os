@@ -2,8 +2,8 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE } from "../comune";
 import { connessione } from "../connessione";
 import { log } from "../diagnostica";
-import { osservaPrevisione } from "../meteo/previsione";
-import { condizione, gradiInteri, numero, prossimiGiorni, type PrevisioneGiorno } from "../meteo/testi";
+import { osservaPrevisione } from "./previsione";
+import { condizione, gradiInteri, numero, prossimiGiorni, type PrevisioneGiorno } from "./testi";
 import { OsservaEntita, RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**

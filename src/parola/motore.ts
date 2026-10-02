@@ -460,7 +460,7 @@ export class MotoreParola {
     );
     await this.archivio.salvaVerificatore(v);
     this.impostaVerificatore(v, "addestrato su questo dispositivo");
-    const secondi = ((performance.now() - t0) / 1000).toFixed(1).replace(".", ",");
+    const secondi = virgola((performance.now() - t0) / 1000, 1);
     const testo =
       `Pronuncia imparata in ${secondi} s: ${v.info.positivi} esempi della parola e ${v.info.negativi} di parlato normale, riconosciuti bene il ${Math.round(v.info.accuratezza * 100)}%. ` +
       (soglia === null

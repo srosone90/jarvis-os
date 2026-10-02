@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info } from "./aiuti";
+import { accedi, apriImpostazioni, comando, info } from "../aiuti";
 
 /**
  * Fase G (v0.4.8), scelte di Salvatore del 30/09: schermo a riposo C (sfera),
@@ -27,7 +27,6 @@ async function mettiARiposo(page: Page): Promise<void> {
   await page.getByTestId("prova-riposo").click();
   await expect(riposo(page)).toBeVisible();
 }
-
 
 test("dopo 2 minuti senza tocchi va a riposo: sfera, ora, meteo e stanze; un tocco fuori torna al pannello", async ({
   page,

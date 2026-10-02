@@ -46,9 +46,22 @@ indice — dipende da — test.
 | timer | timer di jarvis_voce per pannello, suoneria, servizi; schermata Timer, timer sotto l'orologio, «Timer finito», timer a tutto schermo | `src/timer/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, navigazione, riposo, voce | `npm run test:timer` |
 | annunci | Jarvis parla per primo (`jarvis_annuncio`), annunci scritti a riposo; Impostazioni → annunci | `src/annunci/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, interfaccia, voce | `npm run test:annunci` |
 | fotocamera | presenza, «Jarvis» più facile da vicino, guarda e parla, spia; modello del volto caricato dopo | `src/fotocamera/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia | `npm run test:fotocamera` |
+| musica | Spotify via jarvis_musica: cosa suona, comandi, playlist, dispositivo del pannello, «Collega»; schermata Musica, mini-lettore | `src/musica/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, navigazione | `npm run test:musica` |
+| meteo | previsione di HA, testi e icone, dettagli; meteo della Casa e schermata Meteo | `src/meteo/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia | `npm run test:meteo` |
+| clima | schermata Clima: grafico delle stanze, consumi | `src/clima/componenti.ts` | casa, comune, connessione, diagnostica, interfaccia, meteo, navigazione | `npm run test:clima` |
+| scene | scene (script/scene di HA), conferma col secondo tocco; schermata Scene | `src/scene/index.ts`, `componenti.ts` | casa, comune, connessione, diagnostica, interfaccia, navigazione | `npm run test:scene` |
+| spesa | lista della spesa (`todo` di HA); schermata Spesa | `src/spesa/componenti.ts` | comune, connessione, diagnostica, interfaccia, navigazione | `npm run test:spesa` |
+| avvisi | eventi dei dispositivi dal registro di HA, batterie basse; schermata Avvisi | `src/avvisi/componenti.ts` | casa, comune, connessione, diagnostica, interfaccia, navigazione | `npm run test:avvisi` |
+| riposo | vista completo/riposo/Hub e quando cambiare (`vista`); schermo a riposo | `src/riposo/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, meteo, parola, timer | `npm run test:riposo` |
+| hub | modalità Hub: sfera e sottotitoli | `src/hub/index.ts` | assistente, connessione, interfaccia, riposo, timer, voce | `npm run test:hub` |
+| navigazione | colonna, Altro, schermate e loro preferenze (`schermate`), indirizzo `#…` | `src/navigazione/index.ts`, `componenti.ts` | comune, diagnostica, interfaccia, riposo | `npm run test:navigazione` |
+| impostazioni | Impostazioni a sezioni, Schermate, esporta/importa, procedura guidata | `src/impostazioni/componenti.ts` | quasi tutti (ogni sezione viene dal suo modulo) | `npm run test:impostazioni` |
+| app | il guscio: `jarvis-app` (cosa mostrare, sovrapposti), orologio | `src/app/index.ts` | quasi tutti | `npm run test:app` |
 
-_Riordino in corso: i moduli non ancora in tabella stanno ancora nelle
-cartelle vecchie (`src/ui/` e simili)._
+_Le sezioni storiche più sotto (fasi, versioni) citano a volte i percorsi di
+prima del riordino del 02/10 (`src/ui/…`, `src/stato/…`, `src/vista/…`,
+`src/pagine/…`, `src/eventi/…`, `test/e2e/<file>.spec.ts` nella radice): per
+dove sta un file oggi vale questa mappa._
 
 ## 1. Cos'è
 
@@ -149,60 +162,28 @@ In casa **non ci sono luci smart**.
 
 ## 3. Com'è organizzato
 
+**Il codice del pannello (`src/`) e le sue prove sono per modulo: vedi la
+«Mappa dei moduli» in cima.** Qui il resto.
+
 | Percorso | Cosa |
 |---|---|
-| `home-assistant/packages/jarvis.yaml` | Tutto ciò che il pannello chiede a HA: aiutanti, sensori, scene, automazioni |
-| `home-assistant/README.md` | Istruzioni di installazione e verifiche per chi amministra HA |
+| `src/main.ts`, `src/globali.d.ts` | Avvio (gestori d'errore globali, service worker, origine, connessione, app) e la costante `__VERSIONE__` |
+| `src/<modulo>/` | Un modulo per cartella, col suo contratto (`index.ts`, `componenti.ts`): mappa in cima |
+| `test/unit/<modulo>/`, `test/e2e/<modulo>/` | Prove del modulo, `npm run test:<modulo>` (`scripts/test-modulo.mjs`) |
+| `test/e2e/trasversali/layout.spec.ts` | Layout a 6 misure di tutto il pannello: niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
+| `test/e2e/aiuti.ts`, `test/e2e/stato-iniziale.json`, `test/finto-ha/server.mjs` | Aiuti comuni delle prove nel browser, stato iniziale (guida già fatta), finto Home Assistant fedele (OAuth, WebSocket, `/local/`, registri, servizi, Spotify finto) |
+| `test/dati/audio/`, `test/dati/video/`, `test/unit/dati/` (ognuna con `LICENZA.md` dove serve) | Clip Piper, rumore, video della fotocamera finta, riferimento scikit-learn del verificatore |
+| `modelli/openwakeword/`, `modelli/volto/` | Modelli ONNX («Jarvis»: CC BY-NC-SA 4.0, solo non commerciale; volto: MIT) con `LICENZA.md` e sha256 |
+| `home-assistant/packages/jarvis.yaml` | Tutto ciò che il pannello chiede a HA: aiutanti, sensori, scene, automazioni, `script.jarvis_presenza` |
 | `home-assistant/custom_templates/jarvis.jinja` | Macro con gli orari dello scaldabagno: UNICO posto dove sono scritti |
-| `home-assistant/prove/prova_pacchetto.py` | Prova funzionale del pacchetto su un HA vero, riavvio compreso (115 verifiche) |
-| `docs/mockup.html` | Mockup statico della schermata principale (1024×600), approvato |
-| `src/main.ts` | Avvio: gestori d'errore globali, service worker, ricarica notturna, connessione |
-| `src/configurazione.ts` | Preferenze (`PREFERENZE`): meteo, stanze → zona del mockup e sensori del clima, dispositivi a infrarossi, programmi, entità nascoste |
-| `src/registri/` | `registri.ts` (aree/dispositivi/entità da HA, riletti sugli eventi `*_registry_updated`), `modello.ts` (funzione pura `costruisciStanze`) |
-| `src/assistente/` | `eventi.ts` (eventi di `assist_pipeline/run` → turno, puro), `assistente.ts` (motore unico della conversazione: chat, voce e Hub lo riusano) |
-| `src/voce/` | `microfono.ts` (AudioWorklet da Blob URL, PCM 16 kHz), `audio.ts` (riproduzione della risposta che non blocca mai, bip), `voce.ts` (tocco → ascolto → pipeline stt→tts → audio → seguito) |
-| `src/timer/` | Timer di `jarvis_voce` (v0.4.5): `timer.ts` (evento `jarvis_timer` → timer attivi e finiti, logica pura + classe), `suoneria.ts` (WebAudio, niente file), `pannello.ts` (device_id `jarvis_<stanza>`, v0.4.6) |
-| `src/vista/` | Fase G (v0.4.8): `vista.ts` (viste completo/riposo/hub, momento del giorno, notte, `prossimaVista` pura, `ControlloVista` con impostazioni in `jarvis-riposo`), `istanza.ts` (l'istanza unica e `quandoPuoRiposare`) |
-| `src/ui/jarvis-sfera.ts`, `jarvis-riposo.ts`, `jarvis-hub.ts` | Sfera (solo CSS, anelli SVG dei timer), schermo a riposo C, Hub H1 con sottotitoli |
-| `src/ui/jarvis-impostazioni.ts`, `jarvis-guida.ts` | Impostazioni S1 a sezioni (stanza, riposo, audio, diagnostica) e procedura guidata S3 del primo avvio |
-| `test/e2e/fase-g.spec.ts`, `test/unit/vista.test.ts`, `test/e2e/stato-iniziale.json` | Prove della fase G; stato iniziale delle e2e con la guida già fatta |
-| `src/voce/audio-sveglio.ts` | Rumore a -80 dB in loop per tenere sveglio l'Echo in Bluetooth (v0.4.5) |
-| `src/parola/` | Parola «Jarvis» (v0.5.0): `ascolto.ts` (ascolto continuo nel bundle iniziale: stato, memoria di 1 s, scatto, stop della suoneria), `motore.ts` (caricato con `import()` pigro: onnxruntime + modelli + verificatore + registrazione della pronuncia), `rilevatore.ts` (interfaccia `RilevatoreParola` + openWakeWord, modello sostituibile), `memoria.ts` (memoria circolare in RAM), `stop.ts` («stop»/«basta»/«ferma» nel testo), `ricampiona.ts` (a 16 kHz) |
-| `src/voce/microfono-condiviso.ts` | Un solo microfono per la parola e per la voce, sempre a 16 kHz (v0.5.0) |
-| `src/ui/jarvis-indicatore-parola.ts`, `src/ui/jarvis-impostazioni-voce.ts` | Indicatore del microfono (accanto a "Connesso" e a riposo); Impostazioni → Voce con "Insegna a Jarvis la tua pronuncia" |
-| `test/dati/audio/` (+ `LICENZA.md`), `test/unit/parola-audio-vero.test.ts`, `test/e2e/parola-audio-vero.spec.ts`, `test/e2e/parola-rumore-vero.spec.ts` | v0.5.1: «hey jarvis» vero (Piper) e rumore generato; modello VERO, e nel browser la clip come microfono (`--use-file-for-fake-audio-capture`, aiuto `microfonoDaFile`) |
-| `src/parola/inizio-frase.ts`, `test/unit/parola-contesto.test.ts`, `test/e2e/parola-{contesto-fine,pausa-prima,in-mezzo}.spec.ts` | v0.5.2: dove comincia la frase (ultima pausa ≥ 1 s, energia a 20 ms) e le prove con frasi vere (Piper) col «hey jarvis» in fondo, in mezzo e dopo una pausa |
-| `src/ui/jarvis-parola-dal-vivo.ts` | Indicatore dal vivo (punteggio degli ultimi 3 s, soglia, livello del microfono) in Impostazioni → Voce e Diagnostica |
-| `test/e2e/parola.spec.ts`, `test/unit/parola-ascolto.test.ts` | «Jarvis» col motore vero e un verificatore finto "sempre sì" servito da `parola.json` con ritardo; stop, ricampionamento, regole dello scatto, pipeline in due tempi, microfono condiviso |
-| `src/parola/verificatore.ts`, `src/parola/archivio.ts`, `src/parola/impostazioni.ts` | Verificatore della pronuncia (addestrato sul telefono), archivio locale degli esempi (IndexedDB), `parola.json` |
-| `scripts/riferimento-verificatore.py`, `test/unit/dati/verificatore-sklearn.json` | Riferimento scikit-learn per il test del verificatore |
-| `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, domande aperte. Si aggiorna con commit e push a ogni passo importante |
-| `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml` | Musica: Spotify "dal silenzio" (ricerca + avvio sul dispositivo Connect della stanza, con controllo che suoni davvero), comandi e "cosa suona" letti da Spotify; tre script per Gemini. Il pacchetto contiene solo gli script: si sovrascrive |
-| `home-assistant/esempi/jarvis_musica_stanze.yaml` | Stanze → dispositivi Spotify di QUESTA casa: si copia una volta in `packages/` e non si sovrascrive più |
-| `home-assistant/prove/prova_musica.py` | Prova di jarvis_musica su HA 2026.9.3 con client Spotify finto fatto dei modelli veri di spotifyaio (87 casi; dalla 0.5.0 con un `jarvis_voce` finto per `pannello_corrente`) |
-| `modelli/openwakeword/` | Modelli ONNX di openWakeWord (CC BY-NC-SA 4.0, solo non commerciale) con `LICENZA.md` e sha256 |
-| `src/comandi/` | `comandi.ts` (feedback ottimistico, conferma, rollback), `avvisi.ts` (messaggi brevi a schermo) |
-| `src/connessione/` | Login OAuth (`autenticazione.ts`), WebSocket e riconnessione (`connessione.ts`), backoff |
-| `src/stato/` | `entita.ts` (aggiornamenti compressi, risincronizzazione), `negozio.ts` (notifiche per entità) |
-| `src/meteo/` | Previsione in push, testi e icone delle condizioni |
-| `src/pwa/` | Service worker, aggiornamenti controllati, ricarica delle 04:00 |
-| `src/diagnostica/log.ts` | Log circolare (200 voci, salvato nel localStorage) |
-| `src/ui/` | Componenti Lit; `base.ts` riquadro protetto e controller, `card-base.ts` base delle card, `jarvis-card-*` una per tipo |
-| `scripts/dopo-build.mjs` | Genera `dist/sw.js` dal modello e controlla i limiti (file, KB) |
-| `scripts/crea-zip.sh` | `jarvis-dist.zip` da `dist/` |
-| `test/unit/` | Vitest |
-| `test/e2e/` + `test/finto-ha/server.mjs` | Playwright contro un finto HA fedele (OAuth, WebSocket raggruppato, `/local/`, registri, servizi); `aiuti.ts` funzioni comuni |
-| `docs/proposta-multicasa.md` | Proposta per le altre case: HACS, stima, esigenze da servizio, cosa progettare subito nella fase G |
-| `docs/mockup-f5.html` | Mockup della voce (F5) |
-| `test/e2e/origine.spec.ts`, `test/unit/origine.test.ts` | Origine veloce e di riserva: passaggio, niente giri, timeout, offline, login, ritorno proposto |
-| `test/unit/parola.test.ts` | Memoria circolare; rilevatore coi modelli veri |
-| `test/e2e/voce.spec.ts` | Voce: chat, riquadro, streaming locale, seguito, tocco per fermare, microfono negato, senza HTTPS, caduta, 429, non sentito, stream STT caduto, annulla mentre pensa, offline |
-| `test/e2e/timer.spec.ts`, `test/unit/timer.test.ts` | Timer: conto alla rovescia, suoneria e Stop, sopra la chat, dopo un riavvio di HA, due pannelli; lettura degli eventi, 2 minuti, timer a zero senza `finished` |
-| `test/e2e/audio-sveglio.spec.ts` | Audio sveglio: -80 dB in loop con la voce che funziona, spento dalla diagnostica anche dopo una ricarica, sospeso dal sistema → log e ripresa |
-| `docs/mockup-f4.html` | Mockup della chat (F4), variante A approvata |
-| `test/e2e/assistente.spec.ts` | Assistente: risposta normale, lenta, errore, caduta a metà, azione, offline, chiusura automatica; tastiera (tocco fuori, dopo l'invio) e "Indietro" di Android |
-| `test/e2e/layout.spec.ts` | Prova di layout a 6 misure (tablet e telefoni, TV accesa e offline, con la chat aperta + tastiera simulata, con cinque timer e "Timer finito"): niente sovrapposizioni, testi tagliati né scorrimento orizzontale. Screenshot in `schermate/layout/` (ignorata da Git) |
-| `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (sul push del branch principale, se la versione è nuova) |
+| `home-assistant/custom_components/jarvis_musica/`, `home-assistant/packages/jarvis_musica.yaml`, `home-assistant/esempi/jarvis_musica_stanze.yaml` | Musica lato HA (contratto esterno del modulo `musica`): ricerca e avvio su Spotify Connect, comandi, dispositivi per pannello; tre script per Gemini |
+| `home-assistant/prove/prova_pacchetto.py`, `prova_musica.py` | Prove su un HA vero (117 e 87 verifiche) |
+| `home-assistant/README.md` | Istruzioni di installazione e verifiche per chi amministra HA |
+| `docs/ISTRUZIONI-JARVIS.md` | **Testo ufficiale di carattere e regole di Jarvis**, da applicare lato server |
+| `docs/mockup*.html`, `docs/proposta-multicasa.md` | Mockup approvati delle fasi; proposta per le altre case |
+| `STATO.md` | **Per la sessione server** (la legge da GitHub): cosa si sta facendo, ultima release con sha256 e cosa installare, scelte da confermare, bug trovati |
+| `scripts/dopo-build.mjs`, `scripts/crea-zip.sh`, `scripts/riferimento-verificatore.py` | `dist/sw.js` e controlli dei limiti (file, KB, `parola/`); lo zip; il riferimento del verificatore |
+| `.github/workflows/` | `ci.yml` (app + pacchetto HA), `release.yml` (sul push del branch, se la versione è nuova; una alla volta, in coda) |
 
 ## 4. Architettura prevista dell'app (dal prompt, decisa)
 
@@ -1946,6 +1927,15 @@ uv venv -p 3.13 .venv-ha && VIRTUAL_ENV=.venv-ha uv pip install homeassistant
 ```
 
 ## 9. Lezioni imparate
+
+- **Committare un file solo: `git commit -- <file>`, mai `git add <file> &&
+  git commit`** quando nell'indice c'è altro. `git mv` registra subito lo
+  spostamento: il 02/10, a riordino del blocco 3 a metà, un commit «solo lo
+  sha in STATO» si è portato dietro 50 file spostati senza gli import
+  riscritti (commit f4fd966, codice che non compila sul branch per mezz'ora).
+  Nessuna release rotta (la release rifà la verifica completa prima di
+  pubblicare), ma la CI di quel commit è rossa. Prima di ogni commit «di un
+  file solo»: `git diff --cached --stat`.
 
 - **Gli infrarossi non hanno ritorno.** `switch.*` in stato `unknown` e un clima
   che mostra l'ultimo comando ne sono il segnale. Quei dispositivi vanno trattati

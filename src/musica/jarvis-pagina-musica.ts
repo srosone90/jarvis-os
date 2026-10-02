@@ -16,7 +16,7 @@ import {
 import { css, html, nothing, type TemplateResult } from "lit";
 import { avvisi } from "../comune";
 import { connessione } from "../connessione";
-import { minuti, posizioneAdesso, type AzioneMusica } from "../musica/musica";
+import { minuti, posizioneAdesso, type AzioneMusica } from "./musica";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import "./jarvis-collega-spotify";
 
@@ -27,7 +27,7 @@ function iconaDispositivo(tipo: string): string {
 }
 
 /** Stanze per spostare la musica: quelle scelte, o le aree di Home Assistant. */
-export function stanzeMusica(): string[] {
+function stanzeMusica(): string[] {
   const scelte = connessione.musica.preferenze.stanze;
   if (scelte.length) return scelte;
   return [...connessione.registri.aree.map((a) => a.name)].sort((a, b) => a.localeCompare(b, "it"));

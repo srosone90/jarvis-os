@@ -5,7 +5,7 @@ import {
   leggiPreferenzeNavigazione,
   Navigatore,
   PREFERENZE_NAVIGAZIONE_DI_SERIE,
-} from "../../src/navigazione/navigazione";
+} from "../../../src/navigazione/navigazione";
 
 import {
   durateDa,
@@ -13,7 +13,7 @@ import {
   leggiPreferenzeSchermate,
   PREFERENZE_SCHERMATE_DI_SERIE,
   sceneDa as elencoSceneDa,
-} from "../../src/pagine/preferenze";
+} from "../../../src/navigazione/preferenze-schermate";
 
 /** v0.5.7: Timer, Clima, Scene, Spesa, Avvisi e Altro. */
 

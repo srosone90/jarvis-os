@@ -10,8 +10,7 @@ import {
 } from "home-assistant-js-websocket";
 import { Annunci } from "../annunci";
 import { Assistente } from "../assistente";
-import { Musica } from "../musica/musica";
-import { CollegaDispositivo } from "../musica/dispositivi";
+import { CollegaDispositivo, Musica } from "../musica";
 import { OcchioFotocamera, Presenza, caricaMotoreVolto } from "../fotocamera";
 import { RegistroInterruzioni } from "./interruzioni";
 import { MicrofonoCondiviso, PausaMusica, Voce, ascoltaStanzaPannello, stanzaPannello } from "../voce";

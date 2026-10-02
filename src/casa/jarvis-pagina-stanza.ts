@@ -2,7 +2,7 @@ import { css, html, nothing, svg, type TemplateResult } from "lit";
 import { PREFERENZE } from "../comune";
 import { connessione } from "../connessione";
 import { descriviErrore, log } from "../diagnostica";
-import { numero } from "../meteo/testi";
+import { numero } from "../meteo";
 import { costruisciStanze } from "./modello";
 import { caricaPreferenzeStorico, leggiStorico, linea, type Punto } from "./storico";
 import { OsservaEntita, RiquadroSicuro, stileBase } from "../interfaccia";

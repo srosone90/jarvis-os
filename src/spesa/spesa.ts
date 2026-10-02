@@ -37,7 +37,7 @@ export function ordinaSpesa(voci: readonly VoceSpesa[]): VoceSpesa[] {
   return [...voci.filter((v) => !v.preso), ...voci.filter((v) => v.preso)];
 }
 
-export interface DipendenzeSpesa {
+interface DipendenzeSpesa {
   /** `todo/item/subscribe`: chiama `f` a ogni cambio; ritorna la funzione per smettere. */
   iscrivi: (entita: string, f: (dati: unknown) => void) => Promise<() => Promise<void>>;
   /** `todo.<servizio>` con l'entità come target. */

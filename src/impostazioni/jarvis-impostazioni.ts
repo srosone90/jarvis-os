@@ -16,19 +16,18 @@ import { connessione } from "../connessione";
 import { log } from "../diagnostica";
 import { dispositivoDi } from "../timer";
 import { audioSveglio, impostaStanzaPannello, stanzaPannello, type StatoAudioSveglio } from "../voce";
-import { vista } from "../vista/istanza";
-import { ATTESE_POSSIBILI } from "../vista/vista";
+import { ATTESE_POSSIBILI, vista } from "../riposo";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import { rifaiGuida } from "./jarvis-guida";
 import "../diagnostica/componenti";
 import "../voce/componenti";
 import "../annunci/componenti";
 import "./jarvis-impostazioni-schermate";
-import "./jarvis-impostazioni-musica";
+import "../musica/componenti";
 import "./jarvis-impostazioni-copia";
 import "../fotocamera/componenti";
 
-export type Sezione =
+type Sezione =
   | "stanza"
   | "schermate"
   | "musica"

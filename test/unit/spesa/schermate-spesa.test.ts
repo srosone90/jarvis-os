@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ListaSpesa, ordinaSpesa, vociDa } from "../../src/spesa/spesa";
+import { ListaSpesa, ordinaSpesa, vociDa } from "../../../src/spesa/spesa";
 
 /** v0.5.7: Timer, Clima, Scene, Spesa, Avvisi e Altro. */
 

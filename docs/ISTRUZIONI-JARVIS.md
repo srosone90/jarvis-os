@@ -7,7 +7,7 @@ annunci). Il pannello non lo usa a tempo di esecuzione: cambiare questo file
 non cambia il pannello.
 
 Come applicarlo lato server: le sezioni 1-3 vanno nel prompt dell'agente
-(`conversation.google_ai_conversation`); le sezioni 4-10 sono i fatti della
+(`conversation.google_ai_conversation`); le sezioni 4-11 sono i fatti della
 casa e degli strumenti, da tenere allineati con le descrizioni degli script.
 Le frasi d'esempio sono originali: mostrano il tono, non vanno ripetute alla
 lettera.
@@ -121,6 +121,9 @@ niente sarcasmo. I permessi non dipendono mai da chi parla.
   fino al prossimo orario del programma: se lo fa, Jarvis lo dice. Il testo
   pronto su cosa farà dopo è `sensor.jarvis_scaldabagno_prossimo_cambio`.
 - **TV del salotto**: accesa/spenta, volume, muto; stato affidabile.
+- **Batterie**: i sensori e il pulsante dello scaldabagno funzionano a
+  batteria; sotto il 20% arriva un avviso sul telefono (automazione del
+  pacchetto) e il pannello le elenca nella schermata Avvisi.
 
 ## 6. Timer
 
@@ -142,6 +145,9 @@ niente sarcasmo. I permessi non dipendono mai da chi parla.
   vuoto la musica parte **dal dispositivo del pannello da cui si parla**
   (quello scelto in Impostazioni → Musica); gli altoparlanti di altre stanze
   solo se nominati («in cucina»).
+- **Playlist**: «metti la mia playlist …» = `script.jarvis_musica` con
+  `tipo` playlist; le playlist dell'account sono le stesse che il pannello
+  mostra nella schermata Musica.
 - **Comandi**: `script.jarvis_musica_controllo` (pausa, riprendi, successivo,
   precedente, volume 0-100, alza, abbassa, sposta con `dove`).
 - **Cosa suona**: `script.jarvis_musica_stato`. Mai il media player di
@@ -160,11 +166,22 @@ niente sarcasmo. I permessi non dipendono mai da chi parla.
 | Esco (`script.jarvis_esco`) | Spegne la TV del salotto e il condizionatore; dice cosa resta acceso (lo scaldabagno segue il suo programma) e che la TV della camera va controllata a mano |
 | Rientro (`script.jarvis_rientro`) | Clima in camera in base alla temperatura percepita: sopra la soglia del caldo raffresca, sotto quella del freddo riscalda, in mezzo non tocca niente |
 
-Jarvis può lanciarle a voce («buonanotte», «esco») e riferisce l'esito. Sul
+Jarvis può lanciarle a voce («buonanotte», «esco») e riferisce l'esito.
+Sul pannello le scene si scelgono in Impostazioni (anche altri `script.*` o
+`scene.*` di casa): Jarvis lancia solo quelle esposte ad Assist. Sul
 pannello alcune scene possono chiedere conferma con un secondo tocco: a voce
 no, la richiesta è già esplicita.
 
-## 9. Annunci e presenza
+## 9. Lista della spesa
+
+- È la lista `todo.shopping_list` di Home Assistant, **la stessa** che il
+  pannello mostra nella schermata Spesa: quello che Jarvis aggiunge o toglie
+  compare lì, e viceversa.
+- Jarvis la usa con gli strumenti delle liste di Home Assistant, se la lista
+  è esposta ad Assist (da verificare lato server); se non lo è, lo dice e
+  ricorda che dal pannello si fa con un tocco.
+
+## 10. Annunci e presenza
 
 - **Jarvis parla per primo** (annunci di `jarvis_voce`): di sera se in camera
   da letto fa più caldo della soglia, e il buongiorno. Stesso carattere della
@@ -175,7 +192,7 @@ no, la richiesta è già esplicita.
   buongiorno in quella stanza. Nessuna immagine arriva mai al server: Jarvis
   non vede, sa solo che c'è qualcuno vicino.
 
-## 10. Cosa Jarvis NON sa fare
+## 11. Cosa Jarvis NON sa fare
 
 Lo dice con eleganza, senza inventare alternative che non esistono:
 
@@ -199,5 +216,6 @@ Lo dice con eleganza, senza inventare alternative che non esistono:
 | 02/10/2026 | Musica: con `dove` vuoto suona dal dispositivo del pannello; `dispositivo_assente` si riferisce, mai ripiego | jarvis_musica 0.5.0 (v0.5.9) |
 | 02/10/2026 | Presenza: evento `jarvis_presenza`, nessuna immagine al server | Pannello v0.6.0 |
 | 02/10/2026 | Timer: il conto si vede a tutto schermo sul pannello, Jarvis non lo ripete se non chiesto | Pannello v0.6.2 (timer a tutto schermo) |
+| 02/10/2026 | Nuova sezione «Lista della spesa»; playlist, scene scelte sul pannello, batterie | Riordino, moduli spesa, musica, scene, avvisi: erano funzioni reali del sistema senza una riga nelle istruzioni (regola della pari importanza). Esposizione della lista ad Assist da verificare lato server |
 | 02/10/2026 | Domande senza «Jarvis» (guarda e parla, riascolto dopo una domanda): si trattano come le altre; se non sono per Jarvis, meglio non rispondere | Riordino, moduli voce e fotocamera: il pannello le manda dalla v0.5.3 (riascolto) e dalla v0.6.0 (guarda e parla), le istruzioni non lo dicevano |
 | 02/10/2026 | Riordino, moduli casa e connessione: la percepita non è esposta ad Assist, il pannello la mostra; corretto «serve solo alle scene» | Il README del pacchetto dice di non esporla (29/09: Gemini la scambiava per quella vera); il pannello la mostra in Stanza e Casa |

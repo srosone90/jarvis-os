@@ -5,14 +5,14 @@ import {
   leggiInterruzioni,
   MASSIMO_INTERRUZIONI,
   RegistroInterruzioni,
-} from "../../src/connessione/interruzioni";
+} from "../../../src/connessione/interruzioni";
 import {
   batterieBasse,
   durataTesto,
   eventiDaRegistro,
   quandoTesto,
   testoStato,
-} from "../../src/eventi/eventi";
+} from "../../../src/avvisi/eventi";
 
 /** v0.5.7: Timer, Clima, Scene, Spesa, Avvisi e Altro. */
 

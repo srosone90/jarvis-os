@@ -7,7 +7,7 @@ import { dominio } from "../casa";
  * ce n'è nessuno, quindi la parte non si vede; compare da sola il giorno che
  * se ne aggiunge uno. Niente stime: un consumo inventato è peggio di nessuno.
  */
-export interface SensoreConsumo {
+interface SensoreConsumo {
   entita: string;
   nome: string;
   tipo: "potenza" | "energia";

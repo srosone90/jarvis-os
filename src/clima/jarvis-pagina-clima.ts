@@ -1,13 +1,12 @@
 import { mdiChevronRight, mdiFlash, mdiThermometer } from "@mdi/js";
 import { css, html, nothing, svg, type TemplateResult } from "lit";
-import { sensoriConsumo } from "../clima/consumi";
+import { sensoriConsumo } from "./consumi";
 import { PREFERENZE } from "../comune";
 import { connessione } from "../connessione";
 import { descriviErrore, log } from "../diagnostica";
-import { numero } from "../meteo/testi";
-import { navigatore } from "../navigazione/istanza";
+import { numero } from "../meteo";
+import { navigatore, schermate } from "../navigazione";
 import { costruisciStanze, leggiStorico, linea, scalaComune, type Punto, type StanzaVista } from "../casa";
-import { schermate } from "../pagine/preferenze";
 import { OsservaEntita, RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 import "../casa/componenti";
 

@@ -13,10 +13,10 @@ import { descriviErrore, log } from "../diagnostica";
  *  - Hub → riposo: 30 s dopo l'ultima attività (tocco o voce finita);
  *  - Hub → completo: tasto "griglia".
  */
-export type Vista = "completo" | "riposo" | "hub";
+type Vista = "completo" | "riposo" | "hub";
 export type Momento = "mattina" | "giorno" | "sera" | "notte";
 
-export interface ImpostazioniRiposo {
+interface ImpostazioniRiposo {
   /** Minuti senza tocchi prima del riposo; null = mai da solo. */
   attesaMin: number | null;
   /** Ora (0-23) in cui inizia e finisce la notte: luce al minimo, solo ora e timer. */

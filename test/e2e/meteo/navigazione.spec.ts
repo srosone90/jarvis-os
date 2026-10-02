@@ -11,7 +11,6 @@ test.beforeEach(async ({ request }) => {
   await comando(request, "reset");
 });
 
-
 test("tocco sul meteo della casa → schermata Meteo; #meteo nell'indirizzo la apre direttamente", async ({
   page,
 }) => {

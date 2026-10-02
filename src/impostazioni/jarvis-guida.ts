@@ -3,7 +3,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione";
 import { descriviErrore, log } from "../diagnostica";
 import { impostaStanzaPannello, stanzaPannello } from "../voce";
-import { vista } from "../vista/istanza";
+import { vista } from "../riposo";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /**
@@ -24,7 +24,7 @@ const ascoltatori = new Set<() => void>();
  */
 let primaStanza: boolean | null = null;
 
-export function guidaDaFare(): boolean {
+function guidaDaFare(): boolean {
   try {
     if (localStorage.getItem(CHIAVE) === "fatta") return false;
     primaStanza ??= stanzaPannello() !== null;

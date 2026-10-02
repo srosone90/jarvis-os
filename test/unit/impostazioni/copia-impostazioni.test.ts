@@ -9,7 +9,7 @@ import {
   importa,
   leggiFile,
   nomeFile,
-} from "../../src/impostazioni/copia";
+} from "../../../src/impostazioni/copia";
 
 /** v0.5.10: esporta e importa le impostazioni del pannello. */
 

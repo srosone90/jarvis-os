@@ -17,7 +17,7 @@ import { descriviErrore, log } from "../diagnostica";
  */
 export type Principale =
   "casa" | "musica" | "meteo" | "timer" | "clima" | "scene" | "spesa" | "avvisi" | "altro";
-export type Pagina = { tipo: Principale } | { tipo: "stanza"; area: string };
+type Pagina = { tipo: Principale } | { tipo: "stanza"; area: string };
 
 export const PRINCIPALI: readonly { id: Principale; titolo: string }[] = [
   { id: "casa", titolo: "Casa" },
@@ -76,16 +76,16 @@ export function paginaDaHash(hash: string): Pagina | null {
   return null;
 }
 
-export const ugualePagina = (a: Pagina, b: Pagina): boolean => hashDi(a) === hashDi(b);
+const ugualePagina = (a: Pagina, b: Pagina): boolean => hashDi(a) === hashDi(b);
 
 // --- preferenze ------------------------------------------------------------
 
-export interface VoceColonna {
+interface VoceColonna {
   id: Principale;
   dove: Dove;
 }
 
-export interface PreferenzeNavigazione {
+interface PreferenzeNavigazione {
   /** Ordine delle schermate e dove sta ognuna (Casa e Altro sempre nella colonna). */
   voci: VoceColonna[];
   /** Schermata con cui si apre il pannello e a cui si torna senza tocchi (mai una spenta). */
@@ -173,7 +173,7 @@ export function cambiaDove(voci: readonly VoceColonna[], id: Principale, dove: D
 
 // --- stato della navigazione -------------------------------------------------
 
-export interface DipendenzeNavigatore {
+interface DipendenzeNavigatore {
   adesso?: () => number;
   archivio?: Pick<Storage, "getItem" | "setItem"> | null;
   /** Cronologia del browser (Indietro di Android). Null nelle prove. */

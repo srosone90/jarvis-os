@@ -11,7 +11,6 @@ test.beforeEach(async ({ request }) => {
   await comando(request, "reset");
 });
 
-
 test("colonna: Meteo e ritorno a Casa; l'indirizzo segue (#meteo)", async ({ page }) => {
   await accedi(page);
   await expect(page.getByTestId("colonna-casa")).toHaveAttribute("aria-current", "page");

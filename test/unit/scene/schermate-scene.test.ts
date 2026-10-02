@@ -1,9 +1,12 @@
 import type { HassEntities } from "home-assistant-js-websocket";
 import { describe, expect, it, vi } from "vitest";
 
-import { CONFERMA_SCENA_MS, ConfermaScena } from "../../src/scene/attiva";
-import { nomeScena, sceneDa, servizioScena } from "../../src/scene/scene";
-import { leggiPreferenzeSchermate, PREFERENZE_SCHERMATE_DI_SERIE } from "../../src/pagine/preferenze";
+import { CONFERMA_SCENA_MS, ConfermaScena } from "../../../src/scene/attiva";
+import { nomeScena, sceneDa, servizioScena } from "../../../src/scene/scene";
+import {
+  leggiPreferenzeSchermate,
+  PREFERENZE_SCHERMATE_DI_SERIE,
+} from "../../../src/navigazione/preferenze-schermate";
 
 /** v0.5.7: Timer, Clima, Scene, Spesa, Avvisi e Altro. */
 

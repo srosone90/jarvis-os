@@ -2,8 +2,8 @@ import { mdiPause, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
-import { schermate } from "../pagine/preferenze";
-import { vista } from "../vista/istanza";
+import { schermate } from "../navigazione";
+import { vista } from "../riposo";
 import { formattaRimasto, rimastoMs, type TimerAttivo } from "./timer";
 
 /**

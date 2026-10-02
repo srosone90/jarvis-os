@@ -1,8 +1,8 @@
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione";
-import { attivaScena, ConfermaScena } from "../scene/attiva";
-import { sceneDa, type Scena } from "../scene/scene";
-import { schermate } from "../pagine/preferenze";
+import { attivaScena, ConfermaScena } from "./attiva";
+import { sceneDa, type Scena } from "./scene";
+import { schermate } from "../navigazione";
 import { OsservaEntita, RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 /**

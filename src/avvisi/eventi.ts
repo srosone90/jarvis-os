@@ -13,7 +13,7 @@ import { dominio } from "../casa";
  *  - **connessione**: le interruzioni viste da questo pannello (Home Assistant
  *    irraggiungibile non lo può scrivere nel suo registro).
  */
-export type TipoEvento = "dispositivo" | "batteria" | "connessione";
+type TipoEvento = "dispositivo" | "batteria" | "connessione";
 
 export interface EventoCasa {
   /** Chiave stabile per la lista. */
@@ -115,7 +115,7 @@ export function eventiDaRegistro(righe: unknown, nomeDi: (entita: string) => str
   return eventi.sort((a, b) => b.quando - a.quando);
 }
 
-export interface BatteriaBassa {
+interface BatteriaBassa {
   entita: string;
   nome: string;
   /** Percentuale, o null se il sensore dice solo "bassa" (binary_sensor). */

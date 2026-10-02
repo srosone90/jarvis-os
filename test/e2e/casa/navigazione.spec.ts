@@ -11,7 +11,6 @@ test.beforeEach(async ({ request }) => {
   await comando(request, "reset");
 });
 
-
 test("Stanza: dal nome della stanza, grafico dallo storico di HA e i dispositivi; Indietro torna a Casa", async ({
   page,
   request,

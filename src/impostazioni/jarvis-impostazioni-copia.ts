@@ -11,7 +11,7 @@ import {
   leggiFile,
   nomeFile,
   type FileImpostazioni,
-} from "../impostazioni/copia";
+} from "./copia";
 import { stanzaPannello } from "../voce";
 import { RiquadroSicuro, icona, stileBase, stileCampi } from "../interfaccia";
 

@@ -10,7 +10,7 @@ import {
   riconosci,
   RILEGGI_OGNI_MS,
   type DispositivoSpotify,
-} from "../../src/musica/dispositivi";
+} from "../../../src/musica/dispositivi";
 
 /** v0.5.9: la musica dal dispositivo del pannello, e «Collega questo dispositivo». */
 

@@ -74,7 +74,7 @@ export function salvaPreferenzeMeteo(p: PreferenzeMeteo): void {
   }
 }
 
-export interface OraMostrata {
+interface OraMostrata {
   ora: string;
   temperatura: string | null;
   condizione: { testo: string; icona: string };

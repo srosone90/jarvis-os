@@ -1,8 +1,8 @@
 import type { HassEntities } from "home-assistant-js-websocket";
 import { describe, expect, it } from "vitest";
-import { sensoriConsumo } from "../../src/clima/consumi";
+import { sensoriConsumo } from "../../../src/clima/consumi";
 
-import { linea, scalaComune } from "../../src/casa/storico";
+import { linea, scalaComune } from "../../../src/casa/storico";
 
 /** v0.5.7: Timer, Clima, Scene, Spesa, Avvisi e Altro. */
 

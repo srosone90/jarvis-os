@@ -2,7 +2,7 @@ import { mdiPauseCircleOutline, mdiTimerOutline } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { avvisi } from "../comune";
 import { connessione } from "../connessione";
-import { schermate } from "../pagine/preferenze";
+import { schermate } from "../navigazione";
 import { durataParlata, etichettaDurata } from "./frasi";
 import { slugStanza } from "./pannello";
 import { formattaRimasto, rimastoMs, type AzioneTimer, type TimerAttivo } from "./timer";

@@ -1,11 +1,11 @@
 import { connessione } from "./connessione";
 import { descriviErrore, log } from "./diagnostica";
 import { avviaRicaricaNotturna, passaAllOrigineVeloce, registraServiceWorker, sorvegliaRitorno } from "./pwa";
-import "./ui/jarvis-app";
+import "./app";
 import "./fotocamera/componenti";
 import { audioSveglio } from "./voce";
-import { avviaNavigatore } from "./navigazione/istanza";
-import { vista } from "./vista/istanza";
+import { avviaNavigatore } from "./navigazione";
+import { vista } from "./riposo";
 
 // Nessun errore deve sparire in silenzio: tutto finisce nel log diagnostico.
 window.addEventListener("error", (e) => log.errore(`Errore: ${e.message} (${e.filename}:${e.lineno})`));

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info } from "./aiuti";
+import { accedi, apriImpostazioni, comando, info } from "../aiuti";
 
 /**
  * Fase G (v0.4.8), scelte di Salvatore del 30/09: schermo a riposo C (sfera),
@@ -14,11 +14,6 @@ test.beforeEach(async ({ request }) => {
 const riposo = (page: Page) => page.getByTestId("riposo");
 
 /** Senza notte (da = a): le prove girano a qualunque ora, anche dopo le 23. */
-async function senzaNotte(page: Page): Promise<void> {
-  await page.addInitScript(() =>
-    localStorage.setItem("jarvis-riposo", JSON.stringify({ attesaMin: 2, notteDa: 0, notteA: 0 })),
-  );
-}
 const completo = (page: Page) => page.getByRole("button", { name: "Chiedi a Jarvis…" });
 
 /** A riposo subito, dalle impostazioni ("Metti a riposo"), senza aspettare i 2 minuti. */
@@ -27,7 +22,6 @@ async function mettiARiposo(page: Page): Promise<void> {
   await page.getByTestId("prova-riposo").click();
   await expect(riposo(page)).toBeVisible();
 }
-
 
 test("tocco sulla sfera: Hub in ascolto, domanda e risposta come sottotitoli, poi di nuovo a riposo", async ({
   page,

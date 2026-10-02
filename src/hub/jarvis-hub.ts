@@ -3,7 +3,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { messaggioErrore } from "../assistente";
 import { connessione } from "../connessione";
 import { stanzaPannello } from "../voce";
-import { vista } from "../vista/istanza";
+import { vista } from "../riposo";
 import {
   OsservaConnessione,
   RiquadroSicuro,

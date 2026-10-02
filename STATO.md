@@ -28,7 +28,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 | 2. Ascolto dopo la risposta + errori di Google | **già fatta con la v0.5.8**: 8 s dopo una domanda, 2 s dopo un'azione (0 = chiude subito), sensibilità del parlato, suono breve e «Google non risponde» distinto dal silenzio di stt-no-text-recognized |
 | Carattere di Jarvis «in stile Tony Stark» | **fatto**: `docs/ISTRUZIONI-JARVIS.md`, da applicare lato server |
 | 3. Modello su misura per «Jarvis» | **non fattibile in questo ambiente**: piano dettagliato in «Modello su misura per «Jarvis»: piano» qui sotto. Resta `hey_jarvis` col verificatore della pronuncia |
-| 4. Riordino in moduli | in corso: blocco 1 → v0.6.1; blocco 2 (voce, parola, assistente, timer, annunci, fotocamera) → v0.6.3; blocco 3 dopo |
+| 4. Riordino in moduli | **fatto**: blocco 1 → v0.6.1, blocco 2 → v0.6.3, blocco 3 → v0.6.4. 23 moduli, mappa in cima al CLAUDE.md |
 
 ## Valutazione della fotocamera (v0.6.0, punto 7.1, scritta prima del codice)
 
@@ -248,6 +248,16 @@ Ogni riga: cosa, perché, dove si cambia.
   fotocamera: quella finta di Chromium si muove sempre e sveglierebbe il
   pannello in tutte le altre prove.
 
+## Incidente del riordino (02/10, mio errore)
+
+Il commit `f4fd966` («STATO: sha della release v0.6.2») doveva contenere solo
+STATO.md e si è portato dietro 50 file del blocco 3 spostati a metà (senza
+gli import riscritti): su quel commit il codice non compila e la CI è rossa.
+**Nessuna release ne è uscita** (la release rifà la verifica completa prima
+di pubblicare, e la v0.6.3 era già in coda col suo commit giusto). Il commit
+dopo, quello della v0.6.4, completa il blocco 3 e rimette il branch a posto.
+Lezione scritta nel CLAUDE.md.
+
 ## Bug trovati durante il riordino
 
 Per regola del piano qui si annotano e **non** si correggono, così il
@@ -373,7 +383,16 @@ faccio io.
   mentre Jarvis ascolta o parla; quando suona resta «Timer finito».
   Impostazioni → Schermate → Timer: acceso/spento e i secondi.
 
-- **In corso: riordino (Parte 4), blocco 2 → v0.6.3** (voce, parola,
+- **Finito: riordino (Parte 4), blocco 3 → v0.6.4** (musica, meteo, clima,
+  scene, spesa, avvisi, riposo, Hub, navigazione, impostazioni, app). Con
+  questo il riordino è completo: 23 moduli, ognuno con cartella, contratto e
+  `npm run test:<modulo>`; nessun import fuori contratto, nessun giro
+  chiuso. Nessun cambiamento per chi usa il pannello.
+- **Domanda per la sessione server**: la lista della spesa
+  (`todo.shopping_list`) è esposta ad Assist? Le istruzioni di Jarvis
+  (sezione 9) dicono di usarla solo se lo è.
+
+- **Fatto: riordino (Parte 4), blocco 2 → v0.6.3** (voce, parola,
   assistente, timer, annunci, fotocamera). Nessun cambiamento per chi usa il
   pannello. Controllo del codice: tolte 4 costanti mai usate
   (`RIQUADRO_DOPO_MS`, `LUNGHEZZA_CARATTERISTICHE`, `LINGUA`, `ANCORE`), 71

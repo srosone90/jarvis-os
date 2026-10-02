@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info, soloComandi } from "./aiuti";
+import { accedi, apriImpostazioni, comando, info, soloComandi } from "../aiuti";
 
 /**
  * v0.5.7: le altre schermate del mockup N2 (Timer, Clima, Scene, Spesa,

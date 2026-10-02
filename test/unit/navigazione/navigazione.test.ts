@@ -6,7 +6,7 @@ import {
   PREFERENZE_METEO_DI_SERIE,
   prossimeOre,
   vento,
-} from "../../src/meteo/dettagli";
+} from "../../../src/meteo/dettagli";
 import {
   cambiaDove,
   hashDi,
@@ -15,8 +15,8 @@ import {
   paginaDaHash,
   PREFERENZE_NAVIGAZIONE_DI_SERIE,
   spostaVoce,
-} from "../../src/navigazione/navigazione";
-import { leggiPreferenzeStorico, linea, puntiDa } from "../../src/casa/storico";
+} from "../../../src/navigazione/navigazione";
+import { leggiPreferenzeStorico, linea, puntiDa } from "../../../src/casa/storico";
 
 /** v0.5.5: navigazione N2, schermate Meteo e Stanza. */
 

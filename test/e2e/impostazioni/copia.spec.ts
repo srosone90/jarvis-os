@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
-import { accedi, apriImpostazioni, comando } from "./aiuti";
+import { accedi, apriImpostazioni, comando } from "../aiuti";
 
 /**
  * v0.5.10: esporta e importa le impostazioni (Impostazioni → Esporta e

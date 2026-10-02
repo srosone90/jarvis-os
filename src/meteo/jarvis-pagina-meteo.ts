@@ -10,13 +10,13 @@ import {
   prossimeOre,
   vento,
   type PreferenzeMeteo,
-} from "../meteo/dettagli";
-import { osservaPrevisione } from "../meteo/previsione";
-import { condizione, gradiInteri, numero, type PrevisioneGiorno } from "../meteo/testi";
+} from "./dettagli";
+import { osservaPrevisione } from "./previsione";
+import { condizione, gradiInteri, numero, type PrevisioneGiorno } from "./testi";
 import { OsservaEntita, RiquadroSicuro, icona, stileBase } from "../interfaccia";
 
 /** Alba e tramonto: l'entità di serie di Home Assistant (integrazione Sole). */
-export const SOLE = "sun.sun";
+const SOLE = "sun.sun";
 
 /**
  * Schermata Meteo (v0.5.5, mockup N2 "3 · Meteo"): adesso, prossime ore,

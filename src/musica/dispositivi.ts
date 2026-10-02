@@ -134,7 +134,7 @@ export function riconosci(
 }
 
 export const PLAY_STORE_SPOTIFY = "https://play.google.com/store/apps/details?id=com.spotify.music";
-export const SPOTIFY_WEB = "https://open.spotify.com";
+const SPOTIFY_WEB = "https://open.spotify.com";
 
 /**
  * Cosa aprire per collegare questo dispositivo. Android: l'intent apre l'app
@@ -160,7 +160,7 @@ export const CERCA_PER_MS = 60_000;
 /** Se il pannello non va mai in secondo piano (popup bloccato…), si comincia a cercare lo stesso. */
 export const INIZIA_COMUNQUE_MS = 5000;
 
-export type StatoCollega =
+type StatoCollega =
   | { fase: "fermo" }
   | { fase: "apro" }
   | { fase: "cerco" }
@@ -169,7 +169,7 @@ export type StatoCollega =
   | { fase: "nonVisto" }
   | { fase: "errore"; messaggio: string };
 
-export interface DipendenzeCollega {
+interface DipendenzeCollega {
   /** jarvis_musica.<servizio> con la risposta. */
   chiama: (servizio: string, dati: Record<string, unknown>) => Promise<Record<string, unknown>>;
   /** device_id di questo pannello ("jarvis_cucina"); null senza stanza. */

@@ -8,7 +8,7 @@ import {
   playlistDa,
   posizioneAdesso,
   PREFERENZE_MUSICA_DI_SERIE,
-} from "../../src/musica/musica";
+} from "../../../src/musica/musica";
 
 const risposta = {
   esito: "ok",

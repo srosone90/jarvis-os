@@ -7,7 +7,7 @@ import {
   leggiImpostazioni,
   momentoDi,
   prossimaVista,
-} from "../../src/vista/vista";
+} from "../../../src/riposo/vista";
 
 const imp = IMPOSTAZIONI_PREDEFINITE;
 

@@ -1,33 +1,31 @@
 import { mdiArrowDown, mdiArrowUp } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
 import {
-  caricaPreferenzeMeteo,
   LIMITI_METEO,
   PREFERENZE_METEO_DI_SERIE,
+  caricaPreferenzeMeteo,
   salvaPreferenzeMeteo,
   type PreferenzeMeteo,
   type UnitaVento,
-} from "../meteo/dettagli";
+} from "../meteo";
 import { connessione } from "../connessione";
-import { LIMITI_MUSICA, PREFERENZE_MUSICA_DI_SERIE, type PosizioneMini } from "../musica/musica";
-import { navigatore } from "../navigazione/istanza";
+import { LIMITI_MUSICA, PREFERENZE_MUSICA_DI_SERIE, type PosizioneMini } from "../musica";
 import {
-  cambiaDove,
   FISSE,
   LIMITI_NAVIGAZIONE,
+  LIMITI_SCHERMATE,
   PREFERENZE_NAVIGAZIONE_DI_SERIE,
+  PREFERENZE_SCHERMATE_DI_SERIE,
+  cambiaDove,
+  durateDa,
+  navigatore,
+  sceneDa,
+  schermate,
   spostaVoce,
   titoloDi,
   type Dove,
   type Principale,
-} from "../navigazione/navigazione";
-import {
-  durateDa,
-  LIMITI_SCHERMATE,
-  PREFERENZE_SCHERMATE_DI_SERIE,
-  sceneDa,
-  schermate,
-} from "../pagine/preferenze";
+} from "../navigazione";
 import {
   LIMITI_STORICO,
   PREFERENZE_STORICO_DI_SERIE,

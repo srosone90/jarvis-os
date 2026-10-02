@@ -1,7 +1,7 @@
 import { mdiCircleSlice8 } from "@mdi/js";
 import { css, html, type TemplateResult } from "lit";
-import { navigatore } from "../navigazione/istanza";
-import { vista } from "../vista/istanza";
+import { navigatore } from "./istanza";
+import { vista } from "../riposo";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import { ICONE_SCHERMATE } from "./icone-schermate";
 

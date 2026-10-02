@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info } from "./aiuti";
+import { accedi, apriImpostazioni, comando, info } from "../aiuti";
 
 /**
  * Musica M1 + mini-lettore (v0.5.6). Il finto HA fa jarvis_musica 0.4.0:

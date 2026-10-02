@@ -3,8 +3,8 @@ import { callService } from "home-assistant-js-websocket";
 import { css, html, nothing, type TemplateResult } from "lit";
 import { avvisi } from "../comune";
 import { connessione } from "../connessione";
-import { schermate } from "../pagine/preferenze";
-import { ListaSpesa, ordinaSpesa, type VoceSpesa } from "../spesa/spesa";
+import { schermate } from "../navigazione";
+import { ListaSpesa, ordinaSpesa, type VoceSpesa } from "./spesa";
 import { RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 /**

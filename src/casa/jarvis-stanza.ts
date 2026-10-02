@@ -3,7 +3,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import type { StanzaVista } from "./modello";
 import { connessione } from "../connessione";
 import { log } from "../diagnostica";
-import { numero } from "../meteo/testi";
+import { numero } from "../meteo";
 import { OsservaEntita, RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import "./jarvis-card-clima";
 import "./jarvis-card-generica";

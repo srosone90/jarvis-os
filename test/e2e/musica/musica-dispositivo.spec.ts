@@ -1,5 +1,5 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
-import { accedi, apriImpostazioni, comando, info } from "./aiuti";
+import { accedi, apriImpostazioni, comando, info } from "../aiuti";
 
 /**
  * v0.5.9: la musica parte dal dispositivo da cui la chiedi (jarvis_musica

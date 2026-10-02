@@ -11,9 +11,9 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE } from "../comune";
 import { connessione } from "../connessione";
 import { descriviErrore, log } from "../diagnostica";
-import { batterieBasse, durataTesto, eventiDaRegistro, quandoTesto, type EventoCasa } from "../eventi/eventi";
+import { batterieBasse, durataTesto, eventiDaRegistro, quandoTesto, type EventoCasa } from "./eventi";
 import { costruisciStanze } from "../casa";
-import { schermate } from "../pagine/preferenze";
+import { schermate } from "../navigazione";
 import { OsservaEntita, RiquadroSicuro, icona, stileBase, stilePagina } from "../interfaccia";
 
 type Filtro = "tutti" | "dispositivi" | "batterie" | "connessione";

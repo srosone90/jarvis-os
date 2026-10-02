@@ -3,7 +3,7 @@ import {
   LIMITI_SCHERMATE,
   leggiPreferenzeSchermate,
   PREFERENZE_SCHERMATE_DI_SERIE,
-} from "../../../src/pagine/preferenze";
+} from "../../../src/navigazione/preferenze-schermate";
 import type { TimerAttivo } from "../../../src/timer/timer";
 import {
   grandezzaCifre,

@@ -63,7 +63,7 @@ export interface PrevisioneGiorno {
   precipitation_probability?: number;
 }
 
-export interface GiornoMostrato {
+interface GiornoMostrato {
   etichetta: string;
   massima: string | null;
   minima: string | null;

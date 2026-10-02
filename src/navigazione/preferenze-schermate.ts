@@ -1,3 +1,4 @@
+import { limitaIntero } from "../comune";
 import { descriviErrore, log } from "../diagnostica";
 
 /**
@@ -5,7 +6,7 @@ import { descriviErrore, log } from "../diagnostica";
  * Avvisi), più il timer a tutto schermo (v0.6.2): preferenze di questo pannello, ognuna col suo valore di serie e
  * «Ripristina» in Impostazioni → Schermate.
  */
-export interface PreferenzeSchermate {
+interface PreferenzeSchermate {
   /** Minuti dei pulsanti «nuovo timer», in ordine. Vuoto = nessun pulsante. */
   timerDurate: number[];
   /** v0.6.2: con un timer attivo, il timer copre tutto lo schermo quando nessuno tocca. */
@@ -61,8 +62,6 @@ const CHIAVE = "jarvis-schermate";
 const ENTITA_SCENA = /^(script|scene)\.[a-z0-9_]+$/;
 const ENTITA_LISTA = /^todo\.[a-z0-9_]+$/;
 
-const limita = (v: number, [min, max]: readonly [number, number]) =>
-  Math.round(Math.min(max, Math.max(min, v)));
 const numeroValido = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 /** "1, 3, 5,10" → [1, 3, 5, 10]: numeri interi nei limiti, senza doppioni, in ordine. */
@@ -76,7 +75,7 @@ export function durateDa(v: unknown): number[] {
           .map(Number)
       : v;
   if (!Array.isArray(grezzi)) return [];
-  const numeri = grezzi.filter(numeroValido).map((n) => limita(n, LIMITI_SCHERMATE.durata));
+  const numeri = grezzi.filter(numeroValido).map((n) => limitaIntero(n, LIMITI_SCHERMATE.durata));
   return [...new Set(numeri)].sort((a, b) => a - b).slice(0, LIMITI_SCHERMATE.quanteDurate);
 }
 
@@ -105,19 +104,19 @@ export function leggiPreferenzeSchermate(grezzo: string | null): PreferenzeScher
   if (Array.isArray(d["timerDurate"])) p.timerDurate = durateDa(d["timerDurate"]);
   if (typeof d["timerPieno"] === "boolean") p.timerPieno = d["timerPieno"];
   if (numeroValido(d["timerPienoSecondi"]))
-    p.timerPienoSecondi = limita(d["timerPienoSecondi"], LIMITI_SCHERMATE.timerPienoSecondi);
-  if (numeroValido(d["climaOre"])) p.climaOre = limita(d["climaOre"], LIMITI_SCHERMATE.climaOre);
+    p.timerPienoSecondi = limitaIntero(d["timerPienoSecondi"], LIMITI_SCHERMATE.timerPienoSecondi);
+  if (numeroValido(d["climaOre"])) p.climaOre = limitaIntero(d["climaOre"], LIMITI_SCHERMATE.climaOre);
   if (typeof d["climaConsumi"] === "boolean") p.climaConsumi = d["climaConsumi"];
   if (Array.isArray(d["scene"])) p.scene = sceneDa(d["scene"]);
   if (typeof d["sceneConferma"] === "boolean") p.sceneConferma = d["sceneConferma"];
   if (numeroValido(d["sceneConfermaSecondi"]))
-    p.sceneConfermaSecondi = limita(d["sceneConfermaSecondi"], LIMITI_SCHERMATE.sceneConfermaSecondi);
+    p.sceneConfermaSecondi = limitaIntero(d["sceneConfermaSecondi"], LIMITI_SCHERMATE.sceneConfermaSecondi);
   if (typeof d["spesaLista"] === "string" && ENTITA_LISTA.test(d["spesaLista"].trim()))
     p.spesaLista = d["spesaLista"].trim();
   if (typeof d["spesaPresi"] === "boolean") p.spesaPresi = d["spesaPresi"];
-  if (numeroValido(d["avvisiOre"])) p.avvisiOre = limita(d["avvisiOre"], LIMITI_SCHERMATE.avvisiOre);
+  if (numeroValido(d["avvisiOre"])) p.avvisiOre = limitaIntero(d["avvisiOre"], LIMITI_SCHERMATE.avvisiOre);
   if (numeroValido(d["avvisiSogliaBatteria"]))
-    p.avvisiSogliaBatteria = limita(d["avvisiSogliaBatteria"], LIMITI_SCHERMATE.avvisiSogliaBatteria);
+    p.avvisiSogliaBatteria = limitaIntero(d["avvisiSogliaBatteria"], LIMITI_SCHERMATE.avvisiSogliaBatteria);
   return p;
 }
 
