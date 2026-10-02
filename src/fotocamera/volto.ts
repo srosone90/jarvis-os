@@ -8,7 +8,6 @@
 
 export const LARGHEZZA_MODELLO = 320;
 export const ALTEZZA_MODELLO = 240;
-export const ANCORE = 4420;
 
 export interface Volto {
   x1: number;
@@ -24,7 +23,7 @@ export interface Volto {
  * 1,155 m a 1 m). Misurato sulle immagini di prova: 0,18 a ~0,8 m, 0,07 a
  * ~2 m. Da tarare col tablet vero (la distanza è personalizzabile).
  */
-export const LARGHEZZA_A_UN_METRO = 0.139;
+const LARGHEZZA_A_UN_METRO = 0.139;
 
 /** L'immagine 320×240 (RGBA) come la vuole il modello: NCHW, (pixel − 127) / 128. */
 export function ingresso(rgba: Uint8ClampedArray | Uint8Array): Float32Array {

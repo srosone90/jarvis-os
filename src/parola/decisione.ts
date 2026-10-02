@@ -23,7 +23,7 @@
  * usano la stessa classe.
  */
 
-export interface OpzioniAdattiva {
+interface OpzioniAdattiva {
   attiva: boolean;
   /** Quanto sale (o scende) a ogni cambio. */
   passo: number;

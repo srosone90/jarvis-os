@@ -23,11 +23,10 @@
  * voci inglesi) non ci arriva quasi mai.
  */
 
-export const LUNGHEZZA_CARATTERISTICHE = 16 * 96;
 /** `custom_verifier_threshold` predefinito di openWakeWord. */
 export const SOGLIA_BASE_PREDEFINITA = 0.1;
 /** `LogisticRegression(C=0.001)` di openWakeWord. */
-export const C_PREDEFINITO = 0.001;
+const C_PREDEFINITO = 0.001;
 
 export interface Verificatore {
   versione: 1;
@@ -122,7 +121,7 @@ export function sogliaBaseConsigliata(massimi: number[]): number {
 
 // --- Addestramento ----------------------------------------------------------------
 
-export interface OpzioniAddestramento {
+interface OpzioniAddestramento {
   C?: number;
   iterazioniMassime?: number;
   /** Tolleranza sul gradiente (norma infinito, obiettivo diviso per N). */
@@ -319,9 +318,9 @@ async function lbfgs(
 /** Mai sotto: la soglia personale accelera lo scatto, non lo rende facile per chiunque. */
 export const SOGLIA_PERSONALE_MINIMA = 0.2;
 /** Mai sopra la soglia di serie: la strada veloce non rende «Jarvis» più duro d'orecchi. */
-export const SOGLIA_PERSONALE_MASSIMA = 0.5;
+const SOGLIA_PERSONALE_MASSIMA = 0.5;
 /** Distanza minima dal punteggio più alto del parlato normale. */
-export const MARGINE_DAI_NEGATIVI = 0.1;
+const MARGINE_DAI_NEGATIVI = 0.1;
 
 /**
  * Soglia personale di scatto (v0.5.3, "strada veloce" per «Jarvis» detto da

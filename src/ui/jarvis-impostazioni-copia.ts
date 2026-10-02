@@ -12,7 +12,7 @@ import {
   nomeFile,
   type FileImpostazioni,
 } from "../impostazioni/copia";
-import { stanzaPannello } from "../voce/stanza-pannello";
+import { stanzaPannello } from "../voce";
 import { RiquadroSicuro, icona, stileBase, stileCampi } from "../interfaccia";
 
 /**

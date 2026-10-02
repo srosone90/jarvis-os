@@ -1,16 +1,25 @@
-import type { Assistente } from "../assistente/assistente";
-import { messaggioMicrofono, problemaDaErrore, type MessaggioMicrofono } from "../assistente/messaggi";
+import {
+  messaggioMicrofono,
+  problemaDaErrore,
+  type Assistente,
+  type MessaggioMicrofono,
+} from "../assistente";
 import { descriviErrore, log } from "../diagnostica";
-import type { Timer } from "../timer/timer";
-import { Microfono, MicrofonoNonDisponibile } from "../voce/microfono";
-import type { MicrofonoCondiviso } from "../voce/microfono-condiviso";
-import type { DoveVoce, Voce } from "../voce/voce";
-import type { Presenza } from "../fotocamera/presenza";
-import { RilevaParlato } from "../voce/parlato";
+import type { Timer } from "../timer";
+import {
+  Microfono,
+  MicrofonoNonDisponibile,
+  RilevaParlato,
+  contestoPrima,
+  inizioRichiesta,
+  type DoveVoce,
+  type MicrofonoCondiviso,
+  type Voce,
+} from "../voce";
+import type { Presenza } from "../fotocamera";
 import { MemoriaCircolare } from "./memoria";
 import type { EsitoParola, MotoreParola } from "./motore";
 import { DecisioneScatto, type CambioSoglia, type Soglie } from "./decisione";
-import { contestoPrima, inizioRichiesta } from "./inizio-frase";
 import {
   leggiPreferenzeParola,
   opzioniDecisione,
@@ -18,6 +27,7 @@ import {
   type PreferenzeParola,
 } from "./preferenze";
 import { eComandoStop } from "./stop";
+import { virgola } from "../comune";
 
 /**
  * «Jarvis» sempre in ascolto (v0.5.0, decisioni del 30/09 in CLAUDE.md).
@@ -41,7 +51,7 @@ import { eComandoStop } from "./stop";
  *  - Android: il microfono vive solo con la pagina in primo piano e lo schermo
  *    acceso. Wake Lock mentre ascolta, e ripresa quando la pagina torna visibile.
  */
-export type StatoAscolto = "spento" | "carica" | "ascolta" | "fermo" | "nonDisponibile";
+type StatoAscolto = "spento" | "carica" | "ascolta" | "fermo" | "nonDisponibile";
 
 const CHIAVE = "jarvis-parola";
 /**
@@ -55,16 +65,16 @@ export const PAUSA_DOPO_SCATTO_MS = 2000;
 /** Dopo la risposta di Jarvis: la coda dell'audio dall'altoparlante non deve farlo ripartire. */
 export const PAUSA_DOPO_VOCE_MS = 1500;
 /** Indicatore dal vivo delle impostazioni: il punteggio più alto di questa finestra. */
-export const FINESTRA_DAL_VIVO_MS = 3000;
+const FINESTRA_DAL_VIVO_MS = 3000;
 /**
  * Riepilogo nel registro (v0.5.1): ogni 30 s nei primi 10 minuti di ascolto e
  * ogni volta che qualcosa somiglia alla parola (≥ 0,05); dopo, uno ogni 10
  * minuti. Il registro tiene 200 voci: un riepilogo fisso ogni 30 s le
  * riempirebbe in meno di due ore, buttando via gli errori veri.
  */
-export const RIEPILOGO_OGNI_MS = 30_000;
-export const RIEPILOGO_FITTO_PER_MS = 10 * 60_000;
-export const RIEPILOGO_RADO_OGNI_MS = 10 * 60_000;
+const RIEPILOGO_OGNI_MS = 30_000;
+const RIEPILOGO_FITTO_PER_MS = 10 * 60_000;
+const RIEPILOGO_RADO_OGNI_MS = 10 * 60_000;
 export const RIEPILOGO_SE_ALMENO = 0.05;
 
 /** Il riepilogo di questa finestra va nel registro? Logica pura. */
@@ -77,7 +87,7 @@ export function riepilogoDaScrivere(
   return daUltimoScritto >= RIEPILOGO_RADO_OGNI_MS;
 }
 
-export interface DalVivo {
+interface DalVivo {
   /** Punteggio finale più alto degli ultimi 3 s. */
   punteggio: number;
   /** Punteggio del modello di base più alto degli ultimi 3 s. */
@@ -90,7 +100,7 @@ export interface DalVivo {
 /** Se il dispositivo resta indietro di tanto, si butta l'audio vecchio (e lo si dice). */
 const RITARDO_MASSIMO_FRAME = 25;
 
-export interface DipendenzeAscolto {
+interface DipendenzeAscolto {
   micro: Pick<MicrofonoCondiviso, "apriContinuo" | "chiudiContinuo" | "livello">;
   /** Il contesto prima della frase va a HA da qui (v0.5.3). */
   assistente: Pick<Assistente, "inviaContesto" | "occupato">;
@@ -107,7 +117,7 @@ export interface DipendenzeAscolto {
   adesso?: () => number;
 }
 
-export interface Statistiche {
+interface Statistiche {
   frame: number;
   scartati: number;
   msMedio: number;
@@ -463,7 +473,7 @@ export class AscoltoParola {
 
   private scriviCambio(c: CambioSoglia | null): void {
     if (!c) return;
-    const f = (n: number): string => n.toFixed(2).replace(".", ",");
+    const f = (n: number): string => virgola(n, 2);
     log.info(
       `«Jarvis»: soglia ${c.aumento > 0 ? `+${f(c.aumento)} sopra la sua base` : "tornata alla sua base"} (${c.motivo})`,
     );
@@ -494,7 +504,7 @@ export class AscoltoParola {
     r.livello = Math.max(r.livello, this.dip.micro.livello);
     if (adesso - r.da < RIEPILOGO_OGNI_MS) return;
     if (riepilogoDaScrivere(r.massimo, adesso - this.inizioAscolto, adesso - this.ultimoRiepilogo)) {
-      const f = (n: number): string => n.toFixed(2).replace(".", ",");
+      const f = (n: number): string => virgola(n, 2);
       log.info(
         `«Jarvis» negli ultimi ${Math.round((adesso - r.da) / 1000)} s: punteggio massimo ${f(r.massimo)}` +
           `${r.base !== r.massimo ? ` (modello base ${f(r.base)})` : ""}, livello del microfono fino a ${f(r.livello)}, ${r.frame} pezzi`,
@@ -560,7 +570,7 @@ export class AscoltoParola {
     this.memoria.svuota();
     const contestoInviato = contesto ? this.dip.assistente.inviaContesto(contesto) : false;
     const suonava = this.dip.timer.suonano.length > 0;
-    const s = (n: number): string => (n / 16000).toFixed(1).replace(".", ",");
+    const s = (n: number): string => virgola(n / 16000, 1);
     // per imparare, se poi la trascrizione è vuota (v0.5.4)
     const istantanea = motore.istantanea();
     log.info(

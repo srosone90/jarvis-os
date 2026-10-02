@@ -1,5 +1,5 @@
 import { descriviErrore, log } from "../diagnostica";
-import { Ricampionatore } from "../parola/ricampiona";
+import { Ricampionatore } from "./ricampiona";
 import { Microfono, type Ascoltatori, type Elaborazione } from "./microfono";
 
 /**
@@ -9,7 +9,7 @@ import { Microfono, type Ascoltatori, type Elaborazione } from "./microfono";
  * domanda. Tutto esce a 16 kHz (si ricampiona se il browser non li concede),
  * quindi a HA si dichiara sempre 16000.
  */
-export const FREQUENZA = 16000;
+const FREQUENZA = 16000;
 
 /** Quello che la voce usa del microfono: la classe Microfono va bene, e anche la faccia condivisa. */
 export interface SorgenteMicrofono {
@@ -19,7 +19,7 @@ export interface SorgenteMicrofono {
   ferma(): void;
 }
 
-export interface AscoltatoreContinuo {
+interface AscoltatoreContinuo {
   pezzo: (pcm: Int16Array) => void;
   /** Il sistema ha chiuso il microfono (Android in secondo piano, schermo spento). */
   interrotto: () => void;
@@ -27,7 +27,7 @@ export interface AscoltatoreContinuo {
 
 const CHIAVE_ELABORAZIONE = "jarvis-microfono";
 /** Di serie (v0.5.1): solo la cancellazione dell'eco, niente riduzione del rumore né guadagno automatico. */
-export const ELABORAZIONE_DI_SERIE: Elaborazione = "solo-eco";
+const ELABORAZIONE_DI_SERIE: Elaborazione = "solo-eco";
 
 export function leggiElaborazione(grezzo: string | null): Elaborazione {
   if (grezzo === null) return ELABORAZIONE_DI_SERIE;

@@ -1,4 +1,4 @@
-import { RMS_MINIMO_VOCE, VOLTE_IL_FONDO } from "../parola/inizio-frase";
+import { RMS_MINIMO_VOCE, VOLTE_IL_FONDO } from "./inizio-frase";
 import type { SensibilitaParlato } from "./preferenze-voce";
 
 /**
@@ -13,10 +13,10 @@ import type { SensibilitaParlato } from "./preferenze-voce";
  * subito non deve aspettare. Servono due pezzi di fila (~130 ms): un colpo
  * secco o un clic non apre una domanda.
  */
-export const RMS_CERTAMENTE_VOCE = 1000;
-export const PEZZI_DI_FILA = 2;
+const RMS_CERTAMENTE_VOCE = 1000;
+const PEZZI_DI_FILA = 2;
 
-export function rms(pcm: Int16Array): number {
+function rms(pcm: Int16Array): number {
   if (pcm.length === 0) return 0;
   let somma = 0;
   for (const x of pcm) somma += x * x;

@@ -1,7 +1,7 @@
 import type { Connection } from "home-assistant-js-websocket";
-import type { Assistente } from "../assistente/assistente";
+import type { Assistente } from "../assistente";
 import { descriviErrore, log } from "../diagnostica";
-import type { DoveVoce, Voce } from "../voce/voce";
+import type { DoveVoce, Voce } from "../voce";
 
 /**
  * Jarvis parla per primo (v0.5.4). Lato server `jarvis_voce` 0.2.8: il
@@ -35,7 +35,7 @@ export interface Annuncio {
   ascolta: boolean;
 }
 
-export interface Promemoria {
+interface Promemoria {
   id: number;
   testo: string;
   ora: number;
@@ -54,7 +54,7 @@ export function leggiAnnuncio(dati: unknown): Annuncio | null {
 
 // --- preferenze del pannello -------------------------------------------------
 
-export interface PreferenzeAnnunci {
+interface PreferenzeAnnunci {
   /** Niente voce: gli annunci restano scritti a riposo. */
   soloTesto: boolean;
   /** Volume degli annunci, 0-100 (del volume del tablet). */
@@ -91,7 +91,7 @@ export function leggiPreferenzeAnnunci(grezzo: string | null): PreferenzeAnnunci
   return p;
 }
 
-export interface DipendenzeAnnunci {
+interface DipendenzeAnnunci {
   /** device_id di questo pannello (come per i timer: jarvis_<area>, o jarvis_pannello). */
   mio: () => string;
   voce: Pick<Voce, "annuncia" | "attiva" | "ascolta">;

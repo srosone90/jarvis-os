@@ -1,8 +1,8 @@
 import { mdiViewGrid } from "@mdi/js";
 import { css, html, nothing, type TemplateResult } from "lit";
-import { messaggioErrore } from "../assistente/messaggi";
+import { messaggioErrore } from "../assistente";
 import { connessione } from "../connessione";
-import { stanzaPannello } from "../voce/stanza-pannello";
+import { stanzaPannello } from "../voce";
 import { vista } from "../vista/istanza";
 import {
   OsservaConnessione,
@@ -13,7 +13,7 @@ import {
   type StatoSfera,
 } from "../interfaccia";
 import "../connessione/componenti";
-import "./jarvis-timer";
+import "../timer/componenti";
 
 /**
  * Hub, variante H1 (scelta di Salvatore, 30/09): la sfera al centro, domanda e

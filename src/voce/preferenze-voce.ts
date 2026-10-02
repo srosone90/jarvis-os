@@ -1,3 +1,4 @@
+import { limitaIntero } from "../comune";
 import { descriviErrore, log } from "../diagnostica";
 
 /**
@@ -32,11 +33,9 @@ export const LIMITI_VOCE = {
   riascoltoAzioneSecondi: [0, 15],
   riquadroSecondi: [2, 60],
 } as const;
-export const SENSIBILITA_PARLATO: readonly SensibilitaParlato[] = ["bassa", "normale", "alta"];
+const SENSIBILITA_PARLATO: readonly SensibilitaParlato[] = ["bassa", "normale", "alta"];
 const CHIAVE = "jarvis-voce";
 
-const limita = (v: number, [min, max]: readonly [number, number]) =>
-  Math.round(Math.min(max, Math.max(min, v)));
 const numero = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 
 export function leggiPreferenzeVoce(grezzo: string | null): PreferenzeVoce {
@@ -46,11 +45,14 @@ export function leggiPreferenzeVoce(grezzo: string | null): PreferenzeVoce {
     const d = JSON.parse(grezzo) as Record<string, unknown>;
     if (typeof d !== "object" || d === null) return p;
     if (numero(d["riascoltoSecondi"]))
-      p.riascoltoSecondi = limita(d["riascoltoSecondi"], LIMITI_VOCE.riascoltoSecondi);
+      p.riascoltoSecondi = limitaIntero(d["riascoltoSecondi"], LIMITI_VOCE.riascoltoSecondi);
     if (numero(d["riascoltoAzioneSecondi"]))
-      p.riascoltoAzioneSecondi = limita(d["riascoltoAzioneSecondi"], LIMITI_VOCE.riascoltoAzioneSecondi);
+      p.riascoltoAzioneSecondi = limitaIntero(
+        d["riascoltoAzioneSecondi"],
+        LIMITI_VOCE.riascoltoAzioneSecondi,
+      );
     if (numero(d["riquadroSecondi"]))
-      p.riquadroSecondi = limita(d["riquadroSecondi"], LIMITI_VOCE.riquadroSecondi);
+      p.riquadroSecondi = limitaIntero(d["riquadroSecondi"], LIMITI_VOCE.riquadroSecondi);
     const s = d["sensibilitaParlato"];
     if (typeof s === "string" && (SENSIBILITA_PARLATO as readonly string[]).includes(s))
       p.sensibilitaParlato = s as SensibilitaParlato;

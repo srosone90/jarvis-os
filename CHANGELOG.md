@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.6.3
+
+Riordino del codice, blocco 2 di 3. **Il pannello si comporta esattamente
+come prima.**
+
+- Moduli `voce`, `parola`, `assistente`, `timer`, `annunci`, `fotocamera`:
+  cartella e contratto ciascuno. Il modello del volto si carica dal
+  contratto della fotocamera (resta fuori dal pacchetto iniziale).
+- Prove per modulo (`npm run test:voce` e così via); i file di prove misti
+  «schermate» divisi per modulo senza cambiare le prove.
+- Controllo del codice: tolte 4 costanti mai usate, 71 export usati solo nel
+  loro file resi interni, la formattazione dei decimali e `limita` unite in
+  `comune`.
+- Istruzioni di Jarvis: le domande possono arrivare senza «Jarvis».
+
 ## v0.6.2
 
 **Timer a tutto schermo** (richiesta di Salvatore del 02/10).

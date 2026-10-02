@@ -8,21 +8,15 @@ import {
   type ConnectionOptions,
   type HaWebSocket,
 } from "home-assistant-js-websocket";
-import { Annunci } from "../annunci/annunci";
-import { Assistente } from "../assistente/assistente";
+import { Annunci } from "../annunci";
+import { Assistente } from "../assistente";
 import { Musica } from "../musica/musica";
 import { CollegaDispositivo } from "../musica/dispositivi";
-import { Presenza } from "../fotocamera/presenza";
-import { OcchioFotocamera } from "../fotocamera/occhio";
+import { OcchioFotocamera, Presenza, caricaMotoreVolto } from "../fotocamera";
 import { RegistroInterruzioni } from "./interruzioni";
-import { PausaMusica } from "../voce/pausa-musica";
-import { ascoltaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
-import { dispositivoPannello, proprietarioTimer } from "../timer/pannello";
-import { Voce } from "../voce/voce";
-import { MicrofonoCondiviso } from "../voce/microfono-condiviso";
-import { AscoltoParola } from "../parola/ascolto";
-import { Suoneria } from "../timer/suoneria";
-import { Timer } from "../timer/timer";
+import { MicrofonoCondiviso, PausaMusica, Voce, ascoltaStanzaPannello, stanzaPannello } from "../voce";
+import { Suoneria, Timer, dispositivoPannello, proprietarioTimer } from "../timer";
+import { AscoltoParola } from "../parola";
 import { Comandi, Registri } from "../casa";
 import { descriviErrore, log } from "../diagnostica";
 import { applicaAggiornamento, type AggiornamentoEntita } from "./entita";
@@ -131,7 +125,7 @@ export class Connessione {
    */
   readonly presenza = new Presenza({
     occhio: new OcchioFotocamera(),
-    caricaMotore: () => import("../fotocamera/motore-volto").then((m) => m.creaMotoreVolto()),
+    caricaMotore: caricaMotoreVolto,
     invia: (pannello) => this.inviaPresenza(pannello),
     pannello: dispositivoPannello,
   });

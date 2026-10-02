@@ -28,7 +28,7 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 | 2. Ascolto dopo la risposta + errori di Google | **già fatta con la v0.5.8**: 8 s dopo una domanda, 2 s dopo un'azione (0 = chiude subito), sensibilità del parlato, suono breve e «Google non risponde» distinto dal silenzio di stt-no-text-recognized |
 | Carattere di Jarvis «in stile Tony Stark» | **fatto**: `docs/ISTRUZIONI-JARVIS.md`, da applicare lato server |
 | 3. Modello su misura per «Jarvis» | **non fattibile in questo ambiente**: piano dettagliato in «Modello su misura per «Jarvis»: piano» qui sotto. Resta `hey_jarvis` col verificatore della pronuncia |
-| 4. Riordino in moduli | in corso: blocco 1 (diagnostica, comune, interfaccia, connessione, pwa, casa) → v0.6.1; blocchi 2 e 3 dopo |
+| 4. Riordino in moduli | in corso: blocco 1 → v0.6.1; blocco 2 (voce, parola, assistente, timer, annunci, fotocamera) → v0.6.3; blocco 3 dopo |
 
 ## Valutazione della fotocamera (v0.6.0, punto 7.1, scritta prima del codice)
 
@@ -373,7 +373,16 @@ faccio io.
   mentre Jarvis ascolta o parla; quando suona resta «Timer finito».
   Impostazioni → Schermate → Timer: acceso/spento e i secondi.
 
-- **In corso: riordino (Parte 4), blocco 1 → v0.6.1.** Nessun cambiamento
+- **In corso: riordino (Parte 4), blocco 2 → v0.6.3** (voce, parola,
+  assistente, timer, annunci, fotocamera). Nessun cambiamento per chi usa il
+  pannello. Controllo del codice: tolte 4 costanti mai usate
+  (`RIQUADRO_DOPO_MS`, `LUNGHEZZA_CARATTERISTICHE`, `LINGUA`, `ANCORE`), 71
+  export resi interni, `virgola` e `limitaIntero` di `comune` al posto di 13
+  copie locali; nessun `catch` vuoto (i 5 senza variabile ripiegano sui
+  valori di serie). I file di prove «schermate» divisi per modulo (29 + 11
+  prove, identiche). Istruzioni di Jarvis: domande senza «Jarvis».
+
+- **Fatto: riordino (Parte 4), blocco 1 → v0.6.1.** Nessun cambiamento
   per chi usa il pannello: stesse schermate, stesse funzioni. Cosa è
   cambiato dentro:
   1. sei moduli con cartella e contratto: diagnostica, comune, interfaccia,

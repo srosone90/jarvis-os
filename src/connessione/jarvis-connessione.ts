@@ -2,7 +2,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { SOGLIA_OFFLINE_MS } from "./connessione";
 import { ascoltaOrigine, statoOrigine, tornaAllaRiserva } from "../pwa";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "../interfaccia";
-import "../ui/jarvis-indicatore-parola";
+import "../parola/componenti";
 
 const TESTO_STATO = {
   avvio: "Avvio",

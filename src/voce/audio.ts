@@ -1,6 +1,6 @@
 import { descriviErrore, log } from "../diagnostica";
 
-export type EsitoRiproduzione = "finito" | "interrotto" | "errore";
+type EsitoRiproduzione = "finito" | "interrotto" | "errore";
 
 /** Oltre la durata dell'audio, quanto si aspetta prima di darlo per perso. */
 const MARGINE_MS = 10_000;

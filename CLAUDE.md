@@ -40,6 +40,12 @@ indice — dipende da — test.
 | connessione | il cuore: WebSocket con HA, login, negozio degli stati, interruzioni; crea i servizi di tutti i moduli | `src/connessione/index.ts`, `componenti.ts` | quasi tutti (è chi li crea) | `npm run test:connessione` |
 | pwa | service worker e aggiornamenti, origine veloce/di riserva, ricarica notturna | `src/pwa/index.ts` | comune, diagnostica | `npm run test:pwa` |
 | casa | stanze e dispositivi dai registri, comandi, storico, card e schermata Stanza | `src/casa/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, meteo | `npm run test:casa` |
+| voce | microfono condiviso, pipeline voce→HA→voce, riascolto, riquadro, pausa della musica, audio sveglio, stanza del pannello; Impostazioni → Voce | `src/voce/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, interfaccia (le impostazioni anche parola) | `npm run test:voce` |
+| parola | «Jarvis» sempre in ascolto: motore openWakeWord (caricato dopo, `parola/`), verificatore della pronuncia, soglie, contesto, guarda e parla | `src/parola/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, fotocamera, interfaccia, timer, voce | `npm run test:parola` |
+| assistente | turni con Gemini via `assist_pipeline/run`, pipeline del contesto, messaggi d'errore; la chat | `src/assistente/index.ts`, `componenti.ts` | casa, comune, connessione, diagnostica, interfaccia, voce | `npm run test:assistente` |
+| timer | timer di jarvis_voce per pannello, suoneria, servizi; schermata Timer, timer sotto l'orologio, «Timer finito», timer a tutto schermo | `src/timer/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, navigazione, riposo, voce | `npm run test:timer` |
+| annunci | Jarvis parla per primo (`jarvis_annuncio`), annunci scritti a riposo; Impostazioni → annunci | `src/annunci/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, interfaccia, voce | `npm run test:annunci` |
+| fotocamera | presenza, «Jarvis» più facile da vicino, guarda e parla, spia; modello del volto caricato dopo | `src/fotocamera/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia | `npm run test:fotocamera` |
 
 _Riordino in corso: i moduli non ancora in tabella stanno ancora nelle
 cartelle vecchie (`src/ui/` e simili)._

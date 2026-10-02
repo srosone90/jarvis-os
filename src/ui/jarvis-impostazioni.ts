@@ -14,20 +14,19 @@ import {
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione";
 import { log } from "../diagnostica";
-import { dispositivoDi } from "../timer/pannello";
-import { audioSveglio, type StatoAudioSveglio } from "../voce/audio-sveglio";
-import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
+import { dispositivoDi } from "../timer";
+import { audioSveglio, impostaStanzaPannello, stanzaPannello, type StatoAudioSveglio } from "../voce";
 import { vista } from "../vista/istanza";
 import { ATTESE_POSSIBILI } from "../vista/vista";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 import { rifaiGuida } from "./jarvis-guida";
 import "../diagnostica/componenti";
-import "./jarvis-impostazioni-voce";
-import "./jarvis-impostazioni-annunci";
+import "../voce/componenti";
+import "../annunci/componenti";
 import "./jarvis-impostazioni-schermate";
 import "./jarvis-impostazioni-musica";
 import "./jarvis-impostazioni-copia";
-import "./jarvis-impostazioni-fotocamera";
+import "../fotocamera/componenti";
 
 export type Sezione =
   | "stanza"

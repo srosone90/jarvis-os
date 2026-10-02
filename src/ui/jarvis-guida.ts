@@ -2,7 +2,7 @@ import { mdiHome, mdiMicrophone, mdiMicrophoneOff, mdiWeatherNight } from "@mdi/
 import { css, html, nothing, type TemplateResult } from "lit";
 import { connessione } from "../connessione";
 import { descriviErrore, log } from "../diagnostica";
-import { impostaStanzaPannello, stanzaPannello } from "../voce/stanza-pannello";
+import { impostaStanzaPannello, stanzaPannello } from "../voce";
 import { vista } from "../vista/istanza";
 import { RiquadroSicuro, icona, stileBase } from "../interfaccia";
 

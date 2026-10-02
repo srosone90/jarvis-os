@@ -20,10 +20,10 @@ import { descriviErrore, log } from "../diagnostica";
  * `finished` resta "in scadenza" e poi sparisce, senza suonare (può essere
  * stato annullato mentre il pannello era scollegato).
  */
-export type TipoEventoTimer = "started" | "updated" | "cancelled" | "finished" | "fermato";
+type TipoEventoTimer = "started" | "updated" | "cancelled" | "finished" | "fermato";
 
 /** Un timer come lo descrive il server (evento o elenco di `timer_attivi`). */
-export interface DatiTimer {
+interface DatiTimer {
   id: string;
   nome: string | null;
   secondiTotali: number | null;
@@ -34,7 +34,7 @@ export interface DatiTimer {
   inPausa: boolean | null;
 }
 
-export interface EventoTimer extends DatiTimer {
+interface EventoTimer extends DatiTimer {
   tipo: TipoEventoTimer;
 }
 
@@ -54,7 +54,7 @@ export function rimastoMs(t: TimerAttivo, adesso: number): number {
   return t.inPausa ? t.fermoMs : t.scadenza - adesso;
 }
 
-export interface TimerFinito {
+interface TimerFinito {
   id: string;
   nome: string | null;
   alle: number;
@@ -73,7 +73,7 @@ const numero = (v: unknown): number | null => (typeof v === "number" && Number.i
 const testoPieno = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
 
 /** Un timer dai dati del server; null se manca l'id. */
-export function leggiTimer(dati: unknown): DatiTimer | null {
+function leggiTimer(dati: unknown): DatiTimer | null {
   if (typeof dati !== "object" || dati === null) return null;
   const d = dati as Record<string, unknown>;
   const id = typeof d["id"] === "string" || typeof d["id"] === "number" ? String(d["id"]) : null;
@@ -110,7 +110,7 @@ export function leggiElencoAttivi(risposta: unknown): DatiTimer[] | null {
 }
 
 /** Il timer appartiene a questo pannello? Senza `pannello` (server vecchio) sì. */
-export function eMio(t: DatiTimer, mio: string): boolean {
+function eMio(t: DatiTimer, mio: string): boolean {
   return t.pannello === null || t.pannello === mio;
 }
 
@@ -162,7 +162,7 @@ export function titoloFinito(nome: string | null): string {
 }
 
 /** jarvis_voce.<servizio> con la risposta (return_response). */
-export type ServiziTimer = (
+type ServiziTimer = (
   servizio: "timer_attivi" | "timer_ferma" | "timer_stanza" | "timer_comando",
   dati: Record<string, unknown>,
 ) => Promise<unknown>;

@@ -1,4 +1,4 @@
-import { stanzaPannello } from "../voce/stanza-pannello";
+import { stanzaPannello } from "../voce";
 
 /**
  * Chi è questo pannello per i timer (v0.4.6). Il server (`jarvis_voce` 0.1.8)
@@ -11,7 +11,7 @@ import { stanzaPannello } from "../voce/stanza-pannello";
  * (sessione server, 30/09). Senza stanza non si manda niente e il server usa
  * `jarvis_pannello`.
  */
-export const PREFISSO = "jarvis_";
+const PREFISSO = "jarvis_";
 export const DISPOSITIVO_SENZA_STANZA = "jarvis_pannello";
 
 /**

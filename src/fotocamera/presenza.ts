@@ -10,6 +10,7 @@ import {
   type PreferenzeFotocamera,
 } from "./preferenze";
 import { diFronte, distanza, volti, type Volto } from "./volto";
+import { virgola } from "../comune";
 
 /**
  * Presenza e sguardo dalla fotocamera frontale (v0.6.0, punto 7 del piano).
@@ -51,7 +52,7 @@ export interface MotoreVolto {
   ): Promise<{ scores: ArrayLike<number>; boxes: ArrayLike<number>; ms: number }>;
 }
 
-export interface DipendenzePresenza {
+interface DipendenzePresenza {
   occhio: Occhio;
   caricaMotore: () => Promise<MotoreVolto>;
   /** `script.jarvis_presenza {pannello}`. */
@@ -68,15 +69,15 @@ export const ASSENZA_MS = 60_000;
 /** Al massimo un evento jarvis_presenza ogni tanto (punto 7.2). */
 export const INVIO_OGNI_MS = 5 * 60_000;
 /** Il modello del volto gira comunque almeno così spesso (una persona ferma non si muove). */
-export const MODELLO_ALMENO_OGNI_MS = 2000;
+const MODELLO_ALMENO_OGNI_MS = 2000;
 /** Movimento che fa girare subito il modello: frazione dei punti cambiati. */
-export const MOVIMENTO_MINIMO = 0.02;
+const MOVIMENTO_MINIMO = 0.02;
 /** «Guarda» vale per così poco: lo sguardo è adesso. */
-export const SGUARDO_VALE_MS = 1500;
+const SGUARDO_VALE_MS = 1500;
 /** «Qualcuno vicino» per la soglia più bassa di «Jarvis»: visto negli ultimi 10 s. */
-export const VICINO_VALE_MS = 10_000;
+const VICINO_VALE_MS = 10_000;
 /** Ogni quanto il carico va nel registro. */
-export const CARICO_OGNI_MS = 10 * 60_000;
+const CARICO_OGNI_MS = 10 * 60_000;
 /** Controllo dell'orario (spenta di notte) e dei tentativi dopo un errore. */
 export const CONTROLLO_OGNI_MS = 60_000;
 
@@ -313,7 +314,7 @@ export class Presenza {
     if (!this.pref.presenza) return;
     const adesso = this.adesso();
     this.carico.arrivi += 1;
-    log.info(`Fotocamera: qualcuno si è avvicinato (~${metri.toFixed(1).replace(".", ",")} m)`);
+    log.info(`Fotocamera: qualcuno si è avvicinato (~${virgola(metri, 1)} m)`);
     try {
       this.alArrivo();
     } catch (errore) {

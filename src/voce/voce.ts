@@ -1,11 +1,12 @@
-import type { Assistente, OpzioniParla } from "../assistente/assistente";
-import type { Turno } from "../assistente/eventi";
 import {
   erroreDiGoogle,
   messaggioMicrofono,
   problemaDaErrore,
+  type Assistente,
   type MessaggioMicrofono,
-} from "../assistente/messaggi";
+  type OpzioniParla,
+  type Turno,
+} from "../assistente";
 import { descriviErrore, log } from "../diagnostica";
 import { Bip, Riproduttore } from "./audio";
 import { CAMPIONI_PER_PEZZO, Microfono, MicrofonoNonDisponibile } from "./microfono";
@@ -46,7 +47,7 @@ export type DoveVoce = "chat" | "riquadro" | "hub";
  * Rete di sicurezza: la frase la chiude il server (jarvis_voce 0.2.7, al
  * massimo 30 s). Il pannello non deve tagliarla prima: noi chiudiamo a 35.
  */
-export const ASCOLTO_MASSIMO_MS = 35_000;
+const ASCOLTO_MASSIMO_MS = 35_000;
 /** Dopo una domanda di Jarvis: per quanto si riascolta senza «Jarvis» (v0.5.3; Impostazioni → Voce). */
 export const SEGUITO_MS = PREFERENZE_VOCE_DI_SERIE.riascoltoSecondi * 1000;
 /** Dopo un'azione o una risposta chiusa: la finestra breve (v0.5.8; Impostazioni → Voce). */
@@ -66,8 +67,6 @@ export const APERTURA_MASSIMA_MS = 10_000;
  * tocco su "ferma" annulla subito.
  */
 export const PENSA_MASSIMO_MS = 30_000;
-/** Il riquadro resta in vista così a lungo dopo la risposta, poi sparisce (di serie; Impostazioni → Voce dalla v0.5.10). */
-export const RIQUADRO_DOPO_MS = PREFERENZE_VOCE_DI_SERIE.riquadroSecondi * 1000;
 /**
  * Audio tenuto da parte prima che HA dia l'id: al massimo ~25 s. Con «Jarvis»
  * ci sono fino a 10 s di frase PRIMA della parola (v0.5.2), più l'audio dal
@@ -79,7 +78,7 @@ const CODA_MASSIMA = 400;
 const CODA_SEGUITO = PRIMA_DEL_PARLATO;
 
 /** Domanda nata dalla parola «Jarvis» (v0.5.0). */
-export interface OpzioniVoce extends OpzioniParla {
+interface OpzioniVoce extends OpzioniParla {
   /**
    * La frase fino allo scatto (dalla memoria circolare, 16 kHz): va a HA per
    * prima, così la parola e l'inizio della frase non si perdono.
@@ -116,7 +115,7 @@ interface Misura {
   primoAudio: number | null;
 }
 
-export interface DipendenzeVoce {
+interface DipendenzeVoce {
   assistente: Assistente;
   collegato: () => boolean;
   microfono?: SorgenteMicrofono;

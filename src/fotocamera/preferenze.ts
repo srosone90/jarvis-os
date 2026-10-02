@@ -5,7 +5,7 @@ import { descriviErrore, log } from "../diagnostica";
  * piano): tutto acceso di serie, fotocamera spenta di notte. Chiave
  * `jarvis-fotocamera` (si esporta con le altre).
  */
-export type SensibilitaVolto = "bassa" | "normale" | "alta";
+type SensibilitaVolto = "bassa" | "normale" | "alta";
 
 export interface PreferenzeFotocamera {
   /** Chi si avvicina sveglia il pannello e manda jarvis_presenza (buongiorno). */

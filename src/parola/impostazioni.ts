@@ -16,7 +16,7 @@ import type { DescrizioneModello } from "./rilevatore";
  *     "verificatore": "./modelli-casa/verificatore-casa.json"
  *   }
  */
-export interface ImpostazioniParola {
+interface ImpostazioniParola {
   modello?: DescrizioneModello & { url: string };
   soglia?: number;
   sogliaBase?: number;

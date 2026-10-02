@@ -3,7 +3,7 @@ import { css, html, nothing, type TemplateResult } from "lit";
 import { PREFERENZE } from "../comune";
 import { connessione } from "../connessione";
 import { condizione, gradiInteri, numero } from "../meteo/testi";
-import { formattaRimasto, rimastoMs, type TimerAttivo } from "../timer/timer";
+import { formattaRimasto, rimastoMs, type TimerAttivo } from "../timer";
 import { vista } from "../vista/istanza";
 import type { Momento } from "../vista/vista";
 import {
@@ -14,7 +14,7 @@ import {
   stileBase,
   type Anello,
 } from "../interfaccia";
-import "./jarvis-indicatore-parola";
+import "../parola/componenti";
 
 /** Cosa suona si rilegge ogni tanto (ogni lettura è una richiesta a Spotify). */
 /** Anti burn-in: il contenuto si sposta di pochi pixel ogni minuto. */

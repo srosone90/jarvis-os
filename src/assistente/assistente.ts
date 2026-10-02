@@ -7,6 +7,7 @@ import {
   type TipoErrore,
   type Turno,
 } from "./eventi";
+import { virgola } from "../comune";
 
 /**
  * Motore della conversazione con l'assistente (Gemini, dentro la pipeline Assist
@@ -35,7 +36,7 @@ export interface ConnessioneAssistente {
   ): Promise<() => Promise<void>>;
 }
 
-export interface DipendenzeAssistente {
+interface DipendenzeAssistente {
   conn: () => ConnessioneAssistente | null;
   /** Manda un frame binario sul WebSocket di HA (audio del microfono). False se non è partito. */
   inviaBinario: (dati: ArrayBuffer) => boolean;
@@ -59,8 +60,6 @@ export const LENTA_MS = 15_000;
 export const MASSIMO_MS = 60_000;
 /** Se dopo la risposta HA non chiude la pipeline, si pulisce comunque dopo questo tempo. */
 const CHIUSURA_MS = 10_000;
-
-export const LINGUA = "it";
 
 /**
  * Domanda a voce nata dalla parola «Jarvis» (v0.5.0). Senza `no_vad`: la fine
@@ -210,7 +209,7 @@ export class Assistente {
       pcm.fill(0);
       return false;
     }
-    const secondi = (pcm.length / 16000).toFixed(1).replace(".", ",");
+    const secondi = virgola(pcm.length / 16000, 1);
     const t0 = this.adesso();
     let smetti: (() => Promise<void>) | null = null;
     let finita = false;

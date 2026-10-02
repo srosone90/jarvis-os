@@ -10,7 +10,7 @@ import type { InferenceSession, Tensor } from "onnxruntime-web";
  * (es. microWakeWord, Apache 2.0) che implementi la stessa interfaccia. Anche la
  * parola mostrata viene dalla descrizione del modello, mai scritta nel codice.
  */
-export interface RilevatoreParola {
+interface RilevatoreParola {
   /** La parola come la si mostra ("Ehi Jarvis"). */
   readonly parola: string;
   /** Audio PCM 16 bit mono a 16 kHz, a pezzi di qualunque lunghezza. Un esito per ogni frame da 80 ms. */
@@ -40,7 +40,7 @@ export interface DescrizioneModello {
 }
 
 /** Il minimo di onnxruntime-web che serve (così si prova anche in Node). */
-export interface Ort {
+interface Ort {
   InferenceSession: { create(modello: Uint8Array | ArrayBuffer | string): Promise<InferenceSession> };
   Tensor: new (tipo: "float32", dati: Float32Array, forma: number[]) => Tensor;
 }

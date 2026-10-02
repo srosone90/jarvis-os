@@ -34,6 +34,7 @@ import {
   type FrameRegistrato,
   type Verificatore,
 } from "./verificatore";
+import { virgola } from "../comune";
 
 /** Il modello di serie. `parola.json` accanto alla pagina può indicarne un altro. */
 const MODELLO_DI_SERIE: DescrizioneModello = {
@@ -42,7 +43,7 @@ const MODELLO_DI_SERIE: DescrizioneModello = {
   licenza: "CC BY-NC-SA 4.0",
   commerciale: false,
 };
-export const SOGLIA_DI_SERIE = 0.5;
+const SOGLIA_DI_SERIE = 0.5;
 
 /** Frame da 80 ms: 12,5 al secondo. */
 const FRAME_AL_SECONDO = 16000 / CAMPIONI_FRAME;
@@ -63,7 +64,7 @@ export interface EsitoParola {
   ms: number;
 }
 
-export interface StatoRegistrazione {
+interface StatoRegistrazione {
   tipo: "parola" | "normale";
   persona: string;
   quanti: number;
@@ -257,8 +258,8 @@ export class MotoreParola {
     return (
       `${this.origineVerificatore}: ${i.positivi} esempi della parola` +
       `${i.persone.length ? ` (${i.persone.join(", ")})` : ""} e ${i.negativi} di parlato normale, ` +
-      `soglia base ${this.sogliaBase.toFixed(3).replace(".", ",")}, ` +
-      `soglia di scatto ${this.soglia.toFixed(2).replace(".", ",")} (${this.origineSoglia})`
+      `soglia base ${virgola(this.sogliaBase, 3)}, ` +
+      `soglia di scatto ${virgola(this.soglia, 2)} (${this.origineSoglia})`
     );
   }
 
@@ -452,7 +453,7 @@ export class MotoreParola {
     for (const f of [...negativi, ...falsi]) negativoMassimo = Math.max(negativoMassimo, finale(f));
     const soglia = sogliaPersonale(massimiEsempi, negativoMassimo);
     if (soglia !== null) v.soglia = soglia;
-    const f2 = (n: number): string => n.toFixed(2).replace(".", ",");
+    const f2 = (n: number): string => virgola(n, 2);
     log.info(
       `Parola: soglia personale ${soglia === null ? "non calcolabile (parlato normale troppo vicino), resta quella di serie" : f2(soglia)}; ` +
         `esempi da ${f2(Math.min(...massimiEsempi))} a ${f2(Math.max(...massimiEsempi))}, parlato normale fino a ${f2(negativoMassimo)}`,

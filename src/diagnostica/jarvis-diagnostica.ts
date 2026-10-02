@@ -3,7 +3,7 @@ import { connessione, dimenticaLogin, origineHA } from "../connessione";
 import { log, type VoceLog } from "./log";
 import { applicaAggiornamento, statoAggiornamento, statoOrigine, versioneSulServer } from "../pwa";
 import { OsservaConnessione, RiquadroSicuro, stileBase } from "../interfaccia";
-import "../ui/jarvis-parola-dal-vivo";
+import "../parola/componenti";
 
 /**
  * Diagnostica: versione, indirizzo in uso, stato della connessione, latenza,

@@ -4,10 +4,10 @@
  * differenza col fotogramma prima: la frazione di punti cambiati di più di
  * `SALTO` livelli. Logica pura.
  */
-export const LARGHEZZA_GRIGIO = 64;
-export const ALTEZZA_GRIGIO = 48;
+const LARGHEZZA_GRIGIO = 64;
+const ALTEZZA_GRIGIO = 48;
 /** Un punto "cambia" se la luminosità salta di tanto (su 255): il rumore della fotocamera sta sotto. */
-export const SALTO = 24;
+const SALTO = 24;
 
 /** RGBA w×h → grigio 64×48 (media dei punti di ogni cella). */
 export function grigioPiccolo(rgba: Uint8ClampedArray | Uint8Array, w: number, h: number): Uint8Array {

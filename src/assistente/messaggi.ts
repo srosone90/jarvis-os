@@ -15,7 +15,7 @@ import type { Turno } from "./eventi";
  *    es. "Resource has been exhausted (e.g. check quota)." o
  *    "The model is overloaded. Please try again later."
  */
-export type CausaErrore =
+type CausaErrore =
   | "quota" // limite di richieste raggiunto (429)
   | "occupato" // Gemini sovraccarico o non disponibile (503)
   | "gemini" // errore di Gemini senza causa (all'invio: può essere l'uno o l'altro)
@@ -28,7 +28,7 @@ export type CausaErrore =
   | "annullata"
   | "doppione";
 
-export interface MessaggioErrore {
+interface MessaggioErrore {
   causa: CausaErrore;
   titolo: string;
   spiegazione: string;
@@ -39,7 +39,7 @@ export interface MessaggioErrore {
 }
 
 /** Perché il microfono non si è aperto. */
-export type ProblemaMicrofono = "https" | "negato" | "assente" | "occupato" | "altro";
+type ProblemaMicrofono = "https" | "negato" | "assente" | "occupato" | "altro";
 
 export interface MessaggioMicrofono {
   problema: ProblemaMicrofono;
@@ -94,7 +94,7 @@ export function causaDaDettaglio(dettaglio: string): "quota" | "occupato" | "gem
 
 const ANCORA_QUI = "La domanda è ancora qui.";
 /** Il titolo degli errori di Google (v0.5.8): trascrizione o Gemini, dopo i tentativi del server. */
-export const GOOGLE_NON_RISPONDE = "Google non risponde, riprova tra poco.";
+const GOOGLE_NON_RISPONDE = "Google non risponde, riprova tra poco.";
 
 /**
  * Errore di Google (v0.5.8): la trascrizione (stt-stream-failed) o Gemini

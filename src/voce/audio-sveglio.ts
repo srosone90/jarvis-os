@@ -17,12 +17,12 @@ import { descriviErrore, log } from "../diagnostica";
  */
 export const CHIAVE = "jarvis-audio-sveglio";
 /** -80 dB rispetto al massimo. */
-export const AMPIEZZA = 10 ** (-80 / 20);
+const AMPIEZZA = 10 ** (-80 / 20);
 
 export type StatoAudioSveglio = "spento" | "attesa-tocco" | "attivo" | "sospeso" | "non-disponibile";
 
 /** Letto una volta: "0" = spento; qualunque altra cosa (o niente) = acceso. */
-export function accesoNelleImpostazioni(): boolean {
+function accesoNelleImpostazioni(): boolean {
   try {
     return localStorage.getItem(CHIAVE) !== "0";
   } catch (errore) {

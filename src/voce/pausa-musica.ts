@@ -1,4 +1,4 @@
-import type { Turno } from "../assistente/eventi";
+import type { Turno } from "../assistente";
 import { descriviErrore, log } from "../diagnostica";
 import type { FaseVoce } from "./voce";
 
@@ -32,17 +32,17 @@ export interface FonteVoce {
 }
 
 /** jarvis_musica.<servizio> con la risposta (return_response). */
-export type ChiamaMusica = (
+type ChiamaMusica = (
   servizio: "stato" | "controllo",
   dati: Record<string, unknown>,
 ) => Promise<Record<string, unknown>>;
 
 /** Dopo la fine della voce si aspetta tanto prima di riprendere: il seguito riapre il microfono prima. */
-export const ATTESA_RIPRESA_MS = 1500;
+const ATTESA_RIPRESA_MS = 1500;
 /** Stanze "ovunque" (es. il gruppo Alexa di tutti gli Echo): si fermano da qualunque pannello con una stanza. */
-export const STANZE_OVUNQUE = ["tutta la casa"];
+const STANZE_OVUNQUE = ["tutta la casa"];
 
-export function normalizzaStanza(nome: string): string {
+function normalizzaStanza(nome: string): string {
   return nome
     .normalize("NFD")
     .replace(/\p{Diacritic}/gu, "")

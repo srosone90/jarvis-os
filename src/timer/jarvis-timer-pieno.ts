@@ -34,7 +34,7 @@ export function grandezzaCifre(testo: string): string {
   return `${Math.min(32, 80 / Math.max(em, 1)).toFixed(1)}vw`;
 }
 
-export interface CondizioniTimerPieno {
+interface CondizioniTimerPieno {
   acceso: boolean;
   timerAttivi: number;
   timerCheSuonano: number;

@@ -13,7 +13,7 @@ export interface Azione {
   riuscita: boolean;
 }
 
-export type FaseTurno =
+type FaseTurno =
   | "ascolto" // solo voce: il microfono è aperto, la domanda non c'è ancora
   | "invio" // domanda partita, HA non ha ancora confermato
   | "pensa" // HA ha preso la domanda, Gemini non ha ancora scritto niente
@@ -104,7 +104,7 @@ const testo = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
 /** Testo parlato di una risposta di HA: `speech.plain.speech`. */
-export function testoRisposta(risposta: unknown): string {
+function testoRisposta(risposta: unknown): string {
   const plain = oggetto(oggetto(oggetto(risposta)?.speech)?.plain);
   return testo(plain?.speech) ?? "";
 }

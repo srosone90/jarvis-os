@@ -53,7 +53,7 @@ const RIEMPITIVI = new Set([
 ]);
 
 /** Testo in parole semplici: minuscolo, senza accenti né punteggiatura. */
-export function paroleDi(testo: string): string[] {
+function paroleDi(testo: string): string[] {
   return testo
     .toLowerCase()
     .normalize("NFKD")

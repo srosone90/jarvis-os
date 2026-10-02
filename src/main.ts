@@ -2,8 +2,8 @@ import { connessione } from "./connessione";
 import { descriviErrore, log } from "./diagnostica";
 import { avviaRicaricaNotturna, passaAllOrigineVeloce, registraServiceWorker, sorvegliaRitorno } from "./pwa";
 import "./ui/jarvis-app";
-import "./ui/jarvis-spia-fotocamera";
-import { audioSveglio } from "./voce/audio-sveglio";
+import "./fotocamera/componenti";
+import { audioSveglio } from "./voce";
 import { avviaNavigatore } from "./navigazione/istanza";
 import { vista } from "./vista/istanza";
 

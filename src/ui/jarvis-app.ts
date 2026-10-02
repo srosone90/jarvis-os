@@ -19,7 +19,7 @@ import { ascoltaGuida, mostraGuida } from "./jarvis-guida";
 import { quandoPuoRiposare, vista } from "../vista/istanza";
 import { navigatore } from "../navigazione/istanza";
 import type { Principale } from "../navigazione/navigazione";
-import "./jarvis-chat";
+import "../assistente/componenti";
 import "./jarvis-colonna";
 import "./jarvis-mini-lettore";
 import "./jarvis-pagina-altro";
@@ -29,10 +29,8 @@ import "./jarvis-pagina-meteo";
 import "./jarvis-pagina-musica";
 import "./jarvis-pagina-scene";
 import "./jarvis-pagina-spesa";
-import "./jarvis-pagina-timer";
-import "./jarvis-voce-riquadro";
-import "./jarvis-timer";
-import "../timer/jarvis-timer-pieno";
+import "../timer/componenti";
+import "../voce/componenti";
 
 /** Ridisegna quando i registri di HA cambiano (stanze o dispositivi aggiunti/tolti). */
 class OsservaRegistri implements ReactiveController {
