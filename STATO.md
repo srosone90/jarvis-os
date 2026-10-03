@@ -633,9 +633,10 @@ prende su 24, per soglia:
 
 | | |
 |---|---|
-| Versione | **v0.6.4**: riordino completo (23 moduli) — **quella da installare**; contiene anche il timer a tutto schermo (v0.6.2) e il blocco 2 del riordino (v0.6.3) |
-| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.4 |
-| sha256 dello zip | `ffeee604973ee42ef384d86ff1951b33d5b92704b210c6911a0042a465f36c8c` (7,9 MB, service worker 0.6.4, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub) |
+| Versione | **v0.6.5**: soglia fissa, fotocamera solo per lo schermo, `[ignora]` mai mostrato — **quella da installare**; contiene tutto dalla v0.6.1 |
+| Link | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.5 |
+| sha256 dello zip | `c39fd38c157412bfb049f3fa22eb4fa47ea6a6d81d1d952b84df6c639553d18d` (7,9 MB, service worker 0.6.5, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub; commit 0258cd8) |
+| Prima | **v0.6.4**: riordino completo, sha256 `ffeee604973ee42ef384d86ff1951b33d5b92704b210c6911a0042a465f36c8c` |
 | v0.6.3 | **Non pubblicata**: la sua release è caduta su una prova della chat che dipende dai tempi (`assistente.spec.ts`, «la chat si chiude da sola dopo 60 s»: se la risposta di HA non ha ancora chiuso la conversazione quando la prova fa scorrere l'orologio finto, la chat rimanda la chiusura, come deve). La stessa prova è passata in locale e nella release v0.6.4, che contiene tutto il codice della v0.6.3. Non ripubblicata perché uscirebbe dopo la v0.6.4 e diventerebbe la «più recente» su GitHub. La prova va resa robusta (lavoro a parte, nessun bug del pannello) |
 | Prima | **v0.6.2**: timer a tutto schermo |
 | Link v0.6.2 | https://github.com/srosone90/jarvis-os/releases/tag/v0.6.2 |
