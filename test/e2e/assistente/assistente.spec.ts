@@ -192,12 +192,16 @@ test("la chat si chiude da sola dopo 60 s senza tocchi; riaperta entro 5 minuti 
   await accedi(page);
   await apriChat(page);
   await chiedi(page, "Domanda");
-  // risposta finita (non solo il primo pezzo), poi si fa passare il tempo
-  await expect(page.getByTestId("stato-assistente")).toHaveText("Gemini");
+  // v0.6.5 (la v0.6.3 è caduta qui): finché l'assistente è occupato (la risposta si vede, ma
+  // la pipeline non ha ancora chiuso) la chat rimanda la chiusura di altri 60 s, e la prova
+  // non sapeva da quando contare. Ora aspetta che non sia più occupato (il tasto «Nuova
+  // conversazione» si riattiva solo allora), poi un tocco fa ripartire i 60 s da un punto noto.
   await expect(risposte(page)).toHaveCount(1);
-  await page.clock.fastForward(50_000);
+  await expect(page.getByRole("button", { name: "Nuova conversazione" })).toBeEnabled();
+  await page.getByTestId("messaggi").dispatchEvent("pointerdown", { pointerType: "touch", isPrimary: true });
+  await page.clock.fastForward(59_000);
   await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toBeVisible();
-  await page.clock.fastForward(11_000);
+  await page.clock.fastForward(2_000);
   await expect(page.getByRole("textbox", { name: "Domanda per Jarvis" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Chiedi a Jarvis…" })).toBeVisible();
   await apriChat(page);

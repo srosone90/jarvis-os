@@ -409,7 +409,7 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
     })}`;
   }
 
-  /** Falsi scatti (v0.5.4): conferma, soglia, adattamento e apprendimento. Tutto personalizzabile. */
+  /** Soglia e falsi scatti (v0.5.4; fissa dalla v0.6.5): soglia, conferma e apprendimento. Tutto personalizzabile. */
   private falsiScatti(): TemplateResult {
     const p = connessione.parola;
     const v = p.preferenze;
@@ -417,17 +417,14 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
     const L = LIMITI_PAROLA;
     const cambia = (k: keyof typeof v) => (x: unknown) => p.cambiaPreferenze({ [k]: x });
     const m = p.motore;
-    const aumento = p.aumentoSoglia;
     return html`<div class="voce" data-test="falsi-scatti">
         <div>
-          <b>Falsi scatti</b>
+          <b>Soglia e falsi scatti</b>
           <small
-            >Se «Jarvis» parte da solo (TV, discorsi), queste scelte lo rendono più difficile da ingannare.
-            Soglia adesso:
+            >La soglia è fissa: la stessa vicino e lontano, con la TV accesa o spenta, con qualcuno davanti al
+            pannello o no. Soglia adesso:
             <span data-test="soglia-adesso"
-              >${m ? virgola(p.dalVivo.soglia, 2) : "si vede quando «Jarvis» è acceso"}${
-                aumento > 0 ? html` (salita di ${virgola(aumento, 2)} per i falsi scatti)` : nothing
-              }</span
+              >${m ? virgola(p.dalVivo.soglia, 2) : "si vede quando «Jarvis» è acceso"}</span
             >${m?.sogliaPersonale != null ? html`; personale, col verificatore: ${virgola(m.sogliaPersonale, 2)}` : nothing}.</small
           >
         </div>
@@ -436,13 +433,13 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
         id: "soglia-manuale",
         titolo: "Soglia di scatto",
         spiegazione:
-          "Vuoto = automatica (0,5, o quella personale imparata dai tuoi esempi). Più alta = meno falsi scatti, ma va detto più chiaro.",
+          "Vuoto = di serie: 0,5, o la soglia personale se hai insegnato la tua pronuncia. Più bassa = scatta anche detto piano o da lontano, ma la TV lo inganna più spesso; più alta = meno falsi scatti, ma va detto più chiaro.",
         valore: v.sogliaManuale,
         diSerie: serie.sogliaManuale,
         min: L.sogliaManuale[0],
         max: L.sogliaManuale[1],
         passo: 0.05,
-        auto: "automatica",
+        auto: "0,5",
         cambia: cambia("sogliaManuale"),
       })}
       ${campoNumero({
@@ -456,66 +453,6 @@ export class JarvisImpostazioniVoce extends RiquadroSicuro {
         passo: 1,
         unita: "di fila",
         cambia: cambia("pazienza"),
-      })}
-      ${campoInterruttore({
-        id: "adattiva",
-        titolo: "Soglia che si adatta",
-        spiegazione:
-          "Se scatta più volte senza che nessuno parli, la soglia sale da sola; quando torna la calma, riscende.",
-        valore: v.adattiva,
-        diSerie: serie.adattiva,
-        cambia: cambia("adattiva"),
-      })}
-      ${campoNumero({
-        id: "vuoti",
-        titolo: "Sale dopo",
-        spiegazione: "Scatti senza parole oltre i quali la soglia sale.",
-        valore: v.vuoti,
-        diSerie: serie.vuoti,
-        min: L.vuoti[0],
-        max: L.vuoti[1],
-        passo: 1,
-        unita: "falsi scatti",
-        disattivo: !v.adattiva,
-        cambia: cambia("vuoti"),
-      })}
-      ${campoNumero({
-        id: "finestra",
-        titolo: "In quanto tempo",
-        valore: v.finestraMinuti,
-        diSerie: serie.finestraMinuti,
-        min: L.finestraMinuti[0],
-        max: L.finestraMinuti[1],
-        passo: 1,
-        unita: "minuti",
-        disattivo: !v.adattiva,
-        cambia: cambia("finestraMinuti"),
-      })}
-      ${campoNumero({
-        id: "passo",
-        titolo: "Di quanto sale o scende",
-        valore: v.passo,
-        diSerie: serie.passo,
-        min: L.passo[0],
-        max: L.passo[1],
-        passo: 0.01,
-        cifre: 2,
-        disattivo: !v.adattiva,
-        cambia: cambia("passo"),
-      })}
-      ${campoNumero({
-        id: "quiete",
-        titolo: "Riscende dopo",
-        spiegazione:
-          "Minuti senza falsi scatti prima di riscendere di un passo (mai sotto la soglia di partenza).",
-        valore: v.quieteMinuti,
-        diSerie: serie.quieteMinuti,
-        min: L.quieteMinuti[0],
-        max: L.quieteMinuti[1],
-        passo: 1,
-        unita: "minuti",
-        disattivo: !v.adattiva,
-        cambia: cambia("quieteMinuti"),
       })}
       ${campoInterruttore({
         id: "impara",

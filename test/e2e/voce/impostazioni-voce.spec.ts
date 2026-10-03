@@ -1,10 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { accedi, apriImpostazioni, comando } from "../aiuti";
 
-/** Impostazioni → Voce → Falsi scatti (v0.5.4): ogni valore col suo "di serie" e il ripristino. */
+/**
+ * Impostazioni → Voce → Soglia e falsi scatti (v0.5.4): ogni valore col suo
+ * "di serie" e il ripristino. Dalla v0.6.5 la soglia è fissa: la soglia che
+ * saliva da sola non c'è più, e le sue preferenze vecchie si buttano.
+ */
 
-test("falsi scatti: si cambia, si salva sul pannello, si ripristina", async ({ page, request }) => {
+test("soglia e falsi scatti: si cambia, si salva sul pannello, si ripristina", async ({ page, request }) => {
   await comando(request, "reset");
+  // preferenze di un pannello della v0.6.4, con la soglia che si adatta
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("jarvis-parola"))
+      localStorage.setItem("jarvis-parola", JSON.stringify({ acceso: true, adattiva: true, vuoti: 5 }));
+  });
   await accedi(page);
   await apriImpostazioni(page, "voce");
   await expect(page.getByTestId("falsi-scatti")).toBeVisible();
@@ -21,18 +30,17 @@ test("falsi scatti: si cambia, si salva sul pannello, si ripristina", async ({ p
       unknown
     >;
   expect(await salvate()).toMatchObject({ pazienza: 3 });
-  // soglia a mano, poi di nuovo automatica
+  // soglia a mano, poi di nuovo di serie
   const soglia = page.getByTestId("campo-soglia-manuale");
   await soglia.fill("0.7");
   await soglia.press("Enter");
   expect(await salvate()).toMatchObject({ sogliaManuale: 0.7 });
   await page.getByTestId("ripristina-soglia-manuale").click();
   expect(await salvate()).toMatchObject({ sogliaManuale: null });
-  // con l'adattamento spento i suoi numeri si spengono
-  await page.getByTestId("campo-adattiva").uncheck();
-  await expect(page.getByTestId("campo-vuoti")).toBeDisabled();
-  await page.getByTestId("ripristina-adattiva").click();
-  await expect(page.getByTestId("campo-vuoti")).toBeEnabled();
+  // la soglia che si adatta non c'è più, né nel pannello né nelle preferenze salvate
+  await expect(page.getByTestId("campo-adattiva")).toHaveCount(0);
+  await expect(page.getByTestId("campo-vuoti")).toHaveCount(0);
+  expect(Object.keys(await salvate())).not.toContain("adattiva");
   await page.getByTestId("ripristina-pazienza").click();
   await expect(conferma).toHaveValue("2");
   // dopo una ricarica restano

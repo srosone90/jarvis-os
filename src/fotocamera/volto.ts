@@ -77,16 +77,3 @@ export function distanza(v: Volto): number {
   const larghezza = v.x2 - v.x1;
   return larghezza > 0 ? LARGHEZZA_A_UN_METRO / larghezza : Infinity;
 }
-
-/**
- * Volto di fronte, cioè (approssimato) che guarda il tablet: proporzioni da
- * volto frontale (in pixel, larghezza/altezza tra 0,6 e 1,15). Di profilo il
- * box si stringe, e questo modello di profilo quasi non trova volti.
- */
-export function diFronte(v: Volto): boolean {
-  const w = (v.x2 - v.x1) * LARGHEZZA_MODELLO;
-  const h = (v.y2 - v.y1) * ALTEZZA_MODELLO;
-  if (h <= 0) return false;
-  const r = w / h;
-  return r >= 0.6 && r <= 1.15;
-}

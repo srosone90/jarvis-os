@@ -106,4 +106,48 @@ describe("vista: riposo, Hub e completo (fase G)", () => {
       ).impostazioni.attesaMin,
     ).toBeNull();
   });
+
+  it("sveglia per presenza (v0.6.5): riaccende solo lo schermo a riposo, e senza tocchi si rispegne", () => {
+    let ora = 0;
+    const v = new ControlloVista(
+      () => true,
+      () => ora,
+      null,
+    );
+    // schermo acceso (pannello o Hub): non fa niente, nemmeno rimandare il riposo
+    expect(v.svegliaPerPresenza(30_000)).toBe(false);
+    ora = 2 * 60_000 - 1;
+    v.svegliaPerPresenza(30_000);
+    ora += 1;
+    v.controlla();
+    expect(v.vista).toBe("riposo");
+    v.vai("hub");
+    expect(v.svegliaPerPresenza(30_000)).toBe(false);
+    expect(v.vista).toBe("hub");
+    v.vai("riposo");
+    // a riposo: si riaccende, e dopo 30 s senza nessuno torna a riposo
+    expect(v.svegliaPerPresenza(30_000)).toBe(true);
+    expect(v.vista).toBe("completo");
+    ora += 29_999;
+    v.controlla();
+    expect(v.vista).toBe("completo");
+    ora += 1;
+    v.controlla();
+    expect(v.vista).toBe("riposo");
+    // un tocco dopo la sveglia: vale l'attesa normale (2 minuti), non più i 30 s
+    v.svegliaPerPresenza(30_000);
+    ora += 10_000;
+    v.attivita();
+    ora += 60_000;
+    v.controlla();
+    expect(v.vista).toBe("completo");
+    ora += 60_000;
+    v.controlla();
+    expect(v.vista).toBe("riposo");
+  });
+  it("sveglia per presenza: con qualcosa in corso (voce, impostazioni) non si rispegne", () => {
+    expect(prossimaVista("completo", 40_000, 0, imp, false, 30_000)).toBeNull();
+    expect(prossimaVista("completo", 40_000, 0, imp, true, 30_000)).toBe("riposo");
+    expect(prossimaVista("completo", 20_000, 0, imp, true, 30_000)).toBeNull();
+  });
 });

@@ -11,16 +11,13 @@ export interface PreferenzeParola {
   acceso: boolean;
   /** Bip allo scatto (v0.5.3). */
   suono: boolean;
-  /** Soglia di scatto scelta a mano; null = automatica (0,5 o parola.json, personale col verificatore). */
+  /**
+   * Soglia di scatto scelta a mano; null = di serie (0,5 o parola.json,
+   * personale col verificatore). Fissa: la stessa vicino e lontano (v0.6.5).
+   */
   sogliaManuale: number | null;
   /** Frame di fila sopra soglia (v0.5.4). */
   pazienza: number;
-  /** Soglia che si adatta ai falsi scatti (v0.5.4). */
-  adattiva: boolean;
-  passo: number;
-  finestraMinuti: number;
-  vuoti: number;
-  quieteMinuti: number;
   /** I falsi scatti diventano esempi "non è «Jarvis»" e il verificatore si riaddestra (v0.5.4). */
   impara: boolean;
   /** Il parlato prima della frase va a HA come contesto (v0.5.3). */
@@ -34,11 +31,6 @@ export const PREFERENZE_PAROLA_DI_SERIE: PreferenzeParola = {
   suono: true,
   sogliaManuale: null,
   pazienza: DECISIONE_DI_SERIE.pazienza,
-  adattiva: DECISIONE_DI_SERIE.adattiva.attiva,
-  passo: DECISIONE_DI_SERIE.adattiva.passo,
-  finestraMinuti: DECISIONE_DI_SERIE.adattiva.finestraMs / 60_000,
-  vuoti: DECISIONE_DI_SERIE.adattiva.vuoti,
-  quieteMinuti: DECISIONE_DI_SERIE.adattiva.quieteMs / 60_000,
   impara: true,
   contesto: true,
   secondiContesto: 60,
@@ -48,10 +40,6 @@ export const PREFERENZE_PAROLA_DI_SERIE: PreferenzeParola = {
 export const LIMITI_PAROLA = {
   sogliaManuale: [0.05, 0.95],
   pazienza: [1, 6],
-  passo: [0.01, 0.2],
-  finestraMinuti: [1, 120],
-  vuoti: [1, 20],
-  quieteMinuti: [1, 240],
   secondiContesto: [5, 60],
 } as const;
 
@@ -75,34 +63,20 @@ export function leggiPreferenzeParola(grezzo: string | null): PreferenzeParola {
   } catch {
     return p;
   }
-  const booleano = (k: "acceso" | "suono" | "adattiva" | "impara" | "contesto") => {
+  const booleano = (k: "acceso" | "suono" | "impara" | "contesto") => {
     if (typeof d[k] === "boolean") p[k] = d[k];
   };
   booleano("acceso");
   booleano("suono");
-  booleano("adattiva");
   booleano("impara");
   booleano("contesto");
   if (d["sogliaManuale"] === null) p.sogliaManuale = null;
   else p.sogliaManuale = numero(d["sogliaManuale"], "sogliaManuale") ?? null;
   p.pazienza = numero(d["pazienza"], "pazienza", true) ?? p.pazienza;
-  p.passo = numero(d["passo"], "passo") ?? p.passo;
-  p.finestraMinuti = numero(d["finestraMinuti"], "finestraMinuti", true) ?? p.finestraMinuti;
-  p.vuoti = numero(d["vuoti"], "vuoti", true) ?? p.vuoti;
-  p.quieteMinuti = numero(d["quieteMinuti"], "quieteMinuti", true) ?? p.quieteMinuti;
   p.secondiContesto = numero(d["secondiContesto"], "secondiContesto", true) ?? p.secondiContesto;
   return p;
 }
 
 export function opzioniDecisione(p: PreferenzeParola): OpzioniDecisione {
-  return {
-    pazienza: p.pazienza,
-    adattiva: {
-      attiva: p.adattiva,
-      passo: p.passo,
-      finestraMs: p.finestraMinuti * 60_000,
-      vuoti: p.vuoti,
-      quieteMs: p.quieteMinuti * 60_000,
-    },
-  };
+  return { pazienza: p.pazienza };
 }

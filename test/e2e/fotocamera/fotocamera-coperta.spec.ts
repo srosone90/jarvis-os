@@ -2,23 +2,18 @@ import { expect, test } from "@playwright/test";
 import { accedi, apriDiagnostica, comando, dispositiviFinti, fotocameraAccesa, info } from "../aiuti";
 
 /**
- * v0.6.0, punto 7.3 (decisione di Salvatore del 02/10): la fotocamera non
- * limita MAI «Jarvis»; dalla v0.6.5 non lo tocca proprio. Stanza VUOTA
- * davanti al pannello (si chiama dal divano) e TV accesa: «Jarvis» scatta
- * come senza fotocamera, soglia normale. Il microfono dice «hey jarvis»
- * (Piper, come in parola-audio-vero.spec.ts).
+ * v0.6.5, criterio (a): «Jarvis» funziona con la fotocamera coperta (tutto
+ * nero, nessun volto), con la stessa soglia di quando qualcuno è vicino
+ * (fotocamera-vicino.spec.ts). La distanza (3-4 m) la misura
+ * test/unit/parola/parola-distanza.test.ts col modello vero.
  */
 
-test.use(dispositiviFinti({ video: "vuota.y4m", audio: "hey-jarvis-piper.wav" }));
+test.use(dispositiviFinti({ video: "coperta.y4m", audio: "hey-jarvis-piper.wav" }));
 
-test("TV accesa e nessuno davanti al pannello: «Jarvis» conta come sempre, soglia normale", async ({
-  page,
-  request,
-}) => {
+test("fotocamera coperta: «Jarvis» scatta, soglia di sempre", async ({ page, request }) => {
   await comando(request, "reset");
   await page.addInitScript(() => localStorage.setItem("jarvis-parola", JSON.stringify({ acceso: true })));
   await fotocameraAccesa(page);
-  await comando(request, "stato", { entity_id: "media_player.soggiorno_tv_salotto", state: "on" });
   await accedi(page);
   await expect(page.getByTestId("spia-fotocamera")).toBeVisible({ timeout: 15_000 });
   await expect
@@ -30,6 +25,5 @@ test("TV accesa e nessuno davanti al pannello: «Jarvis» conta come sempre, sog
   await expect(registro).toContainText(
     /«Jarvis» sentito \(punteggio [\d.]+, modello di base, soglia 0\.50\)/,
   );
-  await expect(registro).not.toContainText("ignorato");
-  await expect(registro).not.toContainText("più bassa");
+  await expect(registro).not.toContainText("qualcuno si è avvicinato");
 });

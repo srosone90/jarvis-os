@@ -7,5 +7,5 @@ scikit-image 0.19.3: foto di Eileen Collins, NASA, «No known copyright
 restrictions, released into the public domain»
 (https://flic.kr/p/r9qvLn). Ritagliata e ridotta; in `volto-lontano` la foto
 è piccola su uno sfondo grigio (volto ≈ 0,07 della larghezza, ≈ 2 m); `vuota`
-è solo lo sfondo grigio. Si rifanno con `rifai.py` qui accanto;
+è solo lo sfondo grigio; `coperta` (v0.6.5) è tutto nero, la fotocamera coperta da una mano. Si rifanno con `rifai.py` qui accanto;
 nessun'altra immagine.

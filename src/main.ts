@@ -26,10 +26,9 @@ avviaNavigatore();
 audioSveglio.avvia();
 // «Jarvis» sempre in ascolto (v0.5.0): acceso di serie, si spegne in Impostazioni → Voce
 connessione.parola.avvia();
-// fotocamera (v0.6.0): chi si avvicina sveglia il pannello (se dorme); spenta di notte
+// fotocamera (v0.6.0; v0.6.5): chi si avvicina riaccende lo schermo a riposo, e basta; spenta di notte
 connessione.presenza.alArrivo = () => {
-  if (vista.vista === "riposo") vista.vai("completo", "qualcuno si è avvicinato");
-  else vista.attivita();
+  vista.svegliaPerPresenza(connessione.presenza.preferenze.secondiSveglia * 1000);
 };
 connessione.presenza.avvia();
 avviaRicaricaNotturna(() => connessione.timer.occupato);

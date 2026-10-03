@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import * as ort from "onnxruntime-web";
 import { beforeAll, describe, expect, it } from "vitest";
-import { diFronte, distanza, ingresso, volti } from "../../../src/fotocamera/volto";
+import { distanza, ingresso, volti } from "../../../src/fotocamera/volto";
 
 /**
  * v0.6.0: il modello del volto VERO (modelli/volto) sui video di prova
@@ -50,14 +50,13 @@ describe("modello del volto vero", () => {
     });
   }, 30_000);
 
-  it("volto vicino: uno solo, di fronte, a meno di 1 m", async () => {
+  it("volto vicino: uno solo, a meno di 1 m", async () => {
     const v = await rileva("volto-vicino.y4m");
     expect(v).toHaveLength(1);
     const primo = v[0];
     if (!primo) throw new Error("nessun volto");
     expect(primo.punteggio).toBeGreaterThan(0.95);
     expect(distanza(primo)).toBeLessThan(1);
-    expect(diFronte(primo)).toBe(true);
   });
   it("volto lontano: c'è, ma a circa 2 m", async () => {
     const v = await rileva("volto-lontano.y4m");

@@ -45,7 +45,7 @@ const SEZIONI: { id: Sezione; titolo: string; icona: string }[] = [
   // v0.5.9: su quale dispositivo Spotify suona questo pannello
   { id: "musica", titolo: "Musica", icona: mdiMusic },
   { id: "voce", titolo: "Voce", icona: mdiMicrophone },
-  // v0.6.0: presenza, guarda e parla, «Jarvis» più facile da vicino
+  // v0.6.0; v0.6.5: la presenza sveglia lo schermo (e avvisa Home Assistant), niente altro
   { id: "fotocamera", titolo: "Fotocamera", icona: mdiCamera },
   { id: "annunci", titolo: "Jarvis parla per primo", icona: mdiBullhorn },
   { id: "riposo", titolo: "Schermo a riposo", icona: mdiWeatherNight },

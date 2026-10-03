@@ -4,7 +4,7 @@ Aggiornato da Claude Code a ogni passo importante (commit e push sul branch
 `claude/new-session-vpjgbq`). La sessione server lo legge da GitHub; le
 risposte arrivano tramite Salvatore.
 
-_Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» più facile da vicino, guarda e parla). Piano autonomo in corso._
+_Ultimo aggiornamento: 03/10/2026 — v0.6.5 (soglia fissa, fotocamera solo per lo schermo, Jarvis come Tony Stark con `[ignora]`)._
 
 ## Piano autonomo del 01/10 — avanzamento
 
@@ -70,14 +70,36 @@ _Ultimo aggiornamento: 02/10/2026 — v0.6.0 (fotocamera: presenza, «Jarvis» p
 
 Ogni riga: cosa, perché, dove si cambia.
 
-- **«In stile Tony Stark» letto come il maggiordomo digitale di Tony Stark**
-  (impeccabile, calmo, ironia asciutta, battuta dopo l'azione), con un po'
-  della prontezza di Stark stesso. L'altra lettura (Jarvis che parla *come*
-  Tony Stark: sfrontato, sarcastico a ogni frase) l'ho scartata perché su
-  errori, bambini e annunci stanca presto. Si cambia nella sezione 1 di
-  `docs/ISTRUZIONI-JARVIS.md`.
-- **Jarvis chiama Salvatore «signore»**, non a ogni frase; gli altri per nome o
-  senza appellativi. Si cambia nella sezione 1 dello stesso file.
+- ~~«In stile Tony Stark» letto come il maggiordomo digitale; «signore» per
+  Salvatore~~ — **superata il 03/10**: Salvatore ha scelto «parla COME Tony
+  Stark» (sfrontato, sarcastico, del tu, niente «signore»). Sezione 1 di
+  `docs/ISTRUZIONI-JARVIS.md` riscritta così.
+- **Soglia di «Jarvis» 0,5, fissa** (v0.6.5). Scelta sulle misure (sotto,
+  «Soglia fissa e distanza»): è la più bassa con zero falsi scatti in 40
+  minuti di TV. 0,45 prenderebbe 1-2 «Jarvis» da solo in più su 24 ma con
+  1,5 falsi all'ora. Si cambia in Impostazioni → Voce → Soglia di scatto.
+- **Soglia che si adattava e sconto della fotocamera tolti del tutto**, non
+  solo spenti: una soglia «fissa» con due meccanismi che la spostano non
+  sarebbe fissa, e le loro preferenze vecchie avrebbero potuto riaccenderli.
+  Restano la conferma su 2 frame, la soglia personale (vale solo sui
+  punteggi del verificatore: misurato che a 4 m dice ancora sì) e
+  l'apprendimento dai falsi scatti.
+- **Avviso a Home Assistant (`jarvis_presenza`) tenuto, come interruttore a
+  parte** («Avvisa Home Assistant», acceso di serie): la presenza sul
+  pannello fa una cosa sola (riaccende lo schermo), ma toglierlo avrebbe
+  rotto il buongiorno lato server. Chi aveva spento «Presenza» lo ritrova
+  spento. Si cambia in Impostazioni → Fotocamera.
+- **Lo schermo svegliato dalla presenza si rispegne dopo 30 s solo se
+  nessuno tocca, preme un tasto o parla**; dopo un tocco vale l'attesa
+  normale del riposo (2 minuti). La stessa persona che resta davanti non lo
+  risveglia (serve un nuovo arrivo: almeno 60 s senza nessuno), altrimenti
+  si accenderebbe e spegnerebbe di continuo.
+- **«Puoi ripetere?» al massimo una volta, poi `[ignora]`** (sezione 2 delle
+  istruzioni): alla seconda frase incomprensibile Jarvis tace, e chi parla
+  riparte da «Jarvis».
+- **Il pannello non mostra mai `[ignora]`** (chat, Hub, riquadro), anche a
+  pezzi mentre arriva: se il server svuota il testo finale, prima il
+  pannello ripiegava proprio sui pezzi. L'audio resta compito del server.
 - **Mai ironia su errori, salute, sicurezza, soldi, persone in difficoltà e
   bambini.** Sezione 1.
 - **Timer a tutto schermo: «sempre» letto come «ogni volta che nessuno
@@ -343,9 +365,9 @@ faccio io.
 - **Voce** (pannello): «Jarvis» acceso; bip allo scatto; secondi di
   riascolto dopo una domanda di Jarvis (0 = spento) e dopo un'azione (0 =
   chiude subito), sensibilità del parlato (v0.5.8); discorso di prima sì/no e quanti secondi; soglia
-  di scatto (automatica o a mano); conferma (frame di fila); soglia che si
-  adatta sì/no, quanti falsi scatti, in quanto tempo, passo, dopo quanto
-  riscende; impara dai falsi scatti; elaborazione del microfono.
+  di scatto (fissa: 0,5 di serie o a mano, v0.6.5); conferma (frame di
+  fila); impara dai falsi scatti; elaborazione del microfono. (La soglia che
+  si adattava è stata tolta nella v0.6.5.)
 - **Annunci** (casa, entità di HA): interruttore generale, caldo in camera,
   buongiorno, soglia del caldo, stanza, orari del silenzio, del caldo e del
   buongiorno. (Pannello): volume degli annunci, solo testo.
@@ -367,9 +389,11 @@ faccio io.
 - **Musica** (pannello): mini-lettore sì/no, dove (orologio o barra),
   rilettura ogni N secondi, stanze per spostarla, playlist preferite (la
   stella; «Togli le preferite»).
-- **Fotocamera** (v0.6.0, pannello): presenza, guarda e parla, «Jarvis»
-  più facile da vicino e di quanto (0,05), distanza (1,5 m), sensibilità (normale), fotogrammi al secondo
-  (3), spenta dalle 23 alle 7. Tutto acceso di serie; si esporta.
+- **Fotocamera** (v0.6.0; v0.6.5, pannello): sveglia schermo con presenza,
+  dopo quanti secondi si rispegne (30), avvisa Home Assistant, distanza
+  (1,5 m), sensibilità (normale), fotogrammi al secondo (3), spenta dalle 23
+  alle 7. Tutto acceso di serie; si esporta. (Guarda e parla e «Jarvis» più
+  facile da vicino tolti nella v0.6.5.)
 - **Timer a tutto schermo** (v0.6.2, pannello): acceso/spento, dopo quanti
   secondi senza tocchi (15). Impostazioni → Schermate → Timer.
 - **Schermo a riposo**: attesa, notte dalle/alle. **Audio**: audio sveglio.
@@ -571,6 +595,40 @@ faccio io.
   manda `conversation_id`: va bene così, visto che la frase la tenete voi
   come contesto per 3 minuti?
 
+## Soglia fissa e distanza (v0.6.5, 03/10)
+
+Misurato col modello vero (`test/unit/parola/parola-distanza.test.ts`, gira
+in ogni verifica). Voce Piper portata a parlato normale a 1 m e allontanata
+con un modello di stanza (diretto −6 dB a ogni raddoppio, riverbero RT60
+0,5 s, fruscio di fondo); conferma su 2 frame come sul pannello. Quante ne
+prende su 24, per soglia:
+
+| | 0,30 | 0,35 | 0,40 | 0,45 | **0,50** | 0,55 | 0,60 |
+|---|---|---|---|---|---|---|---|
+| «Jarvis» a 1 m | 23 | 23 | 20 | 19 | **17** | 17 | 17 |
+| «Jarvis» a 2 m | 24 | 22 | 21 | 21 | **20** | 20 | 18 |
+| «Jarvis» a 3 m | 24 | 23 | 22 | 20 | **19** | 18 | 18 |
+| «Jarvis» a 4 m | 21 | 21 | 21 | 20 | **19** | 19 | 19 |
+| «hey jarvis» a 1 m | 24 | 24 | 24 | 24 | **24** | 24 | 24 |
+| «hey jarvis» a 2 m | 24 | 24 | 24 | 24 | **24** | 24 | 24 |
+| «hey jarvis» a 3 m | 24 | 24 | 24 | 24 | **24** | 24 | 23 |
+| «hey jarvis» a 4 m | 24 | 24 | 24 | 24 | **23** | 23 | 23 |
+| Falsi scatti all'ora con la TV (40 min) | 15 | 9 | 3 | 1,5 | **0** | 0 | 0 |
+
+- **La distanza da sola non toglie scatti**: punteggio mediano di «Jarvis»
+  0,986 a 1 m e 0,979 a 4 m. Le varianti perse sono le stesse a ogni
+  distanza: il modello di serie è addestrato su «hey jarvis» e certe
+  intonazioni di «Jarvis» da solo non le prende (lo risolverebbe il modello
+  su misura, piano della Parte 3).
+- **Perché da lontano non scattava**: la soglia che si adattava (con la TV
+  accesa saliva di 0,05 alla volta e riscendeva solo dopo 30 minuti di
+  calma) e lo sconto con qualcuno vicino alla fotocamera (vicino 0,45,
+  lontano 0,50). Tolti entrambi.
+- **Limite della misura**: voce sintetica e stanza simulata, non il
+  microfono del tablet. Sul tablet vero la prova è quella di Salvatore:
+  Impostazioni → Voce mostra il punteggio dal vivo e la soglia; se a 4 m il
+  punteggio resta sotto 0,5, si abbassa la soglia lì.
+
 ## Ultima release del pannello
 
 | | |
@@ -584,7 +642,22 @@ faccio io.
 | sha256 dello zip | `b27b87d9257d31280b24f84da75d6a2935c02702597cafea8339482e1e26520d` (7,9 MB, service worker 0.6.2, `parola/` con 8 file, nessun file delle prove; verificati, uguale al digest di GitHub). Il primo giro della release era caduto su una prova scritta male (chiedeva 3 s, il minimo è 5): corretta la prova, il pannello era già giusto |
 | Precedente | v0.6.1, sha256 `a3f383df630f53a67ba17a1aba10930dbd2723af1927d8d4c3729e13b9889970` (7,9 MB, service worker 0.6.1, `parola/` con 8 file, nessun file delle prove; verificati) |
 
-## Da installare lato server: v0.6.4
+## Da installare lato server: v0.6.5
+
+1. Lo zip della **v0.6.5** sopra `/config/www/jarvis/` (comprende tutto
+   dalla v0.6.1).
+2. **Niente di nuovo nel pacchetto**: `script.jarvis_presenza` resta com'è
+   (il pannello lo chiama ancora, se «Avvisa Home Assistant» è acceso).
+3. **`docs/ISTRUZIONI-JARVIS.md`**, sezioni 1-3: allineare il prompt di
+   Gemini (avete già «parla COME Tony Stark» e `[ignora]`; qui c'è il testo
+   ufficiale con gli esempi e la regola «Puoi ripetere?» una volta sola).
+   Sezione 2: le frasi senza «Jarvis» arrivano ora **solo** nel riascolto
+   dopo una risposta (la fotocamera non ne manda più).
+4. Da confermare: quando l'agente risponde `[ignora]`, il testo finale che
+   arriva al pannello è vuoto o è `[ignora]`? Il pannello lo nasconde in
+   entrambi i casi; serve saperlo solo per il registro.
+
+## Prima: v0.6.4
 
 1. Lo zip della **v0.6.4** sopra `/config/www/jarvis/` (comprende v0.6.1,
    v0.6.2 e il blocco 2 del riordino).

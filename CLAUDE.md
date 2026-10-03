@@ -41,11 +41,11 @@ indice — dipende da — test.
 | pwa | service worker e aggiornamenti, origine veloce/di riserva, ricarica notturna | `src/pwa/index.ts` | comune, diagnostica | `npm run test:pwa` |
 | casa | stanze e dispositivi dai registri, comandi, storico, card e schermata Stanza | `src/casa/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, meteo | `npm run test:casa` |
 | voce | microfono condiviso, pipeline voce→HA→voce, riascolto, riquadro, pausa della musica, audio sveglio, stanza del pannello; Impostazioni → Voce | `src/voce/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, interfaccia (le impostazioni anche parola) | `npm run test:voce` |
-| parola | «Jarvis» sempre in ascolto: motore openWakeWord (caricato dopo, `parola/`), verificatore della pronuncia, soglie, contesto, guarda e parla | `src/parola/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, fotocamera, interfaccia, timer, voce | `npm run test:parola` |
+| parola | «Jarvis» sempre in ascolto: motore openWakeWord (caricato dopo, `parola/`), verificatore della pronuncia, soglia fissa, contesto | `src/parola/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, interfaccia, timer, voce | `npm run test:parola` |
 | assistente | turni con Gemini via `assist_pipeline/run`, pipeline del contesto, messaggi d'errore; la chat | `src/assistente/index.ts`, `componenti.ts` | casa, comune, connessione, diagnostica, interfaccia, voce | `npm run test:assistente` |
 | timer | timer di jarvis_voce per pannello, suoneria, servizi; schermata Timer, timer sotto l'orologio, «Timer finito», timer a tutto schermo | `src/timer/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, navigazione, riposo, voce | `npm run test:timer` |
 | annunci | Jarvis parla per primo (`jarvis_annuncio`), annunci scritti a riposo; Impostazioni → annunci | `src/annunci/index.ts`, `componenti.ts` | assistente, comune, connessione, diagnostica, interfaccia, voce | `npm run test:annunci` |
-| fotocamera | presenza, «Jarvis» più facile da vicino, guarda e parla, spia; modello del volto caricato dopo | `src/fotocamera/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia | `npm run test:fotocamera` |
+| fotocamera | presenza (sveglia lo schermo, avvisa HA), spia; modello del volto caricato dopo. Non tocca «Jarvis» (v0.6.5) | `src/fotocamera/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia | `npm run test:fotocamera` |
 | musica | Spotify via jarvis_musica: cosa suona, comandi, playlist, dispositivo del pannello, «Collega»; schermata Musica, mini-lettore | `src/musica/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia, navigazione | `npm run test:musica` |
 | meteo | previsione di HA, testi e icone, dettagli; meteo della Casa e schermata Meteo | `src/meteo/index.ts`, `componenti.ts` | comune, connessione, diagnostica, interfaccia | `npm run test:meteo` |
 | clima | schermata Clima: grafico delle stanze, consumi | `src/clima/componenti.ts` | casa, comune, connessione, diagnostica, interfaccia, meteo, navigazione | `npm run test:clima` |
@@ -1283,7 +1283,7 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   all'ora; un verificatore con pochi negativi e soglia base bassa → 48.
 - **`DecisioneScatto`** (`src/parola/decisione.ts`, logica pura usata dal
   pannello e dalla prova): `pazienza` frame di fila sopra soglia (di serie
-  2); la soglia personale solo se `verificato`; soglia che si adatta (più di
+  2); la soglia personale solo se `verificato`; [tolta nella v0.6.5: soglia fissa] soglia che si adatta (più di
   `vuoti` scatti a vuoto in `finestra` → +`passo`; dopo `quiete` senza
   scatti a vuoto −`passo`, mai sotto la base; massimo 0,95). Risultato:
   base 24 → 0/ora, «hey jarvis» nella TV 23/24.
@@ -1467,7 +1467,61 @@ dopo «Jarvis» da solo aspetta fino a 3 s; frase massima 30 s).
   `script.jarvis_*` (stato "on" per 1,2 s), batterie con `device_class`.
   Entità: 35.
 
+### Soglia fissa, fotocamera scollegata da «Jarvis», «[ignora]» (v0.6.5, 03/10)
+
+Richiesta di Salvatore del 03/10: «Jarvis» da 3-4 m a voce normale, uguale
+con la fotocamera coperta; muoversi in silenzio non deve attivare niente.
+
+- **Misura prima di toccare** (`test/unit/parola/parola-distanza.test.ts`,
+  modello vero): 24 «Jarvis» da solo (`jarvis-varianti.wav`, Piper) e 24
+  «hey jarvis» a 1-4 m con `aDistanza()` (audio-prove.ts: parlato a −26 dBFS
+  a 1 m, diretto −6 dB a raddoppio, riverbero di Schroeder RT60 0,5 s a
+  −3 dB, fruscio −50 dBFS), più 40 min di TV sintetica. **La distanza da sola
+  non toglie scatti** (mediana 0,986 → 0,979). «Jarvis» da solo ne perde 4-7
+  su 24 a ogni distanza: limite del modello «hey jarvis». TV: 15 falsi
+  all'ora a 0,3, 3 a 0,4, 1,5 a 0,45, 0 da 0,5. Un verificatore addestrato
+  a 1 m dice sì anche a 4 m. Tabella completa in STATO.md.
+- **Le cause vere** dei mancati scatti da lontano erano due meccanismi che
+  spostavano la soglia: quella **che si adattava** (con la TV saliva e restava
+  su 30 minuti) e lo **sconto con qualcuno vicino** (vicino più facile che
+  lontano). **Tolti tutti e due, codice compreso**: `OpzioniDecisione` ha solo
+  `pazienza`; `Soglie` solo `serie` e `personale`; le preferenze vecchie
+  (`adattiva`, `passo`, `vuoti`, `finestraMinuti`, `quieteMinuti`) si
+  ignorano e spariscono al primo salvataggio. Soglia di serie **0,5 fissa**,
+  si cambia in Impostazioni → Voce → Soglia e falsi scatti (vuoto = 0,5 o la
+  personale). La personale resta (vale solo sui punteggi del verificatore).
+- **Fotocamera = solo presenza.** `Presenza` non ha più `scontoSoglia`,
+  `staGuardando`, `qualcunoVicino`; `AscoltoParola` non riceve più la
+  presenza (`parola` non dipende più da `fotocamera`); via «guarda e parla»
+  (`forseSguardo`, `OpzioniVoce.silenziosoSeVuoto`) e `diFronte`. Preferenze
+  `jarvis-fotocamera`: `presenza` («Sveglia schermo con presenza», di serie
+  sì), `secondiSveglia` (5-600, di serie 30), `avvisaCasa`
+  (`jarvis_presenza`, di serie sì; chi aveva `presenza: false` lo ritrova
+  spento). Arrivo come prima (vicino dopo ≥ 60 s di assenza).
+- **Sveglia dello schermo** (`ControlloVista.svegliaPerPresenza(ms)`): solo da
+  `riposo` → `completo`; già acceso (completo o Hub) non fa niente, nemmeno
+  rimandare il riposo. Se poi nessuno tocca, preme un tasto o parla
+  (`attivita()` azzera il conto) entro `secondiSveglia`, torna a riposo
+  (`prossimaVista(..., rispegni)`), sempre solo se `puoRiposare`.
+- **«[ignora]»** (docs/ISTRUZIONI-JARVIS.md sezioni 1-3; jarvis_voce 0.3.2 la
+  silenzia lato server): il riduttore degli eventi (`assistente/eventi.ts`)
+  non la mostra mai. Tiene il testo a pezzi in `Turno.grezza` e lo copia in
+  `risposta` solo quando non può più diventare «[ignora]»; al finale, se è
+  «[ignora]» (spazi e maiuscole a parte) `risposta` resta vuota, anche se il
+  server ha svuotato il testo finale (prima si ripiegava sui pezzi). Vale
+  per chat, Hub e riquadro insieme. L'audio lo silenzia il server.
+- **Prove**: criteri (a) `fotocamera-coperta.spec.ts` (video `coperta.y4m`,
+  tutto nero) e `fotocamera-vicino.spec.ts`: stessa soglia 0,50; (b)
+  `fotocamera-silenzio.spec.ts` (volto davanti + parlato senza «Jarvis»:
+  nessuna richiesta); (c) `fotocamera.spec.ts` «dorme a riposo» (si
+  sveglia, dopo 30 s senza tocchi torna a riposo e non si risveglia) e
+  `vista.test.ts`. Controprova: senza il rispegnimento la (c) fallisce.
+
 ### Fotocamera: presenza, «Jarvis» più facile da vicino, guarda e parla (v0.6.0, 02/10)
+
+> **Superato in parte dalla v0.6.5** (sezione sopra): niente più sconto della
+> soglia né «guarda e parla»; la presenza sveglia solo lo schermo. Modello,
+> `Presenza`, prove e fuso orario restano come scritto qui.
 
 - **Modello**: UltraFace RFB-320 (MIT, 1,27 MB, `modelli/volto/` con
   LICENZA.md). Il grafo fa già softmax e decodifica (`scores`, `boxes`):
@@ -1876,6 +1930,14 @@ se ne scrive una nuova che annulla la precedente.
 - **2026-10-01** — **Workflow con 45 minuti di limite**: la release della
   v0.5.4 è stata annullata dai 20 minuti (verifica ~25 + Chromium 5).
 
+- **2026-10-03** — **v0.6.5**: soglia di «Jarvis» **fissa** a 0,5 (tolte la
+  soglia che si adattava e lo sconto della fotocamera, misurato che la
+  distanza da sola non era la causa); la fotocamera fa solo presenza
+  (sveglia lo schermo, poi si rispegne dopo 30 s senza tocchi; avvisa HA come
+  interruttore a parte); niente più «guarda e parla». Jarvis parla **come**
+  Tony Stark (del tu, niente «signore»), con la regola `[ignora]`; il pannello
+  non mostra mai `[ignora]`. Annulla, per la soglia, la voce v0.5.4 qui sopra.
+
 ## 7. Convenzioni
 
 - Tutto in italiano: codice, commenti, commit, documentazione, e **anche i
@@ -1929,6 +1991,20 @@ scripts/segui-release.sh <sha> [minuti]   # segue la release di un commit fino a
 ```
 
 ## 9. Lezioni imparate
+
+- **Misurare cosa sposta il risultato prima di cambiare la soglia.** Il
+  03/10 «da lontano non scatta» sembrava un problema di distanza: la misura
+  col modello vero ha detto che da 1 a 4 m il punteggio quasi non cambia, e
+  che a spostare la soglia erano due meccanismi «furbi» (adattiva e sconto
+  della fotocamera). Prima si misura la causa, poi si tocca il numero.
+- **Un filtro sul testo vale anche per i pezzi in arrivo.** «[ignora]» arriva
+  a pezzi durante la scrittura, e se il server svuota il testo finale il
+  pannello ripiegava proprio sui pezzi: filtrare solo il finale l'avrebbe
+  mostrato lo stesso.
+- **Una controprova che non compila non è una controprova.** Togliere una
+  riga ha lasciato un parametro inutilizzato: il build è fallito, la prova
+  non è nemmeno partita e la catena di `&&` non lo diceva. Una mutazione si
+  fa in modo che compili, e si guarda che la prova sia davvero girata.
 
 - **Aspettare una release: `scripts/segui-release.sh <sha>`, mai un ciclo che
   aspetta solo il successo.** Il 02/10 tre attese si sono bloccate (una

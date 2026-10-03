@@ -3,16 +3,15 @@ import { Assistente, type ConnessioneAssistente } from "../../../src/assistente/
 import type { EventoPipeline } from "../../../src/assistente/eventi";
 import { log } from "../../../src/diagnostica/log";
 import { AscoltoParola } from "../../../src/parola/ascolto";
-import { DecisioneScatto, DECISIONE_DI_SERIE, SOGLIA_MASSIMA } from "../../../src/parola/decisione";
+import { DecisioneScatto, DECISIONE_DI_SERIE } from "../../../src/parola/decisione";
 import { leggiPreferenzeParola, PREFERENZE_PAROLA_DI_SERIE } from "../../../src/parola/preferenze";
 import type { Bip, Riproduttore } from "../../../src/voce/audio";
 import type { Ascoltatori } from "../../../src/voce/microfono";
 import type { MicrofonoCondiviso } from "../../../src/voce/microfono-condiviso";
 import { Voce } from "../../../src/voce/voce";
 
-/** v0.5.4: falsi scatti con la TV. La logica pura, il registro e l'esito di ogni scatto. */
+/** v0.5.4: falsi scatti con la TV; v0.6.5: soglia fissa. La logica pura, il registro e l'esito di ogni scatto. */
 
-const MIN = 60_000;
 const s = { serie: 0.5, personale: null };
 
 describe("conferma: più frame di fila sopra soglia", () => {
@@ -40,50 +39,21 @@ describe("la soglia personale vale solo col verificatore", () => {
   });
 });
 
-describe("soglia che si adatta ai falsi scatti", () => {
-  it("più di 3 scatti vuoti in 10 minuti: sale di un passo; con 3 no", () => {
+describe("soglia fissa (v0.6.5)", () => {
+  it("niente la sposta: dopo tanti scatti la soglia è la stessa", () => {
     const d = new DecisioneScatto();
-    expect(d.esito(true, 0)).toBeNull();
-    expect(d.esito(true, 1 * MIN)).toBeNull();
-    expect(d.esito(true, 2 * MIN)).toBeNull();
-    const c = d.esito(true, 3 * MIN);
-    expect(c?.aumento).toBe(0.05);
-    expect(c?.motivo).toBe("più di 3 scatti senza parole in 10 minuti");
-    expect(d.soglia({ verificato: false }, s)).toBeCloseTo(0.55);
+    for (let k = 0; k < 40; k++) {
+      d.frame({ punteggio: 0.9, verificato: false }, s);
+      d.frame({ punteggio: 0.9, verificato: false }, s);
+    }
+    expect(d.soglia({ verificato: false }, s)).toBe(0.5);
+    expect(d.frame({ punteggio: 0.5, verificato: false }, s)).toBe(false);
+    expect(d.frame({ punteggio: 0.5, verificato: false }, s)).toBe(true);
   });
-  it("scatti vuoti sparsi (più di 10 minuti tra il primo e il quarto) non la alzano", () => {
-    const d = new DecisioneScatto();
-    for (const t of [0, 4, 8, 12]) expect(d.esito(true, t * MIN)).toBeNull();
-  });
-  it("le domande vere non contano", () => {
-    const d = new DecisioneScatto();
-    for (let k = 0; k < 10; k++) expect(d.esito(false, k * 1000)).toBeNull();
-    expect(d.aumento).toBe(0);
-  });
-  it("dopo 30 minuti tranquilli scende di un passo, mai sotto la sua base", () => {
-    const d = new DecisioneScatto();
-    for (let k = 0; k < 8; k++) d.esito(true, k * 1000); // due salite
-    expect(d.aumento).toBe(0.1);
-    expect(d.controlla(29 * MIN)).toBeNull();
-    expect(d.controlla(30 * MIN + 8000)?.aumento).toBe(0.05);
-    expect(d.controlla(45 * MIN)).toBeNull();
-    expect(d.controlla(61 * MIN)?.aumento).toBe(0);
-    expect(d.controlla(200 * MIN)).toBeNull();
-    expect(d.soglia({ verificato: true }, { serie: 0.5, personale: 0.3 })).toBe(0.3);
-  });
-  it("mai sopra 0,95, e spenta non sale", () => {
-    const d = new DecisioneScatto({
-      ...DECISIONE_DI_SERIE,
-      adattiva: { ...DECISIONE_DI_SERIE.adattiva, passo: 0.2 },
-    });
-    for (let k = 0; k < 40; k++) d.esito(true, k * 1000);
-    expect(d.soglia({ verificato: false }, s)).toBe(SOGLIA_MASSIMA);
-    const spenta = new DecisioneScatto({
-      ...DECISIONE_DI_SERIE,
-      adattiva: { ...DECISIONE_DI_SERIE.adattiva, attiva: false },
-    });
-    for (let k = 0; k < 40; k++) spenta.esito(true, k * 1000);
-    expect(spenta.aumento).toBe(0);
+  it("le preferenze vecchie della soglia che si adattava si ignorano", () => {
+    const p = leggiPreferenzeParola('{"adattiva":true,"passo":0.1,"vuoti":5,"quieteMinuti":60}');
+    for (const k of ["adattiva", "passo", "vuoti", "finestraMinuti", "quieteMinuti"])
+      expect(p).not.toHaveProperty(k);
   });
 });
 
@@ -95,11 +65,6 @@ describe("preferenze di «Jarvis» (personalizzabili, con valori di serie)", () 
       suono: true,
       sogliaManuale: null,
       pazienza: 2,
-      adattiva: true,
-      passo: 0.05,
-      finestraMinuti: 10,
-      vuoti: 3,
-      quieteMinuti: 30,
       impara: true,
     });
   });
@@ -110,13 +75,10 @@ describe("preferenze di «Jarvis» (personalizzabili, con valori di serie)", () 
     });
   });
   it("valori fuori misura si riportano nei limiti; un campo rotto non butta gli altri", () => {
-    const p = leggiPreferenzeParola(
-      '{"pazienza":99,"passo":"x","sogliaManuale":0.01,"vuoti":2.6,"suono":false}',
-    );
+    const p = leggiPreferenzeParola('{"pazienza":99,"impara":"x","sogliaManuale":0.01,"suono":false}');
     expect(p.pazienza).toBe(6);
-    expect(p.passo).toBe(0.05);
+    expect(p.impara).toBe(true);
     expect(p.sogliaManuale).toBe(0.05);
-    expect(p.vuoti).toBe(3);
     expect(p.suono).toBe(false);
     expect(leggiPreferenzeParola("rotto")).toEqual(PREFERENZE_PAROLA_DI_SERIE);
   });
@@ -144,7 +106,7 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  function prepara(presenza?: { scontoSoglia: () => number; staGuardando: () => boolean }) {
+  function prepara() {
     const f = connessioneFinta();
     let aperto = false;
     const microfono = {
@@ -178,7 +140,6 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
         ferma: () => undefined,
       } as unknown as ConstructorParameters<typeof AscoltoParola>[0]["timer"],
       adesso: () => t,
-      ...(presenza ? { presenza } : {}),
     });
     const motore = {
       sogliaSerie: 0.5,
@@ -220,29 +181,14 @@ describe("esito di ogni scatto: registro, soglia e apprendimento", () => {
     expect(p.imparati).toHaveLength(1);
   });
 
-  it("quattro falsi scatti in pochi minuti: la soglia sale, e il registro lo dice", async () => {
+  it("dieci falsi scatti di fila: la soglia resta quella (0,5), uguale prima e dopo", async () => {
     const p = prepara();
-    for (let k = 0; k < 4; k++) await p.scatto(null);
-    expect(p.a.aumentoSoglia).toBe(0.05);
-    expect(log.voci().some((v) => v.messaggio.startsWith("«Jarvis»: soglia +0,05 sopra la sua base"))).toBe(
-      true,
-    );
-  });
-
-  it("fotocamera (v0.6.0): con qualcuno vicino un punteggio appena sotto soglia scatta; senza nessuno no", async () => {
-    let sconto = 0;
-    const p = prepara({ scontoSoglia: () => sconto, staGuardando: () => false });
-    // nessuno visibile (anche con la TV accesa): come senza fotocamera, 0,47 < 0,50 non scatta
     expect(await p.scatto("che ore sono", 0.47)).toBe(false);
-    // qualcuno vicino: la soglia scende di un passo (0,45) e lo stesso punteggio scatta
-    sconto = 0.05;
-    expect(await p.scatto("che ore sono", 0.47)).toBe(true);
-    expect(
-      log.voci().some((v) => /soglia 0\.45, più bassa: qualcuno vicino al pannello/.test(v.messaggio)),
-    ).toBe(true);
-    // e la fotocamera non blocca mai: senza nessuno un punteggio alto scatta come sempre
-    sconto = 0;
-    expect(await p.scatto("che ore sono", 0.9)).toBe(true);
+    for (let k = 0; k < 10; k++) expect(await p.scatto(null)).toBe(true);
+    expect(p.a.dalVivo.soglia).toBe(0.5);
+    expect(await p.scatto("che ore sono", 0.47)).toBe(false);
+    expect(await p.scatto("che ore sono", 0.5)).toBe(true);
+    expect(log.voci().some((v) => v.messaggio.includes("sopra la sua base"))).toBe(false);
   });
 
   it("con «impara» spento i falsi scatti non diventano esempi", async () => {

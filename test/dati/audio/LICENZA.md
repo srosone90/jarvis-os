@@ -8,6 +8,7 @@
 | `silenzio.wav` | Fruscio bassissimo (rumore gaussiano, deviazione 15), 16 kHz mono, 3 s: il microfono finto di serie delle prove (v0.5.3) | Generato da uno script (seme fisso 20261001): nessuna licenza. |
 | `sottofondo-parlato.wav` | "TV" per la prova dei falsi scatti (v0.5.4): 24 frasi da telegiornale, talk show e pubblicità, alcune con parole simili a «Jarvis» (Travis, Davis, Harvey, Jervis…), velocità e intonazione diverse, 78 s; i punti in `segmenti.json` | Generata il 01/10/2026 con la stessa voce Piper (`en_US-lessac-medium`): stessa licenza di `hey-jarvis-piper.wav` |
 | `hey-jarvis-varianti.wav` | 24 «hey jarvis» detti in modi diversi (velocità 0,8-1,3, intonazione), 1,5 s di silenzio tra l'uno e l'altro, 59 s | Come sopra |
+| `jarvis-varianti.wav` | 24 «Jarvis» da solo (punto, esclamativo, domanda, virgola; velocità 0,8-1,3, intonazione 0,4-1,0), 1,5 s di silenzio tra l'uno e l'altro, 50 s: la taratura della soglia da lontano (v0.6.5) | Generata il 03/10/2026 con la stessa voce Piper: stessa licenza di `hey-jarvis-piper.wav` |
 | `rumore.wav` | Rumore, ronzio a 100 Hz e raffiche di toni modulati, 16 kHz mono, 4 s | Generato da uno script (seme fisso 20261001): nessuna licenza. |
 
 Punteggio di riferimento di `hey-jarvis-piper.wav` con openWakeWord 0.6.0 in

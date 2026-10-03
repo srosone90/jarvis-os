@@ -2,24 +2,20 @@ import { descriviErrore, log } from "../diagnostica";
 
 /**
  * Preferenze della fotocamera di QUESTO pannello (v0.6.0, punto 7.7 del
- * piano): tutto acceso di serie, fotocamera spenta di notte. Chiave
- * `jarvis-fotocamera` (si esporta con le altre).
+ * piano; v0.6.5): tutto acceso di serie, fotocamera spenta di notte. Chiave
+ * `jarvis-fotocamera` (si esporta con le altre). Dalla v0.6.5 la fotocamera
+ * non tocca più «Jarvis»: niente soglia più bassa da vicino, niente «guarda e
+ * parla» (le loro chiavi vecchie si ignorano).
  */
 type SensibilitaVolto = "bassa" | "normale" | "alta";
 
 export interface PreferenzeFotocamera {
-  /** Chi si avvicina sveglia il pannello e manda jarvis_presenza (buongiorno). */
+  /** Sveglia schermo con presenza: chi arriva riaccende lo schermo a riposo, e basta. */
   presenza: boolean;
-  /** Chi guarda il tablet e parla viene ascoltato senza dire «Jarvis». */
-  guardaParla: boolean;
-  /**
-   * Con qualcuno vicino (o che guarda il tablet) «Jarvis» scatta più
-   * facilmente: la soglia scende di `passoVicino` (punto 7.3, decisione del
-   * 02/10: la fotocamera aiuta l'attivazione, non la limita mai).
-   */
-  aiutoVicino: boolean;
-  /** Di quanto scende la soglia di «Jarvis» con qualcuno vicino (0,01-0,2). */
-  passoVicino: number;
+  /** Dopo una sveglia da presenza, secondi senza tocchi né voce prima che torni a riposo (5-600). */
+  secondiSveglia: number;
+  /** Chi arriva lo sa anche Home Assistant (`jarvis_presenza`, per il buongiorno). */
+  avvisaCasa: boolean;
   /** Fino a quanti metri «vicino» (0,5-3). */
   distanza: number;
   /** Quanto deve essere sicuro il modello che è un volto. */
@@ -33,16 +29,15 @@ export interface PreferenzeFotocamera {
 
 export const PREFERENZE_FOTOCAMERA_DI_SERIE: PreferenzeFotocamera = {
   presenza: true,
-  guardaParla: true,
-  aiutoVicino: true,
-  passoVicino: 0.05,
+  secondiSveglia: 30,
+  avvisaCasa: true,
   distanza: 1.5,
   sensibilita: "normale",
   fps: 3,
   spentaDa: "23:00",
   spentaA: "07:00",
 };
-export const LIMITI_FOTOCAMERA = { distanza: [0.5, 3], fps: [2, 5], passoVicino: [0.01, 0.2] } as const;
+export const LIMITI_FOTOCAMERA = { distanza: [0.5, 3], fps: [2, 5], secondiSveglia: [5, 600] } as const;
 /** Punteggio minimo del volto per sensibilità: alta = prende anche volti meno sicuri. */
 export const SOGLIA_VOLTO: Record<SensibilitaVolto, number> = { bassa: 0.95, normale: 0.85, alta: 0.7 };
 const SENSIBILITA: readonly SensibilitaVolto[] = ["bassa", "normale", "alta"];
@@ -55,10 +50,12 @@ export function leggiPreferenzeFotocamera(grezzo: string | null): PreferenzeFoto
   try {
     const d = JSON.parse(grezzo) as Record<string, unknown>;
     if (typeof d !== "object" || d === null) return p;
-    for (const k of ["presenza", "guardaParla", "aiutoVicino"] as const)
-      if (typeof d[k] === "boolean") p[k] = d[k];
-    if (typeof d["passoVicino"] === "number" && Number.isFinite(d["passoVicino"]))
-      p.passoVicino = Math.round(Math.min(0.2, Math.max(0.01, d["passoVicino"])) * 100) / 100;
+    for (const k of ["presenza", "avvisaCasa"] as const) if (typeof d[k] === "boolean") p[k] = d[k];
+    // fino alla v0.6.4 «presenza» decideva anche l'avviso a Home Assistant: chi l'aveva spenta lo ritrova spento
+    if (typeof d["avvisaCasa"] !== "boolean" && typeof d["presenza"] === "boolean")
+      p.avvisaCasa = d["presenza"];
+    if (typeof d["secondiSveglia"] === "number" && Number.isFinite(d["secondiSveglia"]))
+      p.secondiSveglia = Math.round(Math.min(600, Math.max(5, d["secondiSveglia"])));
     if (typeof d["distanza"] === "number" && Number.isFinite(d["distanza"]))
       p.distanza = Math.round(Math.min(3, Math.max(0.5, d["distanza"])) * 10) / 10;
     if (typeof d["fps"] === "number" && Number.isFinite(d["fps"]))

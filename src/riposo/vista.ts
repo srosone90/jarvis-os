@@ -11,7 +11,10 @@ import { descriviErrore, log } from "../diagnostica";
  *    se niente è in corso (voce, risposta, impostazioni aperte, login);
  *  - riposo → Hub: tocco sulla sfera (e parte l'ascolto); tocco altrove → completo;
  *  - Hub → riposo: 30 s dopo l'ultima attività (tocco o voce finita);
- *  - Hub → completo: tasto "griglia".
+ *  - Hub → completo: tasto "griglia";
+ *  - riposo → completo per presenza (v0.6.5, fotocamera): se nessuno tocca né
+ *    parla entro `rispegniMs`, torna a riposo; un tocco, un tasto o la voce
+ *    lo tengono acceso come sempre.
  */
 type Vista = "completo" | "riposo" | "hub";
 export type Momento = "mattina" | "giorno" | "sera" | "notte";
@@ -70,15 +73,21 @@ export function momentoDi(adesso: Date, imp: ImpostazioniRiposo): Momento {
   return "sera";
 }
 
-/** Dove andare adesso, se da qualche parte (funzione pura: la prova la usa da sola). */
+/**
+ * Dove andare adesso, se da qualche parte (funzione pura: la prova la usa da
+ * sola). `rispegni`: quando torna a riposo uno schermo svegliato dalla
+ * presenza e mai toccato (null = non è stato svegliato così).
+ */
 export function prossimaVista(
   vista: Vista,
   adesso: number,
   ultimaAttivita: number,
   imp: ImpostazioniRiposo,
   puoRiposare: boolean,
+  rispegni: number | null = null,
 ): Vista | null {
   if (!puoRiposare) return null;
+  if (vista === "completo" && rispegni !== null && adesso >= rispegni) return "riposo";
   if (vista === "completo" && imp.attesaMin !== null && adesso - ultimaAttivita >= imp.attesaMin * 60_000)
     return "riposo";
   if (vista === "hub" && adesso - ultimaAttivita >= HUB_A_RIPOSO_MS) return "riposo";
@@ -88,6 +97,8 @@ export function prossimaVista(
 export class ControlloVista {
   private attuale: Vista = "completo";
   private ultima: number;
+  /** Schermo svegliato dalla presenza e non ancora toccato: quando torna a riposo. */
+  private rispegni: number | null = null;
   private imp: ImpostazioniRiposo;
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly ascoltatori = new Set<() => void>();
@@ -135,11 +146,36 @@ export class ControlloVista {
   /** Qualcuno ha fatto qualcosa: il conto per il riposo riparte. */
   attivita(): void {
     this.ultima = this.adesso();
+    this.rispegni = null;
+  }
+
+  /**
+   * Qualcuno si è avvicinato (fotocamera, v0.6.5): lo schermo a riposo si
+   * riaccende e, se nessuno lo usa, torna a riposo dopo `rispegniMs`. Già
+   * acceso (pannello o Hub): non fa niente, nemmeno rimandare il riposo.
+   */
+  svegliaPerPresenza(rispegniMs: number): boolean {
+    if (this.attuale !== "riposo") return false;
+    this.vai("completo", "qualcuno si è avvicinato");
+    this.rispegni = this.adesso() + rispegniMs;
+    return true;
   }
 
   controlla(): void {
-    const dove = prossimaVista(this.attuale, this.adesso(), this.ultima, this.imp, this.puoRiposare());
-    if (dove) this.vai(dove, dove === "riposo" ? "nessun tocco" : "");
+    const presenza = this.rispegni !== null;
+    const dove = prossimaVista(
+      this.attuale,
+      this.adesso(),
+      this.ultima,
+      this.imp,
+      this.puoRiposare(),
+      this.rispegni,
+    );
+    if (dove)
+      this.vai(
+        dove,
+        dove === "riposo" ? (presenza ? "svegliato dalla presenza, nessun tocco" : "nessun tocco") : "",
+      );
   }
 
   vai(vista: Vista, motivo = ""): void {

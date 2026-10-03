@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.6.5
+
+**«Jarvis» uguale vicino e lontano, fotocamera solo per lo schermo**
+(richiesta di Salvatore del 03/10).
+
+- **Soglia fissa** (0,5 di serie, si cambia in Impostazioni → Voce → Soglia e
+  falsi scatti): tolta la soglia che saliva da sola con la TV e restava alta
+  mezz'ora, e tolto lo sconto con qualcuno vicino alla fotocamera. Misurato
+  col modello vero a 1, 2, 3 e 4 m: la distanza da sola non toglie scatti;
+  con 40 minuti di TV nessun falso scatto a 0,5.
+- **Fotocamera scollegata da «Jarvis»**: niente più «guarda e parla» né
+  soglia più bassa da vicino. La presenza fa una cosa sola: **riaccende lo
+  schermo a riposo** (se è già acceso non fa niente) e, se nessuno lo tocca
+  o gli parla, **lo rispegne dopo 30 secondi** (si cambia). L'avviso a Home
+  Assistant (`jarvis_presenza`, per il buongiorno) è un interruttore a
+  parte, acceso di serie.
+- **`[ignora]`**: quando Jarvis risponde così (frase non rivolta a lui) il
+  pannello non lo mostra mai, né mentre arriva né alla fine.
+- Istruzioni di Jarvis: parla **come Tony Stark** (del tu, niente
+  «signore»), regola `[ignora]`, «Puoi ripetere?» una volta sola.
+- Prova della chiusura della chat resa robusta (la release della v0.6.3 era
+  caduta lì): aspetta che la risposta sia chiusa, non un tempo fisso.
+
 ## v0.6.4
 
 Riordino del codice, blocco 3 di 3: **fine del riordino** (Parte 4 del piano

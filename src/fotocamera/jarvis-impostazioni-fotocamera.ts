@@ -22,10 +22,12 @@ const STATI: Record<StatoFotocamera, string> = {
 };
 
 /**
- * Impostazioni → Fotocamera (v0.6.0, punto 7.7): presenza, guarda e parla,
- * «Jarvis» più facile da vicino (e di quanto), distanza, sensibilità, fotogrammi al secondo, orari in cui
- * è spenta. Tutto acceso di serie, spenta di notte. Sopra, lo stato vero e
- * l'ultimo volto visto (punteggio e distanza stimata, per tarare).
+ * Impostazioni → Fotocamera (v0.6.0, punto 7.7; v0.6.5): sveglia schermo con
+ * presenza e dopo quanto si rispegne, avviso a Home Assistant, distanza,
+ * sensibilità, fotogrammi al secondo, orari in cui è spenta. Tutto acceso di
+ * serie, spenta di notte. Sopra, lo stato vero e l'ultimo volto visto
+ * (punteggio e distanza stimata, per tarare). Dalla v0.6.5 la fotocamera non
+ * tocca «Jarvis»: lo dice anche il pannello.
  */
 export class JarvisImpostazioniFotocamera extends RiquadroSicuro {
   static override styles = [
@@ -85,7 +87,7 @@ export class JarvisImpostazioniFotocamera extends RiquadroSicuro {
       }
       <small class="nota"
         >Niente si salva e niente esce dal tablet: a Home Assistant arriva solo «qualcuno è vicino a questo
-        pannello».</small
+        pannello». La fotocamera non cambia come senti «Jarvis»: funziona uguale anche coperta.</small
       >
     </div>`;
   }
@@ -98,42 +100,34 @@ export class JarvisImpostazioniFotocamera extends RiquadroSicuro {
     return html`${this.stato()}
     ${campoInterruttore({
       id: "fotocamera-presenza",
-      titolo: "Presenza",
-      spiegazione:
-        "Chi si avvicina sveglia il pannello, e Home Assistant lo sa (per il buongiorno). Al massimo una volta ogni 5 minuti.",
+      titolo: "Sveglia schermo con presenza",
+      spiegazione: "Chi si avvicina riaccende lo schermo a riposo. Se lo schermo è già acceso non fa niente.",
       valore: v.presenza,
       diSerie: d.presenza,
       cambia: (b) => cambia({ presenza: b }),
     })}
-    ${campoInterruttore({
-      id: "fotocamera-guarda",
-      titolo: "Guarda e parla",
-      spiegazione: "Se guardi il tablet e cominci a parlare, ti ascolta senza «Jarvis».",
-      valore: v.guardaParla,
-      diSerie: d.guardaParla,
-      cambia: (b) => cambia({ guardaParla: b }),
-    })}
-    ${campoInterruttore({
-      id: "fotocamera-aiuto",
-      titolo: "«Jarvis» più facile da vicino",
-      spiegazione:
-        "Con qualcuno vicino al pannello «Jarvis» scatta più facilmente. Senza nessuno davanti funziona come sempre: anche da lontano.",
-      valore: v.aiutoVicino,
-      diSerie: d.aiutoVicino,
-      cambia: (b) => cambia({ aiutoVicino: b }),
-    })}
     ${campoNumero({
-      id: "fotocamera-passo",
-      titolo: "Di quanto più facile",
-      spiegazione: "Quanto scende la soglia di «Jarvis» con qualcuno vicino (la linea bianca in Voce).",
-      valore: v.passoVicino,
-      diSerie: d.passoVicino,
-      min: LIMITI_FOTOCAMERA.passoVicino[0],
-      max: LIMITI_FOTOCAMERA.passoVicino[1],
-      passo: 0.01,
-      cifre: 2,
-      unita: "di soglia",
-      cambia: (n) => cambia({ passoVicino: n }),
+      id: "fotocamera-secondi",
+      titolo: "Si rispegne dopo",
+      spiegazione:
+        "Secondi prima che lo schermo svegliato così torni a riposo, se nessuno lo tocca o gli parla.",
+      valore: v.secondiSveglia,
+      diSerie: d.secondiSveglia,
+      min: LIMITI_FOTOCAMERA.secondiSveglia[0],
+      max: LIMITI_FOTOCAMERA.secondiSveglia[1],
+      passo: 5,
+      unita: "secondi",
+      disattivo: !v.presenza,
+      cambia: (n) => cambia({ secondiSveglia: n }),
+    })}
+    ${campoInterruttore({
+      id: "fotocamera-casa",
+      titolo: "Avvisa Home Assistant",
+      spiegazione:
+        "Chi si avvicina lo sa anche Home Assistant (per il buongiorno). Al massimo una volta ogni 5 minuti.",
+      valore: v.avvisaCasa,
+      diSerie: d.avvisaCasa,
+      cambia: (b) => cambia({ avvisaCasa: b }),
     })}
     ${campoNumero({
       id: "fotocamera-distanza",

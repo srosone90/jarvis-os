@@ -13,13 +13,12 @@ import {
   type Fotogramma,
   type Occhio,
 } from "../../../src/fotocamera/presenza";
-import { DecisioneScatto, SOGLIA_MINIMA } from "../../../src/parola/decisione";
-import { diFronte, distanza, ingresso, volti } from "../../../src/fotocamera/volto";
+import { distanza, ingresso, volti } from "../../../src/fotocamera/volto";
 
-/** v0.6.0: presenza e sguardo dalla fotocamera. */
+/** v0.6.0: presenza dalla fotocamera (dalla v0.6.5 solo sveglia dello schermo e avviso a Home Assistant). */
 
 describe("volti dal modello", () => {
-  it("soglia, NMS (doppioni via, il più sicuro resta), distanza e volto di fronte", () => {
+  it("soglia, NMS (doppioni via, il più sicuro resta) e distanza", () => {
     // 3 ancore: due quasi uguali (doppione), una sotto soglia
     const scores = [0.1, 0.9, 0.05, 0.95, 0.6, 0.4];
     const boxes = [0.35, 0.06, 0.53, 0.36, 0.351, 0.061, 0.531, 0.361, 0.1, 0.1, 0.2, 0.2];
@@ -29,9 +28,6 @@ describe("volti dal modello", () => {
     const d = distanza(v[0] ?? { x1: 0, y1: 0, x2: 0, y2: 0, punteggio: 0 });
     expect(d).toBeGreaterThan(0.7);
     expect(d).toBeLessThan(0.85);
-    expect(diFronte(v[0] ?? { x1: 0, y1: 0, x2: 0, y2: 0, punteggio: 0 })).toBe(true);
-    // di profilo il box è stretto e alto
-    expect(diFronte({ x1: 0.4, y1: 0.1, x2: 0.45, y2: 0.4, punteggio: 0.99 })).toBe(false);
   });
   it("ingresso: NCHW, (pixel - 127) / 128", () => {
     const rgba = new Uint8ClampedArray(320 * 240 * 4).fill(255);
@@ -61,26 +57,38 @@ describe("movimento", () => {
 });
 
 describe("preferenze della fotocamera", () => {
-  it("la vecchia regola della TV (tvSoloConQualcuno) non esiste più: un file vecchio non la riaccende", () => {
-    const p = leggiPreferenzeFotocamera(JSON.stringify({ tvSoloConQualcuno: true, aiutoVicino: false }));
-    expect(p).not.toHaveProperty("tvSoloConQualcuno");
-    expect(p.aiutoVicino).toBe(false);
+  it("le regole vecchie che toccavano «Jarvis» non esistono più: un file vecchio non le riaccende", () => {
+    const p = leggiPreferenzeFotocamera(
+      JSON.stringify({ tvSoloConQualcuno: true, guardaParla: true, aiutoVicino: true, passoVicino: 0.1 }),
+    );
+    for (const k of ["tvSoloConQualcuno", "guardaParla", "aiutoVicino", "passoVicino"])
+      expect(p).not.toHaveProperty(k);
+  });
+  it("fino alla v0.6.4 «presenza» spenta spegneva anche l'avviso a Home Assistant: resta spento", () => {
+    expect(leggiPreferenzeFotocamera(JSON.stringify({ presenza: false }))).toMatchObject({
+      presenza: false,
+      avvisaCasa: false,
+    });
+    expect(leggiPreferenzeFotocamera(JSON.stringify({ presenza: false, avvisaCasa: true })).avvisaCasa).toBe(
+      true,
+    );
   });
   it("tutto acceso di serie, spenta di notte; valori fuori misura nei limiti", () => {
     expect(PREFERENZE_FOTOCAMERA_DI_SERIE).toMatchObject({
       presenza: true,
-      guardaParla: true,
-      aiutoVicino: true,
-      passoVicino: 0.05,
+      secondiSveglia: 30,
+      avvisaCasa: true,
       spentaDa: "23:00",
       spentaA: "07:00",
     });
     expect(
-      leggiPreferenzeFotocamera(JSON.stringify({ distanza: 9, fps: 30, spentaDa: "25:00", passoVicino: 1 })),
+      leggiPreferenzeFotocamera(
+        JSON.stringify({ distanza: 9, fps: 30, spentaDa: "25:00", secondiSveglia: 1 }),
+      ),
     ).toMatchObject({
       distanza: 3,
       fps: 5,
-      passoVicino: 0.2,
+      secondiSveglia: 5,
       spentaDa: "23:00",
     });
     expect(leggiPreferenzeFotocamera("{rotto")).toEqual(PREFERENZE_FOTOCAMERA_DI_SERIE);
@@ -178,13 +186,9 @@ describe("Presenza", () => {
     await f.passa(1000);
     expect(f.arrivi).toHaveBeenCalledTimes(1);
     expect(f.invii).toEqual(["jarvis_cucina"]);
-    expect(f.p.qualcunoVicino()).toBe(true);
-    expect(f.p.staGuardando()).toBe(true);
     // va via e torna dopo 2 minuti: si sveglia di nuovo, ma niente secondo evento (5 minuti)
     f.scena(NESSUNO);
     await f.passa(ASSENZA_MS + 60_000);
-    expect(f.p.qualcunoVicino()).toBe(false);
-    expect(f.p.staGuardando()).toBe(false);
     f.scena(VICINO);
     await f.passa(1000);
     expect(f.arrivi).toHaveBeenCalledTimes(2);
@@ -211,17 +215,23 @@ describe("Presenza", () => {
     f.p.ferma();
   });
 
-  it("presenza spenta: niente risveglio né evento, ma lo sguardo sì; senza stanza niente evento", async () => {
-    const f = prepara({ pannello: null });
+  it("sveglia schermo e avviso a Home Assistant sono due interruttori; senza stanza niente evento", async () => {
+    const f = prepara();
     f.p.cambiaPreferenze({ presenza: false });
     f.p.avvia();
     f.scena(VICINO);
     await f.passa(1500);
     expect(f.arrivi).not.toHaveBeenCalled();
-    expect(f.p.staGuardando()).toBe(true);
-    f.p.cambiaPreferenze({ presenza: true, guardaParla: false });
-    expect(f.p.staGuardando()).toBe(false);
+    expect(f.invii).toEqual(["jarvis_cucina"]);
     f.p.ferma();
+    const h = prepara();
+    h.p.cambiaPreferenze({ avvisaCasa: false });
+    h.p.avvia();
+    h.scena(VICINO);
+    await h.passa(1500);
+    expect(h.arrivi).toHaveBeenCalledTimes(1);
+    expect(h.invii).toEqual([]);
+    h.p.ferma();
     const g = prepara({ pannello: null });
     g.p.avvia();
     g.scena(VICINO);
@@ -239,46 +249,11 @@ describe("Presenza", () => {
     expect(f.p.stato).toBe("notte");
     f.p.ferma();
     const g = prepara();
-    g.p.cambiaPreferenze({ presenza: false, guardaParla: false, aiutoVicino: false });
+    g.p.cambiaPreferenze({ presenza: false, avvisaCasa: false });
     g.p.avvia();
     await g.passa(1000);
     expect(g.occhio.apri).not.toHaveBeenCalled();
     expect(g.p.stato).toBe("spenta");
-  });
-
-  it("«Jarvis» più facile da vicino: sconto solo con qualcuno vicino, mai negli altri casi", async () => {
-    const f = prepara();
-    // fotocamera non ancora attiva: nessuno sconto, tutto come senza fotocamera
-    expect(f.p.scontoSoglia()).toBe(0);
-    f.p.avvia();
-    await f.passa(1000);
-    // stanza vuota: soglia normale (anche con la TV accesa: la TV qui non conta più)
-    expect(f.p.scontoSoglia()).toBe(0);
-    f.scena(LONTANO);
-    await f.passa(1000);
-    expect(f.p.scontoSoglia()).toBe(0);
-    f.scena(VICINO);
-    await f.passa(1000);
-    expect(f.p.scontoSoglia()).toBe(0.05);
-    f.p.cambiaPreferenze({ passoVicino: 0.12 });
-    await f.passa(500);
-    expect(f.p.scontoSoglia()).toBe(0.12);
-    f.p.cambiaPreferenze({ aiutoVicino: false });
-    await f.passa(500);
-    expect(f.p.scontoSoglia()).toBe(0);
-    f.p.cambiaPreferenze({ aiutoVicino: true });
-    // se ne va: dopo 10 s senza nessuno lo sconto finisce
-    f.scena(NESSUNO);
-    await f.passa(11_000);
-    expect(f.p.scontoSoglia()).toBe(0);
-    f.p.ferma();
-    // di notte la fotocamera è chiusa: nessuno sconto
-    const g = prepara({ ora: 2 });
-    g.scena(VICINO);
-    g.p.avvia();
-    await g.passa(1000);
-    expect(g.p.scontoSoglia()).toBe(0);
-    g.p.ferma();
   });
 
   it("errore della fotocamera (non consentita): lo dice, non riprova da sola, riprova cambiando le preferenze", async () => {
@@ -307,35 +282,5 @@ describe("Presenza", () => {
     expect(f.rileva.mock.calls.length).toBeGreaterThanOrEqual(4);
     expect(f.rileva.mock.calls.length).toBeLessThanOrEqual(7);
     f.p.ferma();
-  });
-});
-
-describe("soglia di «Jarvis» con qualcuno vicino", () => {
-  const e = { verificato: false };
-  it("lo sconto abbassa la soglia, anche sopra la soglia che si adatta; senza sconto non cambia niente", () => {
-    const d = new DecisioneScatto();
-    expect(d.soglia(e, { serie: 0.5, personale: null })).toBe(0.5);
-    expect(d.soglia(e, { serie: 0.5, personale: null, sconto: 0 })).toBe(0.5);
-    expect(d.soglia(e, { serie: 0.5, personale: null, sconto: 0.05 })).toBeCloseTo(0.45);
-    expect(d.soglia({ verificato: true }, { serie: 0.5, personale: 0.8, sconto: 0.1 })).toBeCloseTo(0.7);
-    // la soglia adattiva sale coi falsi scatti; chi è vicino la riporta giù di un passo
-    for (let i = 0; i < 4; i++) d.esito(true, i * 1000);
-    expect(d.soglia(e, { serie: 0.5, personale: null })).toBeCloseTo(0.55);
-    expect(d.soglia(e, { serie: 0.5, personale: null, sconto: 0.05 })).toBeCloseTo(0.5);
-  });
-  it("mai sotto la minima, e mai più alta di senza sconto", () => {
-    const d = new DecisioneScatto();
-    expect(d.soglia(e, { serie: 0.3, personale: null, sconto: 0.2 })).toBe(SOGLIA_MINIMA);
-    // una soglia scelta a mano già sotto la minima resta quella
-    expect(d.soglia(e, { serie: 0.1, personale: null, sconto: 0.2 })).toBe(0.1);
-  });
-  it("la conferma su più frame usa la soglia più bassa", () => {
-    const d = new DecisioneScatto();
-    const s = { serie: 0.5, personale: null, sconto: 0.05 };
-    const f = { punteggio: 0.47, verificato: false };
-    expect(d.frame(f, { serie: 0.5, personale: null })).toBe(false);
-    expect(d.frame(f, { serie: 0.5, personale: null })).toBe(false);
-    expect(d.frame(f, s)).toBe(false);
-    expect(d.frame(f, s)).toBe(true);
   });
 });

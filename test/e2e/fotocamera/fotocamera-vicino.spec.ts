@@ -2,23 +2,18 @@ import { expect, test } from "@playwright/test";
 import { accedi, apriDiagnostica, comando, dispositiviFinti, fotocameraAccesa, info } from "../aiuti";
 
 /**
- * v0.6.0, punto 7.3 (decisione di Salvatore del 02/10): la fotocamera AIUTA
- * l'attivazione. Qualcuno vicino al pannello (e la TV accesa, per mostrare
- * che non conta) → «Jarvis» scatta con la soglia più bassa di un passo.
+ * v0.6.5: la fotocamera non tocca «Jarvis». Qualcuno vicino al pannello →
+ * «Jarvis» scatta con la stessa soglia di sempre (0,50), come dal divano e
+ * con la fotocamera coperta (fotocamera-coperta.spec.ts). Fino alla v0.6.4
+ * vicino la soglia scendeva a 0,45.
  */
 
 test.use(dispositiviFinti({ video: "volto-vicino.y4m", audio: "hey-jarvis-piper.wav" }));
 
-test.beforeEach(async ({ page, request }) => {
+test("qualcuno vicino: «Jarvis» con la soglia di sempre, nessuno sconto", async ({ page, request }) => {
   await comando(request, "reset");
   await page.addInitScript(() => localStorage.setItem("jarvis-parola", JSON.stringify({ acceso: true })));
-  await comando(request, "stato", { entity_id: "media_player.soggiorno_tv_salotto", state: "on" });
-});
-
-async function scattoNelRegistro(
-  page: import("@playwright/test").Page,
-  request: import("@playwright/test").APIRequestContext,
-) {
+  await fotocameraAccesa(page);
   await accedi(page);
   await expect
     .poll(
@@ -28,27 +23,8 @@ async function scattoNelRegistro(
     )
     .toBeGreaterThan(0);
   await apriDiagnostica(page);
-  return page.getByTestId("log");
-}
-
-test("qualcuno vicino: «Jarvis» scatta con la soglia più bassa, e il registro lo dice", async ({
-  page,
-  request,
-}) => {
-  // guarda e parla spento, per vedere proprio lo scatto di «Jarvis»
-  await fotocameraAccesa(page, { guardaParla: false });
-  const registro = await scattoNelRegistro(page, request);
-  await expect(registro).toContainText(
-    /«Jarvis» sentito \(punteggio [\d.]+, modello di base, soglia 0\.45, più bassa: qualcuno vicino al pannello\)/,
-  );
-});
-
-test("controprova: «più facile da vicino» spento → stesso volto, soglia normale", async ({
-  page,
-  request,
-}) => {
-  await fotocameraAccesa(page, { guardaParla: false, aiutoVicino: false });
-  const registro = await scattoNelRegistro(page, request);
+  const registro = page.getByTestId("log");
+  await expect(registro).toContainText("Fotocamera: qualcuno si è avvicinato");
   await expect(registro).toContainText(
     /«Jarvis» sentito \(punteggio [\d.]+, modello di base, soglia 0\.50\)/,
   );

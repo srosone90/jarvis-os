@@ -448,5 +448,130 @@
         "a": 915206
       }
     ]
+  },
+  "jarvis-varianti": {
+    "campioni": 802326,
+    "segmenti": [
+      {
+        "testo": "Jarvis. (velocità 0.8, intonazione 0.4)",
+        "da": 16000,
+        "a": 24223
+      },
+      {
+        "testo": "Jarvis! (velocità 0.8, intonazione 0.667)",
+        "da": 48223,
+        "a": 56127
+      },
+      {
+        "testo": "Jarvis? (velocità 0.8, intonazione 0.8)",
+        "da": 80127,
+        "a": 87191
+      },
+      {
+        "testo": "Jarvis, (velocità 0.8, intonazione 1.0)",
+        "da": 111191,
+        "a": 119925
+      },
+      {
+        "testo": "Jarvis. (velocità 0.9, intonazione 0.4)",
+        "da": 143925,
+        "a": 153034
+      },
+      {
+        "testo": "Jarvis! (velocità 0.9, intonazione 0.667)",
+        "da": 177034,
+        "a": 185375
+      },
+      {
+        "testo": "Jarvis? (velocità 0.9, intonazione 0.8)",
+        "da": 209375,
+        "a": 215971
+      },
+      {
+        "testo": "Jarvis, (velocità 0.9, intonazione 1.0)",
+        "da": 239971,
+        "a": 248728
+      },
+      {
+        "testo": "Jarvis. (velocità 1.0, intonazione 0.4)",
+        "da": 272728,
+        "a": 281720
+      },
+      {
+        "testo": "Jarvis! (velocità 1.0, intonazione 0.667)",
+        "da": 305720,
+        "a": 314453
+      },
+      {
+        "testo": "Jarvis? (velocità 1.0, intonazione 0.8)",
+        "da": 338453,
+        "a": 346111
+      },
+      {
+        "testo": "Jarvis, (velocità 1.0, intonazione 1.0)",
+        "da": 370111,
+        "a": 378718
+      },
+      {
+        "testo": "Jarvis. (velocità 1.1, intonazione 0.4)",
+        "da": 402718,
+        "a": 411833
+      },
+      {
+        "testo": "Jarvis! (velocità 1.1, intonazione 0.667)",
+        "da": 435833,
+        "a": 445317
+      },
+      {
+        "testo": "Jarvis? (velocità 1.1, intonazione 0.8)",
+        "da": 469317,
+        "a": 478018
+      },
+      {
+        "testo": "Jarvis, (velocità 1.1, intonazione 1.0)",
+        "da": 502018,
+        "a": 511072
+      },
+      {
+        "testo": "Jarvis. (velocità 1.2, intonazione 0.4)",
+        "da": 535072,
+        "a": 544081
+      },
+      {
+        "testo": "Jarvis! (velocità 1.2, intonazione 0.667)",
+        "da": 568081,
+        "a": 577486
+      },
+      {
+        "testo": "Jarvis? (velocità 1.2, intonazione 0.8)",
+        "da": 601486,
+        "a": 609607
+      },
+      {
+        "testo": "Jarvis, (velocità 1.2, intonazione 1.0)",
+        "da": 633607,
+        "a": 642643
+      },
+      {
+        "testo": "Jarvis. (velocità 1.3, intonazione 0.4)",
+        "da": 666643,
+        "a": 677195
+      },
+      {
+        "testo": "Jarvis! (velocità 1.3, intonazione 0.667)",
+        "da": 701195,
+        "a": 711329
+      },
+      {
+        "testo": "Jarvis? (velocità 1.3, intonazione 0.8)",
+        "da": 735329,
+        "a": 744347
+      },
+      {
+        "testo": "Jarvis, (velocità 1.3, intonazione 1.0)",
+        "da": 768347,
+        "a": 778326
+      }
+    ]
   }
 }

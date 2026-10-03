@@ -79,10 +79,7 @@ export async function accedi(page: Page): Promise<void> {
   // girare il modello del volto in ogni prova
   await page.addInitScript(() => {
     if (localStorage.getItem("jarvis-fotocamera") === null)
-      localStorage.setItem(
-        "jarvis-fotocamera",
-        JSON.stringify({ presenza: false, guardaParla: false, aiutoVicino: false }),
-      );
+      localStorage.setItem("jarvis-fotocamera", JSON.stringify({ presenza: false, avvisaCasa: false }));
   });
   await page.goto("./index.html");
   await expect(page.getByTestId("accesso")).toBeVisible();

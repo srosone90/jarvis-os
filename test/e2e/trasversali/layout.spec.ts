@@ -1023,13 +1023,13 @@ for (const v of MISURE) {
       ],
       "impostazioni fotocamera",
     ).toEqual([]);
-    // più giù: «Jarvis» più facile da vicino e di quanto (punto 7.3 come deciso il 02/10)
-    await page.getByTestId("campo-fotocamera-passo").scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `schermate/layout/impostazioni-fotocamera-aiuto-${v.nome}.png` });
+    // più giù: dopo quanto si rispegne lo schermo svegliato dalla presenza (v0.6.5)
+    await page.getByTestId("campo-fotocamera-secondi").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `schermate/layout/impostazioni-fotocamera-sveglia-${v.nome}.png` });
     expect(await problemiTesto(page, v.width), "impostazioni fotocamera, più giù").toEqual([]);
     // il valore di serie si legge giusto (1,5 m, non arrotondato a 2)
     await expect(page.getByTestId("serie-fotocamera-distanza")).toHaveText("Di serie: 1,5 metri");
-    await expect(page.getByTestId("serie-fotocamera-passo")).toHaveText("Di serie: 0,05 di soglia");
+    await expect(page.getByTestId("serie-fotocamera-secondi")).toHaveText("Di serie: 30 secondi");
   });
 }
 

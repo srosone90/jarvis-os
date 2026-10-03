@@ -9,22 +9,24 @@ import {
   SOGLIA_VOLTO,
   type PreferenzeFotocamera,
 } from "./preferenze";
-import { diFronte, distanza, volti, type Volto } from "./volto";
+import { distanza, volti, type Volto } from "./volto";
 import { virgola } from "../comune";
 
 /**
- * Presenza e sguardo dalla fotocamera frontale (v0.6.0, punto 7 del piano).
+ * Presenza dalla fotocamera frontale (v0.6.0, punto 7 del piano; v0.6.5).
  *
- * - Chi si avvicina (entro `distanza`) dopo almeno un minuto di assenza
- *   sveglia il pannello (`alArrivo`) e, al massimo una volta ogni 5 minuti,
- *   manda `jarvis_presenza {pannello}` (via `script.jarvis_presenza`), per
- *   il buongiorno lato server.
- * - Con qualcuno vicino «Jarvis» scatta più facilmente (`scontoSoglia`,
- *   punto 7.3). La fotocamera aiuta l'attivazione e non la limita MAI:
- *   nessuno visibile = soglia normale, anche con la TV accesa (decisione di
- *   Salvatore del 02/10: «Jarvis» deve funzionare anche dal divano).
- * - Chi guarda il tablet (volto vicino e di fronte, adesso) può parlare
- *   senza «Jarvis» (`staGuardando`, punto 7.4: lo usa l'ascolto).
+ * Chi si avvicina (entro `distanza`) dopo almeno un minuto di assenza
+ * "arriva":
+ * - con «Sveglia schermo con presenza» (`presenza`) il pannello a riposo si
+ *   riaccende (`alArrivo`; se è già acceso non succede niente);
+ * - con `avvisaCasa`, al massimo una volta ogni 5 minuti, manda
+ *   `jarvis_presenza {pannello}` (via `script.jarvis_presenza`), per il
+ *   buongiorno lato server.
+ *
+ * Nient'altro (v0.6.5, richiesta di Salvatore del 03/10): la fotocamera NON
+ * tocca «Jarvis». Niente soglia più bassa con qualcuno vicino, niente «guarda
+ * e parla»: l'attivazione a voce è la stessa con la fotocamera coperta, e
+ * muoversi in silenzio davanti al tablet non fa partire l'ascolto.
  *
  * Le immagini restano in memoria per il solo fotogramma in corso: niente si
  * salva, niente esce dal tablet. Il modello del volto gira solo quando
@@ -72,9 +74,7 @@ export const INVIO_OGNI_MS = 5 * 60_000;
 const MODELLO_ALMENO_OGNI_MS = 2000;
 /** Movimento che fa girare subito il modello: frazione dei punti cambiati. */
 const MOVIMENTO_MINIMO = 0.02;
-/** «Guarda» vale per così poco: lo sguardo è adesso. */
-const SGUARDO_VALE_MS = 1500;
-/** «Qualcuno vicino» per la soglia più bassa di «Jarvis»: visto negli ultimi 10 s. */
+/** Con qualcuno visto negli ultimi 10 s il modello del volto gira a ogni fotogramma. */
 const VICINO_VALE_MS = 10_000;
 /** Ogni quanto il carico va nel registro. */
 const CARICO_OGNI_MS = 10 * 60_000;
@@ -96,7 +96,6 @@ export class Presenza {
   private readonly movimento = new Movimento();
   private ultimoModello = -Infinity;
   private ultimoVicino = -Infinity;
-  private ultimoSguardo = -Infinity;
   private ultimoInvio = -Infinity;
   private ultimoVolto: (Volto & { metri: number }) | null = null;
   private timerFoto: ReturnType<typeof setTimeout> | undefined;
@@ -105,7 +104,7 @@ export class Presenza {
   private readonly adesso: () => number;
   private readonly ora: () => Date;
   private readonly ascoltatori = new Set<() => void>();
-  /** Qualcuno è arrivato: l'interfaccia sveglia il pannello. */
+  /** Qualcuno è arrivato e «Sveglia schermo con presenza» è accesa: l'interfaccia riaccende lo schermo, se dorme. */
   alArrivo: () => void = () => undefined;
 
   constructor(private readonly dip: DipendenzePresenza) {
@@ -135,9 +134,9 @@ export class Presenza {
   get volto(): (Volto & { metri: number }) | null {
     return this.ultimoVolto;
   }
-  /** Serve la fotocamera? (una delle tre funzioni accesa) */
+  /** Serve la fotocamera? (una delle due funzioni accesa) */
   private get serve(): boolean {
-    return this.pref.presenza || this.pref.guardaParla || this.pref.aiutoVicino;
+    return this.pref.presenza || this.pref.avvisaCasa;
   }
 
   ascolta(f: () => void): () => void {
@@ -173,8 +172,8 @@ export class Presenza {
     else this.dip.archivio?.setItem(CHIAVE_FOTOCAMERA, JSON.stringify(this.pref));
     const p = this.pref;
     log.info(
-      `Fotocamera: presenza ${p.presenza ? "sì" : "no"}, guarda e parla ${p.guardaParla ? "sì" : "no"}, ` +
-        `«Jarvis» più facile con qualcuno vicino ${p.aiutoVicino ? `sì (−${p.passoVicino})` : "no"}, entro ${p.distanza} m, sensibilità ${p.sensibilita}, ` +
+      `Fotocamera: sveglia schermo ${p.presenza ? `sì (si rispegne dopo ${p.secondiSveglia} s)` : "no"}, ` +
+        `avvisa Home Assistant ${p.avvisaCasa ? "sì" : "no"}, entro ${p.distanza} m, sensibilità ${p.sensibilita}, ` +
         `${p.fps} fotogrammi/s, spenta ${p.spentaDa}-${p.spentaA}`,
     );
     // fps cambiati: si riapre; un errore di prima si riprova subito
@@ -182,25 +181,6 @@ export class Presenza {
     if (this.statoFoto === "errore") this.statoFoto = "spenta";
     void this.controlla();
     this.notifica();
-  }
-
-  /** Qualcuno vicino negli ultimi `entro` ms (fotocamera attiva). */
-  qualcunoVicino(entro = VICINO_VALE_MS): boolean {
-    return this.attiva && this.adesso() - this.ultimoVicino <= entro;
-  }
-
-  /** Qualcuno guarda il tablet adesso (guarda e parla acceso). */
-  staGuardando(): boolean {
-    return this.pref.guardaParla && this.attiva && this.adesso() - this.ultimoSguardo <= SGUARDO_VALE_MS;
-  }
-
-  /**
-   * Punto 7.3: di quanto scende adesso la soglia di «Jarvis». Qualcuno vicino
-   * (chi guarda il tablet è vicino per forza) → `passoVicino`; nessuno, o
-   * fotocamera spenta → 0, cioè tutto come senza fotocamera. Mai un aumento.
-   */
-  scontoSoglia(): number {
-    return this.pref.aiutoVicino && this.qualcunoVicino() ? this.pref.passoVicino : 0;
   }
 
   private occhioAperto(): boolean {
@@ -305,21 +285,21 @@ export class Presenza {
     if (!primo) return;
     const arrivo = adesso - this.ultimoVicino > ASSENZA_MS;
     this.ultimoVicino = adesso;
-    if (vicini.some(diFronte)) this.ultimoSguardo = adesso;
     if (arrivo) this.arrivato(primo.metri);
     this.notifica();
   }
 
   private arrivato(metri: number): void {
-    if (!this.pref.presenza) return;
     const adesso = this.adesso();
     this.carico.arrivi += 1;
     log.info(`Fotocamera: qualcuno si è avvicinato (~${virgola(metri, 1)} m)`);
-    try {
-      this.alArrivo();
-    } catch (errore) {
-      log.errore(`Fotocamera: risveglio del pannello in errore: ${descriviErrore(errore)}`);
-    }
+    if (this.pref.presenza)
+      try {
+        this.alArrivo();
+      } catch (errore) {
+        log.errore(`Fotocamera: risveglio del pannello in errore: ${descriviErrore(errore)}`);
+      }
+    if (!this.pref.avvisaCasa) return;
     const pannello = this.dip.pannello();
     if (!pannello) return;
     if (adesso - this.ultimoInvio < INVIO_OGNI_MS) return;

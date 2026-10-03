@@ -53,6 +53,33 @@ describe("eventi della pipeline → turno", () => {
     expect(t.concluso).toBe(true);
   });
 
+  it("«[ignora]» (v0.6.5): mai mostrato, né a pezzi né finale, anche se il server svuota il finale", () => {
+    const delta = (content: string) => ({ type: "intent-progress", data: { chat_log_delta: { content } } });
+    let t = applicaEvento(nuovoTurno(1, "e poi gli ho detto"), { type: "run-start", data: {} });
+    for (const pezzo of ["[ig", "nora", "]"]) {
+      t = applicaEvento(t, delta(pezzo));
+      expect(t.risposta).toBe("");
+      expect(t.fase).toBe("pensa");
+    }
+    // il server lo silenzia svuotando il testo finale: non si ripiega sui pezzi
+    expect(applicaEvento(t, { type: "intent-end", data: uscita("") })).toMatchObject({
+      fase: "fatto",
+      risposta: "",
+    });
+    // o lo lascia com'è (anche con spazi o maiuscole)
+    expect(applicaEvento(t, { type: "intent-end", data: uscita(" [Ignora] ") }).risposta).toBe("");
+    // agente senza streaming: lo stesso
+    expect(applicaEvento(nuovoTurno(2, "x"), { type: "intent-end", data: uscita("[ignora]") }).risposta).toBe(
+      "",
+    );
+    // controprova: una risposta vera che comincia come «[ignora]» per un pezzo si vede tutta
+    let v = applicaEvento(nuovoTurno(3, "x"), delta("["));
+    expect(v.risposta).toBe("");
+    v = applicaEvento(v, delta("1] Fatto."));
+    expect(v.risposta).toBe("[1] Fatto.");
+    expect(applicaEvento(v, { type: "intent-end", data: uscita("") }).risposta).toBe("[1] Fatto.");
+  });
+
   it("agente senza streaming: solo intent-end, il testo arriva comunque", () => {
     const t = applicaEvento(nuovoTurno(1, "ciao"), { type: "intent-end", data: uscita("Ciao!") });
     expect(t.fase).toBe("fatto");

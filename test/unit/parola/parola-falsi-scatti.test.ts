@@ -23,8 +23,8 @@ import { aInt16, FR, frameDi, leggiWav, segmenti, tv } from "./audio-prove";
  * "TV" sintetica (frasi Piper in ordine casuale, a volume variabile, con
  * parole simili a «Jarvis» e musica a tratti), e il pannello simulato frame
  * per frame con la stessa logica (`DecisioneScatto`): pausa di 2 s dopo uno
- * scatto, e ogni falso scatto torna come trascrizione vuota (così la soglia
- * che si adatta lo vede, come sul pannello).
+ * scatto. Dalla v0.6.5 la soglia è fissa (niente più soglia che si adatta):
+ * con 2 frame di fila a 0,5 la TV non basta comunque.
  */
 
 const MINUTI_TV = 20;
@@ -41,24 +41,20 @@ function simula(
   frame: Frame[],
   opzioni: OpzioniDecisione,
   soglie: { serie: number; personale: number | null },
-  vero: (i: number) => boolean = () => false,
-): { scatti: number[]; aumentoFinale: number } {
+): { scatti: number[] } {
   const d = new DecisioneScatto(opzioni);
   const scatti: number[] = [];
   let ultimo = -Infinity;
   frame.forEach((e, i) => {
-    const t = i * FRAME_MS;
-    d.controlla(t);
     const scatta = d.frame(e, soglie);
     if (!scatta || i - ultimo < PAUSA_FRAME) return;
     ultimo = i;
     scatti.push(i);
-    d.esito(!vero(i), t);
   });
-  return { scatti, aumentoFinale: d.aumento };
+  return { scatti };
 }
 
-const PRIMA: OpzioniDecisione = { pazienza: 1, adattiva: { ...DECISIONE_DI_SERIE.adattiva, attiva: false } };
+const PRIMA: OpzioniDecisione = { pazienza: 1 };
 const DOPO = DECISIONE_DI_SERIE;
 const allOra = (n: number) => (n * 60) / MINUTI_TV;
 
@@ -91,7 +87,7 @@ const base = (f: EsitoFrame[]): Frame[] => f.map((x) => ({ punteggio: x.punteggi
 const dentro = (i: number, [da, a]: [number, number]) => i >= da && i <= a;
 
 describe(`falsi scatti con ${MINUTI_TV} minuti di TV (modello vero)`, () => {
-  it("prima (v0.5.3: un frame basta) vs dopo (2 frame di fila + soglia che si adatta): ≤ 1 all'ora", () => {
+  it("prima (v0.5.3: un frame basta) vs dopo (2 frame di fila, soglia fissa 0,5): ≤ 1 all'ora", () => {
     const soglie = { serie: 0.5, personale: null };
     const prima = simula(base(fondo), PRIMA, soglie).scatti.length;
     const dopo = simula(base(fondo), DOPO, soglie).scatti.length;
@@ -105,7 +101,7 @@ describe(`falsi scatti con ${MINUTI_TV} minuti di TV (modello vero)`, () => {
   it("«hey jarvis» dentro la TV: riconosciuto ≥ 95% anche dopo, ai due volumi della TV", () => {
     for (const [k, m] of mescolate.entries()) {
       const vero = (i: number) => m.finestre.some((f) => dentro(i, f));
-      const { scatti } = simula(base(m.frame), DOPO, { serie: 0.5, personale: null }, vero);
+      const { scatti } = simula(base(m.frame), DOPO, { serie: 0.5, personale: null });
       const presi = m.finestre.filter((f) => scatti.some((s) => dentro(s, f))).length;
       const falsi = scatti.filter((s) => !vero(s)).length;
       process.stdout.write(
@@ -153,13 +149,10 @@ describe(`falsi scatti con ${MINUTI_TV} minuti di TV (modello vero)`, () => {
     for (let i = 0; i < fondo.length; i++) {
       const x = fondo[i];
       if (!x) continue;
-      const t = i * FRAME_MS;
-      d.controlla(t);
       if (!d.frame(punteggioFinale(x.punteggio, x.caratteristiche, v, sogliaBase), soglie)) continue;
       if (i - ultimo < PAUSA_FRAME) continue;
       ultimo = i;
       scatti.push(i);
-      d.esito(true, t);
       falsi.push(
         ...fondo.slice(Math.max(0, i - FRAME_FALSO_SCATTO + 1), i + 1).map((f) => f.caratteristiche),
       );

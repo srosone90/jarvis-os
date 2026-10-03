@@ -1,6 +1,6 @@
 {
   "name": "jarvis-os",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "private": true,
   "description": "Jarvis OS — pannello domotico a muro (PWA) per Home Assistant",
   "type": "module",

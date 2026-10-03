@@ -5,7 +5,7 @@ import { accedi, apriImpostazioni, comando, dispositiviFinti, fotocameraAccesa, 
  * v0.6.0: fotocamera vera di Chromium che "vede" un video di prova
  * (test/dati/video, foto NASA di dominio pubblico) e il modello del volto
  * vero, nel pannello compilato. Presenza → script.jarvis_presenza {pannello},
- * spia, distanza, orari.
+ * spia, distanza, orari; v0.6.5: sveglia dello schermo e rispegnimento.
  */
 
 test.use(dispositiviFinti({ video: "volto-vicino.y4m" }));
@@ -53,18 +53,20 @@ test("qualcuno vicino: spia accesa, presenza mandata una volta sola (script, mai
   await expect(page.getByTestId("log")).toContainText("Fotocamera: qualcuno si è avvicinato");
 });
 
-test("controprova: presenza spenta → nessun evento; spenta del tutto → niente spia", async ({
+test("controprova: avviso a Home Assistant spento → nessun evento; spento anche la sveglia → niente spia", async ({
   page,
   request,
 }) => {
-  await fotocameraAccesa(page, { presenza: false });
+  await fotocameraAccesa(page, { avvisaCasa: false });
   await accedi(page);
   await expect(page.getByTestId("spia-fotocamera")).toBeVisible({ timeout: 15_000 });
   await page.waitForTimeout(5000);
   expect(await presenze(request)).toEqual([]);
   await apriImpostazioni(page, "fotocamera");
-  await page.getByTestId("campo-fotocamera-guarda").uncheck();
-  await page.getByTestId("campo-fotocamera-aiuto").uncheck();
+  await expect(page.getByTestId("campo-fotocamera-guarda")).toHaveCount(0);
+  await expect(page.getByTestId("campo-fotocamera-aiuto")).toHaveCount(0);
+  await page.getByTestId("campo-fotocamera-presenza").uncheck();
+  await expect(page.getByTestId("campo-fotocamera-secondi")).toBeDisabled();
   await expect(page.getByTestId("spia-fotocamera")).toHaveCount(0);
   await expect(page.getByTestId("fotocamera-stato-testo")).toHaveText("Spenta");
 });
@@ -93,7 +95,7 @@ test("ore di riposo della fotocamera: spenta, niente spia né eventi; fuori da q
   await expect(page.getByTestId("spia-fotocamera")).toBeVisible({ timeout: 15_000 });
 });
 
-test("dorme a riposo: chi arriva lo sveglia (la fotocamera si accende mentre dorme)", async ({
+test("dorme a riposo: chi arriva lo sveglia, e se nessuno lo usa dopo 30 s torna a riposo", async ({
   page,
   request,
 }) => {
@@ -116,4 +118,10 @@ test("dorme a riposo: chi arriva lo sveglia (la fotocamera si accende mentre dor
   await page.clock.fastForward(180_000);
   await expect.poll(() => presenze(request), { timeout: 20_000 }).toHaveLength(1);
   await expect(page.getByTestId("riposo")).toHaveCount(0, { timeout: 10_000 });
+  // la persona resta lì ma non tocca niente: dopo i 30 s di serie lo schermo torna a riposo,
+  // e non si risveglia (è ancora la stessa persona: nessun nuovo arrivo)
+  await page.clock.fastForward(31_000);
+  await expect(page.getByTestId("riposo")).toBeVisible({ timeout: 10_000 });
+  await page.clock.fastForward(20_000);
+  await expect(page.getByTestId("riposo")).toBeVisible();
 });

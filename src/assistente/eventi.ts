@@ -35,8 +35,10 @@ export interface Turno {
   id: number;
   domanda: string;
   fase: FaseTurno;
-  /** Testo della risposta: in arrivo durante "scrive", definitivo a "fatto". */
+  /** Testo della risposta: in arrivo durante "scrive", definitivo a "fatto". Mai «[ignora]» (v0.6.5). */
   risposta: string;
+  /** Il testo arrivato a pezzi così com'è, anche quando non si mostra (`IGNORA`). */
+  grezza: string;
   azioni: Azione[];
   errore: { tipo: TipoErrore; dettaglio: string } | null;
   /** Gemini ha chiamato almeno uno strumento: un comando potrebbe essere partito. */
@@ -81,6 +83,7 @@ export function nuovoTurno(id: number, domanda: string, voce = false): Turno {
     annuncio: false,
     fase: voce ? "ascolto" : "invio",
     risposta: "",
+    grezza: "",
     azioni: [],
     errore: null,
     strumentiChiamati: false,
@@ -102,6 +105,21 @@ const oggetto = (v: unknown): Oggetto | null =>
   typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Oggetto) : null;
 const testo = (v: unknown): string | null => (typeof v === "string" ? v : null);
 const numero = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/**
+ * La risposta con cui Jarvis dice «questa frase non era per me» (v0.6.5,
+ * docs/ISTRUZIONI-JARVIS.md sezione 2): il server (jarvis_voce 0.3.2) la
+ * silenzia, il pannello non la mostra mai (chat, Hub, riquadro). Se il
+ * server svuota il testo finale, il pannello ripiegherebbe proprio sui pezzi
+ * arrivati prima: per questo si controllano anche quelli.
+ */
+const IGNORA = "[ignora]";
+const eIgnora = (s: string): boolean => s.trim().toLowerCase() === IGNORA;
+/** Il testo arrivato finora potrebbe diventare «[ignora]» (le risposte vere non cominciano con «[»). */
+const forseIgnora = (s: string): boolean => {
+  const t = s.trim().toLowerCase();
+  return t.length > 0 && IGNORA.startsWith(t);
+};
 
 /** Testo parlato di una risposta di HA: `speech.plain.speech`. */
 function testoRisposta(risposta: unknown): string {
@@ -201,8 +219,11 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
           ),
         };
       const pezzo = testo(delta.content);
-      if (pezzo) return { ...t, fase: "scrive", risposta: t.risposta + pezzo };
-      return t;
+      if (!pezzo) return t;
+      const grezza = t.grezza + pezzo;
+      // «[ignora]» che arriva a pezzi non si mostra nemmeno per un attimo
+      if (forseIgnora(grezza)) return { ...t, grezza };
+      return { ...t, fase: "scrive", risposta: grezza, grezza };
     }
     case "intent-end": {
       const uscita = oggetto(dati.intent_output);
@@ -218,11 +239,11 @@ export function applicaEvento(t: Turno, ev: EventoPipeline): Turno {
         };
       }
       // il testo finale di HA vince su quello arrivato a pezzi
-      const finale = testoRisposta(risposta) || t.risposta;
+      const finale = testoRisposta(risposta) || t.grezza;
       return {
         ...t,
         fase: "fatto",
-        risposta: finale,
+        risposta: eIgnora(finale) ? "" : finale,
         conversationId,
         continua: uscita?.continue_conversation === true,
       };

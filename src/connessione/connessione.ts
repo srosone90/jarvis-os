@@ -118,23 +118,19 @@ export class Connessione {
     (servizio, dati) => this.chiamaServizio("jarvis_voce", servizio, dati),
     proprietarioTimer,
   );
-  /**
-   * Fotocamera (v0.6.0): presenza, «Jarvis» più facile da vicino, guarda e parla. PRIMA
-   * della parola, che la usa (i campi si creano in ordine).
-   */
+  /** Fotocamera (v0.6.0): presenza, che sveglia lo schermo. Non tocca «Jarvis» (v0.6.5). */
   readonly presenza = new Presenza({
     occhio: new OcchioFotocamera(),
     caricaMotore: caricaMotoreVolto,
     invia: (pannello) => this.inviaPresenza(pannello),
     pannello: dispositivoPannello,
   });
-  /** «Jarvis» sempre in ascolto (v0.5.0): dopo voce, timer e fotocamera, che usa. */
+  /** «Jarvis» sempre in ascolto (v0.5.0): dopo voce e timer, che usa (i campi si creano in ordine). */
   readonly parola = new AscoltoParola({
     micro: this.microfono,
     assistente: this.assistente,
     voce: this.voce,
     timer: this.timer,
-    presenza: this.presenza,
   });
 
   constructor() {
